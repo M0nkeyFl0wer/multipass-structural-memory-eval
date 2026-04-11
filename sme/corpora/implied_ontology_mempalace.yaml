@@ -1,0 +1,152 @@
+# Implied ontology for MemPalace (milla-jovovich/mempalace 3.1.0)
+#
+# Hand-extracted from the MemPalace README. This is what the project
+# claims it is and does. Cat 8 tests these claims against the actual
+# graph and retrieval behavior of a live palace.
+#
+# Every claim is labeled with a source line range from the README so
+# the reader can verify we didn't strawman. The claim library at
+# sme/claims/structural_claims.yaml operationalizes most of these via
+# its regex patterns; claims that don't match a pattern are reported
+# as "untestable" and excluded from the pass rate.
+
+version: "mempalace-v3.1.0"
+source: "readme"
+source_repo: "github.com/milla-jovovich/mempalace"
+extracted_on: "2026-04-10"
+extracted_by: "hand (sme-eval maintainer)"
+
+# --- Entity types declared in the README -----------------------------
+# "organized into wings (people and projects), halls (types of
+# memory), and rooms (specific ideas)" — README line 15
+# "Inside those closets are drawers" — README line 202
+# "tunnels connect rooms from different wings" — README line 204
+
+entity_types:
+  - wing
+  - hall
+  - room
+  - drawer
+  - closet
+  - tunnel
+
+# --- Edge types declared in the README -------------------------------
+# "Halls — connections between related rooms within the same wing"
+#   — README line 240
+# "Tunnels — connect rooms from different wings to one another"
+#   — README line 204
+
+edge_types:
+  - hall       # within-wing room-to-room link
+  - tunnel     # cross-wing room-to-room link via shared room name
+  - member_of  # implicit: drawer -> room, room -> wing
+
+# --- Hall vocabulary (the claimed 5 standard halls) ------------------
+# README lines 246-250:
+#   hall_facts — decisions made, choices locked in
+#   hall_events — sessions, milestones, debugging
+#   hall_discoveries — breakthroughs, new insights
+#   hall_preferences — habits, likes, opinions
+#   hall_advice — recommendations and solutions
+
+hall_vocabulary:
+  - facts
+  - events
+  - discoveries
+  - preferences
+  - advice
+
+# --- Structural claims (operationalized via claim library) -----------
+
+structural_claims:
+
+  - id: hierarchical_organization
+    text: "memories organized hierarchically into wings > halls > rooms > drawers"
+    source_line: 15
+    # Matches claim library pattern: "hierarchical|nested|tree.structured"
+    # Operationalized as: modularity > 0.5 AND degree distribution power-law
+
+  - id: cross_wing_tunnels
+    text: "tunnels connect rooms from different wings"
+    source_line: 204
+    # Matches claim library pattern: "cross.*(wing|domain|type|community).*connect|tunnel"
+    # Operationalized as: inter-community edge density > 0
+
+  - id: partitioned_by_type
+    text: "entities are partitioned by type into wings (people and projects)"
+    source_line: 15
+    # Matches claim library pattern: "partition.*by.*type|organiz.*by.*type|wing.*type"
+    # Operationalized as: type homogeneity within communities > 0.9
+
+  - id: wing_filtering_improves_retrieval
+    text: "wing and room filtering improves retrieval by 34%"
+    source_line: 273
+    # Marketing claim — matches "improv.*retrieval|better.*retrieval|filter.*improv"
+    # Operationalized as: Cat 7 win rate > 0.55
+    # NOTE: README itself retracts this claim at line 62 as "misleading";
+    # we test both the marketing claim and the retraction below.
+
+  - id: wing_filtering_is_not_a_moat
+    text: "metadata filtering is a standard ChromaDB feature, not a novel retrieval mechanism"
+    source_line: 62
+    # Retrospective claim from the same README. Passes if the measured
+    # retrieval difference is within the noise floor of flat ChromaDB —
+    # in other words, the honest retraction is correct.
+    operational_override:
+      # This claim doesn't match any library pattern, so Cat 8 falls
+      # back to an inline operationalization.
+      metric: "cat7_delta_recall"
+      pass_condition: "abs(recall_B - recall_A) < 0.1"
+      description: |
+        Passes if the structural condition (B) performs within ±10pp
+        of the flat baseline (A) on retrieval recall. The retraction
+        is saying "this isn't a moat" — so "near flat" is correct.
+        A large positive delta would mean the retraction is wrong
+        (filtering IS a moat). A large negative delta would mean
+        the retraction is *also* wrong but in the other direction
+        (filtering is actively harmful, not just non-moat).
+
+# --- Vocabulary claims (not operationalized — informational) ---------
+# These are vocabulary existence claims rather than structural claims.
+# Cat 8 treats them as "untestable via structural metrics" and reports
+# them separately via adapter-specific hall usage checks.
+
+vocabulary_claims:
+
+  - id: five_standard_halls
+    text: "drawers are tagged with one of 5 standard hall types"
+    source_lines: [246, 247, 248, 249, 250]
+    expected_values: [facts, events, discoveries, preferences, advice]
+    # Cat 8 adapter-specific check: fraction of drawers with
+    # non-empty `hall` metadata, distribution of hall values
+
+  - id: closets_summarize_drawers
+    text: "closets are summaries pointing back to the original drawers"
+    source_line: 202
+    # Cat 8 check: does the graph snapshot expose closet entities?
+    expected_entity_type: closet
+
+  - id: closets_achieve_96pct_recall
+    text: "closets achieve 96.6% recall in benchmarks"
+    source_line: 202
+    # Cat 1 / Cat 7 measurement — not Cat 8. Flagged for cross-category.
+
+# --- Retrieval claims (defer to Cat 7 or Cat 1) ----------------------
+
+retrieval_claims:
+
+  - id: wing_plus_room_34pct
+    text: "wing + room filtering yields 94.8% R@10 (+34%)"
+    source_lines: [269, 270, 542]
+    defers_to: cat7
+    marketing: true
+
+  - id: wing_plus_hall_24pct
+    text: "wing + hall filtering yields 84.8% R@10 (+24%)"
+    source_line: 269
+    defers_to: cat7
+    marketing: true
+    notes: >
+      Cannot be tested on project-mined palaces because hall field
+      is not populated during project mining (only during convo
+      mining). Reportable only on palaces seeded via conversations.

@@ -1,0 +1,72 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "sme-eval"
+version = "0.0.1"
+description = "Structural Memory Evaluation: a benchmark framework that tests what a memory system knows about its own structure"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [
+    { name = "Ben West" },
+]
+keywords = ["knowledge-graph", "rag", "memory", "benchmark", "topology", "evaluation"]
+classifiers = [
+    "Development Status :: 2 - Pre-Alpha",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.26",
+    "networkx>=3.2",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+topology = [
+    "ripser>=0.6",
+    "python-louvain>=0.16",
+]
+viz = [
+    "matplotlib>=3.8",
+    "pyvis>=0.3",
+]
+ladybugdb = [
+    "ladybugdb",
+]
+neo4j = [
+    "neo4j>=5.0",
+]
+all = [
+    "sme-eval[topology,viz,ladybugdb,neo4j]",
+]
+dev = [
+    "pytest>=8.0",
+    "pytest-cov>=5.0",
+    "ruff>=0.5",
+]
+
+[project.scripts]
+sme-eval = "sme.cli:main"
+
+[project.urls]
+Repository = "https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval"
+Issues = "https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues"
+
+[tool.setuptools.packages.find]
+include = ["sme*"]
+exclude = ["tests*", "docs*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"

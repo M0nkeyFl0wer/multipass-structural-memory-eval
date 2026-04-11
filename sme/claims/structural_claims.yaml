@@ -1,0 +1,130 @@
+# Structural Claims Library — v0.1
+# Category 8e: every testable claim must have an operational definition here.
+# Claims extracted from README/docs that don't match a pattern are reported
+# as "untestable — no operational definition" and excluded from pass rate.
+
+# Format: each claim has a pattern (regex-matched against extracted claims),
+# a metric, a threshold, and a measurement method.
+
+claims:
+
+  - pattern: "hierarchical|nested|tree.structured"
+    name: "Hierarchical structure"
+    metric: "modularity AND degree distribution"
+    threshold:
+      modularity_min: 0.5
+      degree_distribution: "power_law"
+      degree_ks_test_p_max: 0.05
+    method: |
+      1. Compute Louvain modularity on full graph.
+      2. Fit power-law to degree distribution via powerlaw package.
+      3. KS test: p < 0.05 confirms power-law fit.
+      Pass if modularity > 0.5 AND power-law confirmed.
+    notes: >
+      Gromov hyperbolicity and treewidth are theoretically cleaner
+      but computationally expensive on 70K+ node graphs. Modularity +
+      power-law is a practical proxy that runs in seconds.
+
+  - pattern: "cross.*(wing|domain|type|community).*connect|tunnel"
+    name: "Cross-domain connections exist"
+    metric: "inter-community edge density"
+    threshold:
+      inter_community_density_min: 0.0  # strictly greater than zero
+    method: |
+      1. Run Louvain community detection.
+      2. Count edges where source and target are in different communities.
+      3. Compute density = inter_community_edges / total_edges.
+      Pass if density > 0.
+    notes: >
+      A density of exactly 0 means complete isolation between communities.
+      Any non-zero value confirms cross-domain connections exist.
+      The actual density value is reported for context.
+
+  - pattern: "partition.*by.*type|organiz.*by.*type|wing.*type"
+    name: "Entities partitioned by type"
+    metric: "type homogeneity within communities"
+    threshold:
+      type_homogeneity_min: 0.9  # >90% of entities in each community share a type
+    method: |
+      1. Run Louvain community detection.
+      2. For each community, find the most common entity_type.
+      3. Compute homogeneity = count(most_common_type) / community_size.
+      4. Average across communities (weighted by size).
+      Pass if average homogeneity > 0.9.
+    notes: >
+      This tests whether the spatial partitioning (wings, folders, etc.)
+      actually correlates with entity types. If communities are mixed-type,
+      the partitioning claim doesn't hold.
+
+  - pattern: "improv.*retrieval|better.*retrieval|boost.*retrieval|filter.*improv"
+    name: "Structure improves retrieval"
+    metric: "Cat 7 pairwise win rate"
+    threshold:
+      cat7_win_rate_min: 0.55  # graph beats flat on >55% of queries
+    method: |
+      Defer to Category 7 results.
+      Pass if Condition B (graph) pairwise win rate > 55% vs Condition A (flat).
+    notes: >
+      This is a cross-category reference — Cat 8e delegates to Cat 7.
+      The threshold is deliberately modest (55%, not 80%) because
+      retrieval improvement is expected to be query-dependent.
+
+  - pattern: "temporal|time.*track|valid.*from|history|evolution"
+    name: "Temporal tracking"
+    metric: "edge temporal property coverage"
+    threshold:
+      temporal_coverage_min: 0.5  # >50% of edges have _created_at
+    method: |
+      1. Count edges where properties['_created_at'] is non-null.
+      2. Compute coverage = temporal_edges / total_edges.
+      Pass if coverage > 0.5.
+    notes: >
+      Systems claiming temporal awareness should have timestamps on
+      most edges. 50% is lenient — allows for legacy edges without timestamps.
+
+  - pattern: "conflict|contradict|disagree|inconsisten"
+    name: "Conflict detection"
+    metric: "Cat 3 ContradictionPair count"
+    threshold:
+      contradiction_pairs_min: 1  # at least one structured contradiction returned
+    method: |
+      Defer to Category 3 results.
+      Pass if any ContradictionPair is returned on contradiction queries.
+    notes: >
+      Binary — the system either surfaces structured contradictions or it doesn't.
+
+  - pattern: "dedup|canonicali|merg.*entit|resolv.*alias"
+    name: "Entity deduplication"
+    metric: "Cat 2b canonicalization recall"
+    threshold:
+      canonicalization_recall_min: 0.5  # resolve at least half of alias pairs
+    method: |
+      Defer to Category 2b results.
+      Pass if canonicalization recall > 50%.
+    notes: >
+      50% is deliberately moderate — canonicalization is hard and
+      partial success is still meaningful.
+
+  - pattern: "provenanc|source.*track|audit.*trail|lineage"
+    name: "Provenance tracking"
+    metric: "edge provenance property coverage"
+    threshold:
+      provenance_coverage_min: 0.5  # >50% of edges have _created_by
+    method: |
+      1. Count edges where properties['_created_by'] is non-null.
+      2. Compute coverage = provenance_edges / total_edges.
+      Pass if coverage > 0.5.
+    notes: >
+      Systems claiming provenance should know where their edges came from.
+
+# --- Claims that CANNOT be operationalized ---
+# If the LLM extraction produces claims matching these patterns,
+# they are reported as untestable and excluded from the pass rate.
+
+untestable_patterns:
+  - "intuitive|easy to use|user.friendly"  # UX claims, not structural
+  - "scalable"                              # without a defined scale target
+  - "secure|privacy"                        # security claims need audit, not graph analysis
+  - "fast|efficient|performant"             # without specific latency/throughput targets
+  - "accurate"                              # without a defined accuracy metric
+  - "comprehensive|complete"                # without a defined coverage target

@@ -1,0 +1,62 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.cache
+
+# IDE / tooling
+.vscode/
+.idea/
+*.swp
+*.swo
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# SME eval outputs
+report/
+results/
+*.parquet
+*.ldb/
+*.duckdb
+
+# Local corpora caches
+sme/corpora/*/.cache/
+
+# Private corpora (authored against personal content — build your own
+# via sme/corpora/standard_v0_1/AUTHORING.md)
+sme/corpora/climate_research_v01/
+sme/corpora/personal_kg_pkm_v01/
+sme/corpora/canadian_politics_v01/
