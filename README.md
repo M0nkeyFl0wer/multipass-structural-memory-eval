@@ -1,17 +1,19 @@
 # multipass-structural-memory-eval
 
+![Multi Pass. Mem Palace. A mockup of Leeloo Dallas's MULTI PASS ID card from The Fifth Element, stamped MEM PALACE where the issuing authority would normally appear, with the caption FREE PASS UNLOCK YOUR CREATIVITY ELIMINATES THE NEED TO REMEMBER EVERYTHING YOU'VE EVER TYPED.](docs/assets/issue_101_multipass_header.png)
+
 **A diagnostic framework for memory systems** — RAG, knowledge graphs,
 personal knowledge bases, conversational memory — that tests what the
 system knows about its own structure, not just whether it can retrieve
 memories.
 
 > *"Multipass!"* — Leeloo, *The Fifth Element*. The name is a nod to a
-> joke from an earlier MemPalace issue thread, and also to what the
-> framework actually does: **multiple passes** over every memory
-> system under test, across multiple corpus shapes and multiple
-> retrieval conditions (A / B / C), so brittle default behaviours that
-> hide on any single pass become visible when the readings are
-> compared side by side.
+> joke from an earlier MemPalace issue thread (visual reference above),
+> and also to what the framework actually does: **multiple passes**
+> over every memory system under test, across multiple corpus shapes
+> and multiple retrieval conditions (A / B / C), so brittle default
+> behaviours that hide on any single pass become visible when the
+> readings are compared side by side.
 
 ## What this is
 
