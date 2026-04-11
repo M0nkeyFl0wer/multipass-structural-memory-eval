@@ -1,279 +1,467 @@
-# ideas.md — Structural Memory Evaluation (SME)
+# SME onboarding guide
 
-*What should a memory system know about its own structure, and how do you test whether it does?*
+*Structural Memory Evaluation — how to run it against your own memory system.*
 
-Status: beta instrumentation. Working CLI + 3 adapters + 2 implemented categories in the [`multipass-structural-memory-eval`](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval) toolkit. Surfaced a real retrieval bug in my own personal KG (RRF fix, 0/12 → 7/12 on two corpora) and an observable routing behaviour on MemPalace that the maintainer can characterize. Mode B (structural diagnostics) works on the graph shapes I have tested. Mode A (retrieval benchmarks) is producing readings that have already changed how my own stack is built, with explicit caveats about the substring-on-filename matcher, small n per hop bucket, and the hop-annotation-is-corpus-not-system problem.
-
----
-
-## What this framework can credibly claim (and what it cannot)
-
-**The delta is the product, the levels are decoration.** The reproducible findings are controlled before/after deltas under identical conditions (same matcher, same corpus, same questions) and within-system ablations (route on vs off, merge A vs B). Absolute recall numbers are downstream of a substring-on-filename matcher with known biases and should be read as diagnostic readings, not scores. The 0/12 → 7/12 RRF-fix delta is the strongest claim in the project because it is a controlled experiment with one variable changed. The Canadian politics 12/12-across-all-systems result is the weakest because it mostly reads filename overlap, not retrieval quality.
-
-## The headline finding
-
-**Corpus composition determines retrieval quality more than system architecture.**
-
-A clean biographical corpus (Canadian politics, 45 files) makes every retrieval strategy score 12/12. A messy daily-driver KB (personal KG, 70K chunks) exposes merge bugs. A cross-topic research corpus (climate research, 19 files) exposes routing failures. You need multiple corpus shapes to say anything meaningful. Every existing benchmark uses one corpus.
-
-```
-                      climate-research  personal-kg-pkm  canadian-politics
-                      (content)         (second brain)   (biographical)
-Flat ChromaDB         8/12              —                12/12
-MemPalace routed      3/12              —                12/12
-MemPalace no-route    8/12              —                12/12
-personal KG hybrid    0/12              0/12             —
-personal KG RRF fix   7/12              5/12             —
-personal KG semantic  7/12              5/12             —
-```
-
-Two systems tested end-to-end. Two different failure modes surfaced. One specific fix produced (the RRF patch for my own personal KG — unambiguously my bug, my code, my 15-line fix). One observable routing reading on MemPalace that the maintainer can evaluate (not a claim I have standing to call a "bug" in a third-party tool). Neither reading is visible without multi-corpus benchmarking.
+This document is a hands-on guide for someone who wants to use SME
+against their own stack. If you're looking for the full specification
+of what each test measures, read [`sme_spec_v8.md`](sme_spec_v8.md)
+alongside this one — the spec is the reference, this is the walkthrough.
 
 ---
 
-## What a single corpus would have missed (methodology)
+## What is SME for?
 
-The reason I trust both sets of findings — and believe they're not an artifact of "my benchmark happens to be mean to palace systems" or "SME is biased toward flat retrieval" — is that the same framework produced three very different conclusions on three corpora in one run. Here's the counterfactual for each single-corpus reading:
+You built (or are using) a memory system — a RAG pipeline, a knowledge
+graph, a personal knowledge base, a conversational memory layer — and
+you want to know:
 
-- **Canadian-politics-only:** Every system scores 12/12. Conclusion: *"retrieval strategy doesn't matter, everything works equally, the framework found nothing interesting."* That would overstate the reading. The 12/12 is partly an artefact of filenames containing their subjects (a plain `grep` would score the same), and the other two corpora surface specific failure modes in both systems that are invisible here.
+1. **Is it actually retrieving the right things**, or is it silently
+   returning hub notes that happen to match keywords?
+2. **Does its structural layer earn its complexity**, or would a flat
+   vector store over the same content score the same?
+3. **Does the graph match what the README says the graph is**? Are
+   the declared entity types populated, are the tunnels connecting
+   what they claim to connect, is the ontology drifting?
+4. **Does the model actually reach the memory** when you plumb it
+   into Claude Code hooks, an MCP server, or a custom tool? (Cat 9,
+   spec'd but not yet implemented.)
 
-- **climate-research-only:** MemPalace routed is 25%, flat is 67%, personal KG hybrid is 0%. Conclusion: *"MemPalace routing is broken, personal KG hybrid is broken, use semantic mode."* Oversimplified. The personal KG hybrid failure is a bug I can point at in my own code. The MemPalace reading is a behaviour on a corpus type MemPalace is not primarily designed for — adversarial to its routing ontology by construction, and the maintainer is the right person to decide whether it's a bug or expected behaviour.
-
-- **personal-kg-pkm-only:** Hybrid 0/12, semantic 5/12. Conclusion: *"the personal KG hybrid mode is broken, no signal from MemPalace, no comparison possible."* Missing the corpus that shows both systems CAN work when the data permits.
-
-**Only the three together give the real finding:** *both systems have default behaviours (max-merge for the personal KG, room-based routing for MemPalace) that work fine on clean data and produce surprising readings on corpora that don't match their happy-path assumptions.* Canadian politics is clean (entity-per-file with subjects in filenames). Climate research has cross-topic vocabulary that collides with room names. Personal-kg PKM has long hub files that dominate any merge strategy letting one signal outweigh others. Each corpus triggers a different failure mode, none of the failures are visible on the other corpora, and the three readings are mutually compatible — the framework is not just breaking on one corpus and calling that a bug.
-
-This is the single most important methodology point in the whole exercise: **no single benchmark corpus can tell you whether your retrieval is any good.** Every published memory benchmark I'm aware of — LongMemEval, LoCoMo, MINE, GraphRAG-Bench — uses one corpus shape. The sampling bias is enormous and invisible.
-
----
-
-## The comparative advantage: A/B/C isolation
-
-What SME does that existing memory benchmarks don't is isolate the contribution of the structural layer from the contribution of the underlying index. Every Cat 2c / Cat 7 run executes the same system in three conditions on the same questions:
-
-- **Condition A (flat baseline)** — no structure, top-K cosine similarity on the raw index
-- **Condition B (full pipeline)** — structural layer enabled, the thing users actually experience
-- **Condition C (structure disabled, same index)** — same underlying index as B, with the router / filter / scoper turned off
-
-LongMemEval, LoCoMo, GraphRAG-Bench, and BEAM can tell you which system scored higher on a fixed corpus. They cannot tell you whether the structure that system added is what earned the score, or whether the raw index would have scored the same without it. The B−C delta is the structural contribution. The C−A delta is whatever metadata, rendering, or scoping overhead the pipeline adds on top of the same index. Reporting both separately turns "structure earns its complexity" from a vibe into a testable claim.
-
-This is also what made the MemPalace finding legible: "route=None recovers flat behavior exactly on this corpus" is a B vs C comparison on the same ChromaDB index, not a cross-system score comparison. It isolates the router as the variable that moved the readings. No published benchmark produces that kind of reading.
+Every published memory benchmark (LongMemEval, LoCoMo, MINE,
+GraphRAG-Bench, BEAM) answers roughly question (1) against a single
+corpus. SME is designed to answer all four, across **multiple corpus
+shapes** per run, because brittle default behaviours hide on any
+single corpus and only become visible when you compare readings side
+by side.
 
 ---
 
-## What the diagnostic surfaced
+## Who should run which categories?
 
-**Personal KG — a real bug I found, fixed, and can point at in my own code.** MAX-merge of incommensurable scores. FTS BM25 scores (4-5) always beat semantic cosine scores (0.7-0.9) in the max-merge, regardless of relevance. Session-log hub notes dominate every query. Fix: weighted normalized RRF merge (0.15 FTS / 0.70 semantic / 0.15 graph). Moves hybrid from 0/12 to 7/12 on two corpora, zero regressions under identical conditions. Patch applied.
+SME's nine categories are a menu, not a hierarchy. Each has a
+descriptive palace-nod name (The Lookup, The Stairway, The Blueprint,
+etc.) and a `Cat N` identifier you'll see in the code.
 
-The deeper problem underneath: 60% of questions fail in ALL modes including semantic. Hub-file pollution — session-log hub notes dominating top-3 for unrelated queries. Index quality, not merge strategy. Planned fixes: re-chunk hub files, IDF reweighting, MMR diversity, path-based boost.
-
-**MemPalace — an observable routing reading on an adversarial corpus.** On the climate research corpus, 9 of 12 questions contain the word "climate" verbatim, and the router sends all 9 to the `climate_evidence` room regardless of what the query actually asks. Only 1 of those 9 had its expected source file in that room. The 3 queries without "climate" fall through to unscoped ChromaDB search and all recover. Net result on this corpus: 3/12 full recall routed vs 8/12 full recall flat. Full recall by hop depth verified 2026-04-11: flat 7/7, 1/3, 0/2 across 1/2/3-hop; routed 3/7, 0/3, 0/2. Routing hurts at 1-hop (where flat succeeds cleanly) and is neutral at 3-hop (where nothing succeeds). The `retrieval_path` field in the benchmark JSON shows every routing decision. I have not read the router source, so what I can report is the observable effect (every climate-adjacent query lands in `climate_evidence`), not the internal mechanism. Proposed investigation direction: embed room names, route by cosine similarity to multiple top-N rooms instead of whatever one-room rule is currently firing, and fall through gracefully when the top-K rooms are close. ~30–50 lines sketched against the observable behaviour. Additional readings from the Blueprint test: halls 0% populated on the project-mining path I tested, closets absent from the ChromaDB metadata I queried, tunnels at 1.1% density (string-match only). **Important caveat**: this corpus is adversarial to MemPalace's primary design target (conversational memory with "my {room} stuff" queries); a router designed for that distribution will underperform on cross-topic research queries by construction. The reading is diagnostic, not a benchmark claim about MemPalace in general.
-
-Both readings are invisible to structural diagnostics (The Threshold, The Missing Room, The Blueprint) in isolation. Both are visible only through retrieval readings (The Stairway, The Abacus). You need both modes.
-
----
-
-## The diagnostic loop
-
-Hypothesis → prediction → experiment → confirmation → fix → verification.
-
-1. "AFS weight tuning fixes hybrid." Predicted no (AFS is downstream of merge). Tested pure-similarity config. Byte-identical 0/12. Prediction confirmed.
-2. "Bug is in the merge step." Stubbed FTS and graph to empty. 7/12 — matches semantic exactly. Merge confirmed as failure point.
-3. "RRF merge rescues hybrid." Five variants tested. Normalized weighted RRF at 0.15/0.70/0.15 hits 7/12. Hybrid rescued.
-4. "RRF might regress on PKM queries." Retested on the personal KG corpus. 0/12 → 5/12, matches semantic. Hypothesis falsified — RRF is safe on both query types.
-
-Scientific method, applied to retrieval engineering. This is what the framework enables.
-
----
-
-## What SME is
-
-Nine tests. Not a hierarchy, a menu. Pick the tests that match your use case. Each test has a descriptive name with a spatial nod to the palace metaphor (so "Cat 2c" is no longer the shorthand that everyone has to decode).
-
-| # | Name | Category | Novel? | What it tests |
-|---|---|---|---|---|
-| 1 | **The Lookup** | Factual Retrieval | No | Finding a known fact in a known room. |
-| 2 | **The Crossing** | Cross-Domain Discovery | Partial | Walking between rooms that do not name each other. |
-| 2b | **The Registry** | Canonicalization | Partial | How many names does one thing have, and are they all registered as the same resident? |
-| 2c | **The Stairway** | Multi-Hop by Depth | Partial | One flight, two flights, three — does recall hold at each step up? |
-| 3 | **The Dissonance** | Contradiction Detection | Partial | When two drawers disagree, does the system notice or silently pick a side? |
-| 4 | **The Threshold** | Ingestion Integrity | **Yes** | What crosses the front door intact, and what gets mangled on the way in. |
-| 5 | **The Missing Room** | Gap Detection | **Yes** | Persistent homology finds chambers that should exist and do not. |
-| 6 | **The Archive** | Temporal Reasoning | Partial | Current truth versus historical truth, respecting provenance chains. |
-| 7 | **The Abacus** | Token Efficiency | **Yes** | Tokens per correct answer, multi-condition, counting beads live. |
-| 8 | **The Blueprint** | Ontology Coherence | **Yes** | Graph vs declared schema / README claims / inferred structure. |
-| 9 | **The Handshake** | Harness Integration | **Yes** | Does the model actually reach for the memory through its harness — tool call, MCP, hook, slash command — and does the returned context land in a form it can use? Does the same system work across models and harnesses? |
-
-### The category we nearly missed — why Cat 9 exists
-
-Categories 1–8 all measure **offline retrieval**: given this query, does the retriever return the right document? Every published memory benchmark I am aware of (LongMemEval, LoCoMo, MINE, GraphRAG-Bench, BEAM) makes the same design choice. And so did the first eight tests in this framework — until partway through writing this overview, when it became obvious that we had not measured the thing that matters most in practice: **does the model actually reach the memory when it runs**?
-
-In production, no memory system is ever reached in isolation. It is reached through an invocation surface — a tool call, an MCP resource, a Claude Code hook, a slash command, a custom GPT action, a file watcher. The effective memory for a specific deployment is roughly:
-
-```
-effective_memory  ≈  retrieval_quality  ×  invocation_rate  ×  call_through_success  ×  result_usage
-```
-
-Categories 1–8 measure only the first factor. They assume the other three are 100%. That assumption is almost never true, and it is the first thing a deployment engineer notices when they move a memory system from benchmark to production. A RAG scoring 95% on offline Cat 1 that gets called 20% of the time in production is a 19% effective memory for that specific deployment. And the gap is strongly a function of **which model** is at the wheel and **which harness** mediates the call. Claude Sonnet 4.5, Claude Opus 4.6, GPT-4, Gemini, and Llama have different tool-use priors, and the same memory system reached through an MCP server, a Claude Code hook, a LangChain tool, and a ChatGPT custom GPT action can produce wildly different call-through rates on the same corpus.
-
-**Cat 9 (The Handshake) measures this directly.** See the spec for full sub-test definitions (9a-9g). The short version: run the same question set twice. Once offline (the Cat 1/7 baseline, which gives the ceiling of what the memory *can* answer). Once in-harness, reaching the memory through its actual production invocation surface with a specific target model running in its native harness. The delta is the harness-integration gap. Report per-(model, harness) so you can see which combinations work.
-
-This category is spec'd but not implemented yet. It is the highest-priority next addition because it is the thing that turns every other measurement in the framework into a claim about a **specific build** — your memory system, your harness, your model — rather than a claim about a retriever in isolation. That is the question every deployment engineer actually has, and no existing benchmark answers it.
-
-**The methodology point is bigger than the test.** Any memory-system evaluation that does not include a harness-integration measurement is describing a lower bound on how well the system *could* work if the model always reached for it, not an estimate of how well it *will* work when you ship. Benchmarks that stop at offline retrieval — which is all of them today, including Cats 1–8 of this framework — are measuring the wrong thing for the question deployment engineers are asking.
-
-### Use-case profiles
-
-| Use case | Systems | Run these | Skip these |
+| # | Name | Measures | Status today |
 |---|---|---|---|
-| Conversational memory | MemPalace, Mem0, Zep | 1, 3, 6, 7, **9** | 4, 5, 8 |
-| Research infrastructure | personal KG, open-newsroom-graph | all | — |
-| Decision support | Election Oracle, Canadian politics graph | 1, 2, 5, 6, 8, **9** | 4 |
-| Content strategy | climate research corpus | 5, 8 | 1-4, 6-7 |
-| Any production deployment | anything actually reached by a running model | 1, 7, **9 is essential** | — |
-| Just use folders | Karpathy wiki | none — SME is overkill | all |
+| 1 | The Lookup | Factual retrieval (known answer in known source) | Covered by `retrieve` |
+| 2 | The Crossing / Registry / Stairway | Cross-domain discovery, canonicalization, multi-hop by depth | 2c implemented (`cat2c`) |
+| 3 | The Dissonance | Contradiction detection | Spec'd |
+| 4 | The Threshold | Ingestion integrity — introspection + external | Spec'd |
+| 5 | The Missing Room | Gap detection (persistent homology) | Partial via `analyze --betti` |
+| 6 | The Archive | Temporal reasoning + provenance | Spec'd |
+| 7 | The Abacus | Token efficiency (graph vs flat, pairwise) | Partial via `retrieve` |
+| 8 | The Blueprint | Ontology coherence (declared vs actual graph) | Implemented (`cat8`) |
+| 9 | The Handshake | Harness integration (tool call, MCP, hook, per-model, per-harness) | Spec'd — **highest-priority next build** |
+
+**Use-case profiles** — run these if you're building:
+
+| System type | Run these first | Skip these |
+|---|---|---|
+| Conversational memory (MemPalace, Mem0, Zep) | 1, 3, 6, 7, 9 | 4, 5, 8 |
+| Research / knowledge-graph infrastructure | all | — |
+| Decision support (narrative KG, entity-per-file) | 1, 2, 5, 6, 8, 9 | 4 |
+| Content strategy / research corpus | 5, 8 | 1–4, 6–7 |
+| Any production deployment | 1, 7, **9 is essential** | — |
+| Just use folders (Karpathy-style) | none — SME is overkill | all |
 
 ---
 
-## Structural findings from four graphs
+## Quickstart: your first diagnostic run
 
-Same adapter code, no per-project changes, across three LadybugDB schemas + one MemPalace.
+This walks you through running SME against your own content. You
+don't need a pre-built reference corpus — you'll write a minimal
+question set against a directory of markdown files you already have.
 
-| Metric | personal KG | Canadian politics | re-wilding (k-core) | re-wilding (full) |
-|---|---|---|---|---|
-| Entities | 1,996 | 6,672 | 17,358 | 66,900 |
-| Edges | 1,438 | 12,590 | 52,816 | 657,934 |
-| Isolated % | 69% | 4.5% | 79% | <0.01% |
-| Modularity | 0.579 | 0.642 | 0.436 | 0.458 |
-| Edge entropy | 2.95 | 2.94 | 2.30 | 0.91 |
+### 1. Install
 
-**Edge type entropy validated as monoculture detector.** 2.95 (healthy), 2.30 (concentrated), 0.91 (severe — MENTIONED_IN at 86%). Raw bit thresholds are vocabulary-size-sensitive — a graph with 2 equally-used edge types has entropy 1.0 bits, which the raw threshold would flag as "severe monoculture" even though the distribution is perfectly balanced. The fix is to normalize by `log2(len(declared_edge_types))`, yielding a [0,1] score where 1.0 is perfectly balanced across the declared vocabulary and 0.0 is a pure monoculture. Normalized thresholds (planned): ≥0.8 healthy, 0.5–0.8 concentrated, <0.5 monoculture. Raw-bit numbers remain reported alongside for back-compat with earlier runs.
-
-**KNOWLEDGE_CORPUS pattern:** 69-79% entity isolation in semantic layer is structural, not a bug. Pipeline links entities to documents, not to each other. NARRATIVE_GRAPH (Canadian politics 4.5%) shows the opposite.
-
-**Re-wilding ontology drift:** 11 declared edge types, 6 effective. Ghost types (INFLUENCES, OPPOSES, RESPONDS_TO) are inferential — require Claude API, not local models. Drift score 0.45.
-
-**MemPalace Blueprint reading:** Halls 0% populated on the project-mining path tested (narrower than "halls don't work" — may be populated by a different miner I did not run). Closets absent from the ChromaDB metadata queried. Tunnels at 1.1% density (string-match only). The README's "wing filtering improves retrieval" claim reads the other direction on the climate research corpus — on this corpus, routing reduces recall, explained by the room-collapse described above. Type homogeneity passes the threshold check but trivially, because 96.9% of drawers are `drawer:untyped` — a uniform distribution is tautologically partitioned.
-
----
-
-## The context engineering framing
-
-Strip away the abstractions. Every system is a context engineering tool — it decides what goes in the model's context window.
-
-- **Karpathy wiki:** folders + markdown + "hey Claude, read this folder." Works at ~100 articles / ~400K words. His explicit anti-pattern list: "overengineering to avoid: HTTP servers, SQLite graph databases, local embedding models."
-- **MemPalace:** folders with metadata labels + ChromaDB semantic search within labels. The "palace" is a WHERE clause. The +34% is scope narrowing.
-- **Personal KG:** extraction → graph → scoring → "here's what's relevant." Sophisticated pointing machine. The RRF bug was the pointing machine pointing at the wrong files.
-
-The graph earns its keep in two places context windows can't replace:
-
-**1. Context selection at scale.** When 70K chunks don't fit in context, something has to decide what goes in. That's retrieval. The question is whether structured retrieval beats flat retrieval. Current answer: only if the scoring layer doesn't corrupt the signal, and only on corpora with adversarial characteristics (hub files, cross-topic noise).
-
-**2. Structural findings the model can't derive from text.** "Your research has zero bridges." "6 of 11 edge types are ghosts." "Session logs outrank source content due to score scale mismatch." These are properties of the knowledge shape, not the knowledge content. No amount of text in the window reveals them.
-
-### The scale question nobody has tested
-
-```
-Corpus size:  19 files → 200 → 2,000 → 20,000 → 70,000 chunks
-
-At what scale does structured retrieval start beating flat?
-At what scale does flat stop fitting in context?
-At what scale is Karpathy's "just read the folder" no longer viable?
-Is there a crossover, or does flat win at every scale?
+```bash
+git clone https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval
+cd multipass-structural-memory-eval
+pip install -e ".[topology]"    # topology extras for Cat 5 / analyze --betti
 ```
 
-Add Condition D (frontier model, full context, no retrieval) at each tier. If Condition D wins until context overflow, the retrieval infrastructure is a worse version of "give the smart model all the text."
+### 2. Pick a content directory
+
+Point SME at any directory of markdown files you already have —
+research notes, a project journal, a subset of your Obsidian vault,
+a clone of a public wiki, whatever. Start small: 10–30 files is
+enough for a first pass. Bigger corpora take longer to build and
+make authoring the ground-truth question set harder.
+
+### 3. Write a minimal question set
+
+Copy `sme/corpora/standard_v0_1/AUTHORING.md` and read the corpus
+contract — it's the authoritative format. The short version: a
+`questions.yaml` file with a list of entries like:
+
+```yaml
+version: "my-corpus-v0.1"
+corpus: "/absolute/path/to/your/content/dir"
+collection: "my_test_collection"
+
+questions:
+  - id: Q01
+    text: "What did I decide about X?"
+    min_hops: 1
+    expected_sources:
+      - specific-filename-substring
+    category: factual
+
+  - id: Q02
+    text: "How do Y and Z relate?"
+    min_hops: 2
+    expected_sources:
+      - filename-substring-1
+      - filename-substring-2
+    category: cross_domain
+```
+
+A few tips from authoring the framework's own test corpora:
+
+- Every `expected_sources` entry should be a filename **substring**
+  that you've verified is present on disk. The matcher is mechanical
+  — a hit counts if any expected filename appears in the retrieved
+  context.
+- `min_hops` is how many source files a reader needs to consult to
+  answer the question. 1 = the answer is in one file. 2 = synthesis
+  across two. 3 = synthesis across three or more.
+- Start with 10–12 questions for a first pass. Small n means every
+  per-bucket number is a directional signal, not a measurement — and
+  the framework will be honest about that.
+
+### 4. Run a retrieve pass against the flat baseline
+
+The flat baseline is a ChromaDB vector store with no structural
+routing — it's the control group every other condition compares
+against.
+
+```bash
+sme-eval retrieve \
+  --adapter flat \
+  --questions path/to/your/questions.yaml \
+  --collection-name my_test_collection \
+  --n-results 5 \
+  --json /tmp/flat.json
+```
+
+You'll see per-question hits (`✓` full recall, `~` partial, `✗`
+miss), total recall and tokens-per-query, and a breakdown by hop
+depth. The JSON output is the machine-readable version — keep it,
+you'll diff it against other adapter runs.
+
+### 5. Run the same questions against your actual memory system
+
+Swap `--adapter flat` for `mempalace` or `ladybugdb` (or your own
+adapter — see the next section). The point of SME is the comparison,
+not any single run. Run all three conditions on the same questions:
+
+- **Condition A** — `--adapter flat` — the baseline ceiling.
+- **Condition B** — `--adapter <your-system>` with structure enabled
+  — the full pipeline as users experience it.
+- **Condition C** — your system with structure disabled (route off,
+  filter off, whichever flag your adapter exposes) — the same
+  underlying index without the structural layer.
+
+The three-condition pattern (A/B/C) is the comparative-advantage
+section below. It's where the defensible findings come from.
+
+### 6. Run the Blueprint (Cat 8) against your graph
+
+If your memory system has a declared ontology (a README describing
+entity types, an `ONTOLOGY.md`, a schema file), you can test whether
+the graph matches its own declarations:
+
+```bash
+sme-eval cat8 \
+  --adapter ladybugdb \
+  --db /path/to/your/graph.ldb \
+  --implied-ontology sme/corpora/implied_ontology_mempalace.yaml
+```
+
+This compares declared entity types and edge vocabulary against
+what's actually in the graph, then runs a claim library (regex
+patterns operationalized as structural tests) against the README's
+structural claims. Pass/fail per claim, plus a drift score and a
+type distribution report. See the [spec](sme_spec_v8.md) Cat 8
+section for the full metric definitions.
+
+### 7. Analyze graph structure directly
+
+For any adapter that returns a `get_graph_snapshot()`, the `analyze`
+command computes modularity, edge-type entropy, isolation, degree
+distribution, and optionally Betti numbers (persistent homology) for
+gap detection.
+
+```bash
+sme-eval analyze \
+  --adapter ladybugdb \
+  --db /path/to/your/graph.ldb \
+  --betti \
+  --json /tmp/structure.json
+```
 
 ---
 
-## The categories are a menu, not a hierarchy
+## Writing an adapter for your system
 
-The industry standard metrics (LongMemEval, LoCoMo, BEAM) are right for conversational memory. They're not wrong. They're incomplete for systems where structure is the product.
+An adapter is a thin layer that teaches SME how to talk to your
+memory backend. The interface is in `sme/adapters/base.py`. Three
+methods minimum:
 
-SME's contribution isn't "better than LongMemEval." It's "here's the full menu, pick what matches your use case." And: "you need multiple corpus shapes to say anything meaningful." And: "the framework should find bugs and suggest fixes, not just produce scores."
+```python
+from sme.adapters.base import SMEAdapter, Entity, Edge, QueryResult
 
----
+class MySystemAdapter(SMEAdapter):
+    def ingest_corpus(self, corpus_path: str) -> None:
+        """Point your system at a directory of source files. Called
+        once per corpus before any queries run."""
 
-## The philosophical question
+    def query(self, text: str, n_results: int = 10) -> QueryResult:
+        """Run a retrieval query. Return a QueryResult containing
+        the rendered context_string, the retrieved entities, the
+        retrieval_path (so SME can see what the router decided),
+        and any error."""
 
-The climate research corpus finding — "your research has zero bridges, modularity 0.734, five communities are silos" — came from NetworkX counting edges. Not thinking. Counting. But the insight — "my climate comms project treats fossil fuel money and extreme weather as strangers" — was human. The algorithm made invisible structure visible. The human decided what the structure meant.
+    def get_graph_snapshot(self, view: str = "full") -> tuple[list[Entity], list[Edge]]:
+        """Return a point-in-time snapshot of the graph as two lists.
+        The topology layer consumes this for structural analysis."""
+```
 
-Vector search is a compressed encoding of meaning that happens to be searchable. The graph adds a non-geometric layer: typed edges, directionality, provenance. Two entities can be far apart in embedding space but connected by a CONTRADICTS edge. The question is whether that discrete scaffold does work the continuous layers can't.
+Reference implementations, in increasing order of complexity:
 
-Current answer: for retrieval, the scaffold is neutral-to-positive once the scoring layer is fixed. For structural findings, the scaffold is the only option. For provenance and traceability (the application backend use cases), the scaffold is essential regardless of what happens with context windows.
+- `sme/adapters/flat_baseline.py` — the simplest case, ChromaDB
+  vector store with no structure. Read this first.
+- `sme/adapters/mempalace.py` — ChromaDB + SQLite-triples pattern.
+- `sme/adapters/ladybugdb.py` — embedded graph DB with an optional
+  HTTP API mode for systems that expose a `/search` endpoint and
+  have writer-lock problems opening the DB file directly.
 
-The honest position: Mode B (structural diagnostics) is counting. It works. Mode A (retrieval benchmarks) found that the pointing machine was broken and fixed it. The graph's durable value may be structural findings and provenance chains, not retrieval improvement.
+Optional method for Cat 9 (harness integration, not yet
+implemented but part of the adapter contract going forward):
 
----
+```python
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Declare the invocation surfaces your memory system
+        supports: ToolCall, MCPResource, ClaudeCodeHook,
+        SlashCommand, CustomAction. Cat 9 uses this to run the same
+        question set through each surface and measure call-through
+        rate, result usage, and per-model sensitivity."""
+```
 
-## Three value propositions, three levels of infrastructure
-
-- **Remember:** folders + model. Karpathy wins. The personal KG is overengineered for this.
-- **Prove:** typed edges + provenance + temporal validity. Graph wins. Application backends (newsroom, election oracle, Canadian politics research, Monkey Flower) live here.
-- **Think:** visualization + topology + structural findings. Graph is the only option.
-
----
-
-## MemPalace connection
-
-[Issue #101](https://github.com/milla-jovovich/mempalace/issues/101) is my feature request. Thanked as @M0nkeyFl0wer in v3.0.0 release notes. Benchmark controversy (#27, #29, #39, #125) is direct context.
-
-PR planned: `mempalace/eval/` as a diagnostic tool. Three tests (The Blueprint, The Stairway, The Abacus). Leads with investigation directions (semantic router, hall population, semantic tunnels), explicitly framed as suggestions rather than prescriptions. Shows our own 0/12 catastrophic hybrid-merge failure alongside the MemPalace room-routing reading on the climate corpus. Framing: "we built a diagnostic, it found a bug in our own code first, and here is what it read on yours — you tell us whether it is a bug or expected behaviour." Diagnostic posture, not scoreboard.
-
-Wait for personal KG enrichment cycles before posting, so comparison is fair.
-
----
-
-## Open questions
-
-- **Condition D (frontier model, full context) not yet tested.** At 19 files it probably wins everything. The scale crossover experiment is the thing that would make this genuinely novel.
-- **The personal KG is a newborn after rebuild.** Enrichment cycles haven't run. Entity-to-entity edges haven't accumulated. Fair comparison requires maturation time.
-- **Temporal dimension missing.** Snapshot systems (MemPalace) vs lifecycle systems (the personal KG). Learning rate over time is the honest comparison, not point-in-time scores.
-- **Index quality > architecture.** 60% of personal KG failures are hub-file pollution, not graph bugs. Re-chunking hub files would improve daily utility more than any graph fix.
-- **12 questions is thin.** Single-question flukes move the numbers. Need 30+ per corpus.
-- **No LLM answer-quality judge yet.** Current scoring is substring match on expected filenames. Real Cat 7 pairwise needs GPT-4o-mini. Note that a judge is not a clean escape from the matcher — it replaces one known bias (filename overlap) with three new ones (judge model bias, judge variance across runs, judge calibration against humans). Honest upgrade path: grep-floor baseline → judge with k=3 samples → human spot-check of 20 items per corpus for calibration.
-- **No grep-floor baseline condition yet.** `grep -l <keyword>` on filenames is the floor for the substring matcher — any retriever scoring at or below grep is reading filename overlap, not retrieval quality. The Canadian politics 12/12 result is consistent with a grep-floor ceiling, and we won't know how much of every other reported score is filename bias until the floor is reported alongside A/B/C. This is the highest-leverage cheap fix and lands before the LLM judge.
-- **Hop depth is annotated on the ground-truth graph, not the system's graph.** Cat 2c currently assumes a question labeled 3-hop requires 3 hops in every system under test. That assumption breaks when the system's index contains a direct edge between endpoints (the question is 1-hop there) or when the intermediate edges don't exist at all (the question is structurally unreachable). Planned fix: a per-question reachability pre-test against each system's graph snapshot. Questions where no path of length ≤k exists move to a separate "unreachable in this graph" bucket and are excluded from the per-depth breakdown. Without this gate, "graph did not pull ahead at 3-hop" conflates "routing is broken" with "the edges this annotation assumed never existed."
-- **Cat 9 (The Handshake) is spec'd but not implemented.** Categories 1–8 measure offline retrieval only. Until Cat 9 ships, every reading in this framework describes a lower bound on how well the system *could* work if the model always reached for it — not an estimate of how well it *will* work when plumbed into a specific harness and model. This is the largest gap in the current instrumentation and the highest-priority next build, because it is the thing that turns every other measurement into a claim about a specific deployment rather than a retriever in isolation. See Cat 9 in the spec for sub-test definitions and the harness-manifest adapter contract.
-
----
-
-## Build order (updated)
-
-1. ~~Adapter interface + flat baseline~~ ✓
-2. ~~LadybugDB adapter~~ ✓
-3. ~~Cat 1/2c/7 retrieval benchmarks~~ ✓
-4. ~~Cat 8 ontology coherence~~ ✓
-5. ~~RRF fix for personal KG~~ ✓ applied and live
-6. ~~Three corpora benchmarked~~ ✓ climate research, personal-kg PKM, Canadian politics
-7. Apply RRF patch permanently ← done this session
-8. Fix personal KG index quality (re-chunk hub files, MMR diversity)
-9. Run Canadian politics on personal KG (the clean-corpus graph test)
-10. **Grep-floor baseline condition** (cheap, high-leverage, quantifies filename-matcher bias before spending on a judge)
-11. **Hop-reachability pre-test gate** for Cat 2c (resolves the "router broken vs edges missing" conflation)
-12. **Normalized edge-type entropy** (`entropy / log2(vocab_size)`, [0,1] scale, vocab-size invariant)
-13. **Cat 9 (The Handshake) — harness integration MVP.** Adapter `get_harness_manifest()` method. Model-runner shim for Claude Sonnet 4.5 and Claude Opus 4.6 via the Anthropic API. Sub-tests 9a (invocation rate), 9b (call-through success), 9c (result usage) against a tool-call harness first; 9g (Claude Code hook-driven) after. 9e and 9f (cross-model, cross-harness reporting) added once at least two harnesses and two models are wired. This is the highest-leverage build on the list after grep-floor, because it is the thing that turns Cat 1–8 readings from "the retriever can do X" into "this deployment does X with this model in this harness."
-14. MemPalace PR (diagnostic framing, with fixes)
-15. Condition D (frontier model, full context) — the honest test
-16. Scale crossover experiment (30 → 300 → 3,000 → 30,000 notes)
-17. LLM judge for Cat 7 pairwise (with k=3 samples and 20-item human calibration per corpus)
-18. Remaining offline categories (Cat 3, 6)
-19. ideas.md → multipass-structural-memory-eval repo README
+See [spec Cat 9](sme_spec_v8.md#category-9-harness-integration--the-handshake)
+for the full manifest contract.
 
 ---
 
-## Prior art (all open source)
+## How to read the output
 
-- **LongMemEval** (ICLR 2025) — 500 questions, judge methodology
-- **KGGen MINE** (Stanford, NeurIPS 2025) — extraction quality benchmark
-- **GraphRAG-Bench** (ICLR 2026) — pipeline-wide evaluation
-- **Microsoft BenchmarkQED** — automated RAG benchmarking
-- **Zep/Graphiti** — temporal KG, 94.8% DMR
-- **ENGRAM** — typed memory, 95.5% token reduction
-- **Karpathy LLM Wiki** (April 2026) — folders + markdown + LLM. The honest baseline.
+### The delta is the product, the levels are decoration
+
+The reproducible findings SME produces are **controlled before/after
+deltas** under identical conditions (same matcher, same corpus, same
+questions) and **within-system ablations** (route on vs off, merge
+variant A vs B, structure enabled vs disabled). A 0/12 → 7/12 delta
+when you swap a merge function is a real, reproducible finding. The
+"7/12" on its own is a diagnostic reading inheriting whatever biases
+the substring-on-filename matcher has.
+
+Absolute recall numbers are downstream of the matcher, which fails
+in both directions:
+
+- A system returning synthesized content with the right answer under
+  a different filename is scored wrong.
+- A system returning the expected filename but the wrong chunk
+  excerpt is scored right.
+- Corpora with subjects in filenames (biographical, entity-per-file)
+  are trivially "solved" by filename overlap — a plain `grep` would
+  score the same.
+
+Read SME outputs as diagnostic readings from controlled experiments,
+not as scores on a fixed scale. Call the framework a diagnostic, not
+a benchmark. The difference is whether "X beats Y by 3 points" is a
+defensible claim (it isn't, at current matcher maturity) or whether
+"swapping the merge function under identical conditions moved this
+system from 0/12 to 7/12" is (it is).
+
+### The A/B/C isolation pattern
+
+The biggest thing SME does that existing memory benchmarks don't is
+isolate the contribution of the **structural layer** from the
+contribution of the **underlying index**. Every Cat 2c / Cat 7 run
+executes the same system in three conditions on the same questions:
+
+- **Condition A (flat baseline)** — no structure, top-K cosine
+  similarity on the raw index.
+- **Condition B (full pipeline)** — structural layer enabled, the
+  thing users actually experience.
+- **Condition C (structure disabled, same index)** — same underlying
+  index as B, with the router / filter / scoper turned off.
+
+LongMemEval, LoCoMo, GraphRAG-Bench, and BEAM can tell you which
+system scored higher on a fixed corpus. They cannot tell you whether
+**the structure that system added** is what earned the score, or
+whether the raw index would have scored the same without it. The
+B−C delta is the structural contribution. The C−A delta is whatever
+metadata, rendering, or scoping overhead the pipeline adds on top of
+the same index. Reporting both separately is what turns "structure
+earns its complexity" from a vibe into a testable claim.
+
+The A/B/C pattern is also how you distinguish "the router is broken"
+from "the underlying index was already good enough." If Condition B
+and Condition C produce identical readings on your corpus, your
+structural layer is contributing nothing measurable — whatever
+retrieval quality you're getting is coming from the raw index, not
+from your routing logic.
+
+### Why you need multiple corpus shapes
+
+A single corpus can only tell you how your system behaves on that
+shape of data. Different corpus shapes stress different parts of a
+retrieval pipeline:
+
+- **Clean biographical / entity-per-file corpora** — filenames
+  contain their subjects, the matcher floor equals the ceiling, and
+  every retriever scores high. Forgiving to every ontology. You
+  learn almost nothing from running a system against only this.
+- **Cross-topic research corpora** — queries span multiple topics
+  and room names collide with content vocabulary. Adversarial to
+  spatial routing systems that assume "one topic per room."
+- **Hub-heavy PKM / daily-driver corpora** — a handful of long
+  context files (project READMEs, session logs, `CLAUDE.md`-style
+  hub docs) dominate any keyword signal. Adversarial to merge
+  strategies that let one signal outweigh others.
+
+Running all three shapes (or whatever shapes exist in your domain)
+is the only way to see which failures are structural bugs and which
+are corpus artefacts. This is the single most important methodology
+point in the whole exercise: **no single benchmark corpus can tell
+you whether your retrieval is any good**. Every published memory
+benchmark uses one corpus shape. The sampling bias is enormous and
+largely invisible until you compare across shapes.
+
+### Honest limitations of the current matcher
+
+Read these alongside the spec's limitations section before treating
+any specific SME output as gospel:
+
+- **Substring match on filenames is a proxy for correctness.** Fails
+  in both directions (see above). The planned grep-floor baseline
+  condition will quantify how much of every reported score is
+  filename overlap — implement that first if you're building on the
+  framework.
+- **12 questions per corpus is below the noise floor for per-hop
+  claims.** Aggregate recall numbers are more stable than per-depth
+  breakdowns. Per-depth numbers read as directional signals at
+  small n. The honest statistical bar for hop-bucket claims is
+  n ≥ 30 per depth.
+- **Hop depth is annotated on the ground-truth graph, not on the
+  system's graph.** A question labelled 3-hop in the corpus may be
+  1-hop in a system whose index contains a direct edge between
+  endpoints, or structurally unreachable in a system whose graph is
+  missing intermediate edges. Planned fix: a per-question
+  reachability pre-test against each system's graph snapshot.
+- **Mine / index / chunk variance is not measured.** The current
+  numbers are single-run. Running mine + index 3–5 times and
+  reporting ±1SD is the honest fix.
+- **No LLM answer-quality judge yet.** The substring matcher grades
+  presence, not answer quality. Cat 7's pairwise LLM judge is
+  planned, with multi-sample and human calibration required
+  (because a single-judge single-sample call replaces one known
+  bias with three new ones: model bias, sampling variance,
+  calibration drift).
+- **Cat 9 is not implemented yet.** Everything in the current
+  framework measures offline retrieval. Until Cat 9 ships, any
+  reading describes a lower bound on what your system could do if
+  the model always reached for the memory. It does not estimate
+  what happens in production under a specific model and harness.
+  See Cat 9 in the spec for why this is the largest gap in current
+  instrumentation.
 
 ---
 
+## What's next
+
+### Categories that aren't implemented yet
+
+Cats 1 (standalone), 3, 4, 5 (full), 6, and 7 (standalone with LLM
+judge) are spec'd but not wired as CLI commands. Cats 2c and 8 are
+implemented; Cats 1 and 7 are partially covered by `retrieve`; Cat 5
+has a partial implementation via `analyze --betti`. See the spec for
+the full definitions — the category-sized work is there, waiting for
+someone who wants it.
+
+### Planned refinements to the current implementation
+
+In priority order:
+
+1. **Grep-floor baseline condition** — report `grep -l <keywords>`
+   on filenames alongside every retriever. Quantifies how much of a
+   score is filename-matcher bias before spending money on a judge.
+2. **Hop-reachability pre-test gate** — per-question path check
+   against each system's graph snapshot. Resolves the "routing
+   broken vs edges missing" conflation at multi-hop.
+3. **Normalized edge-type entropy** — `H / log2(vocab_size)`,
+   vocabulary-size invariant, [0,1] scale.
+4. **Cat 9 (The Handshake) MVP** — adapter `get_harness_manifest()`
+   method; model-runner shim for Claude Sonnet 4.5 and Opus 4.6;
+   sub-tests 9a (invocation rate), 9b (call-through success), 9c
+   (result usage) against a tool-call harness first; 9g (Claude
+   Code hook-driven) after.
+5. **LLM judge for Cat 7 pairwise** — with k=3 samples and 20-item
+   human calibration per corpus. Replaces the substring matcher with
+   a judge that reads context and grades answerability.
+6. **Adapter contract refinement** — payload-vs-format separation
+   so adapters emit `payload_chunks: list[str]` alongside the
+   rendered `context_string`, and the matcher scores against the
+   payload list rather than a format-sensitive joined blob.
+
+### Cat 9 (The Handshake) — the largest gap
+
+Every test in this framework currently measures **offline retrieval**:
+"given this query, does the retriever return the right document?"
+That's what Cats 1–8 test. It's also what every published memory
+benchmark tests. The thing none of them measure is whether the
+**model actually reaches the memory system** when the model is
+running inside a specific harness.
+
+In production, no memory system is ever reached in isolation. It's
+reached through an invocation surface — a tool call definition, an
+MCP resource, a Claude Code hook, a slash command, a custom GPT
+action, a file watcher. The effective memory for a deployment is
+roughly:
+
+```
+effective_memory ≈ retrieval_quality × invocation_rate × call_through_success × result_usage
+```
+
+Cats 1–8 measure the first factor. Cat 9 measures the rest. A
+system scoring 95% on offline Cat 1 that gets invoked 20% of the
+time in production is a 19% effective memory for that deployment,
+and the gap is a strong function of (a) which model is at the wheel
+and (b) which harness mediates the call. See [spec Cat 9](sme_spec_v8.md)
+for the full sub-test definitions (9a–9g, including a distinct 9g
+for hook-driven event-based access). This is the highest-priority
+next build because it's the thing that turns every other reading
+in the framework into a claim about a **specific build**, with a
+specific model, under a specific harness — rather than a claim
+about a retriever in isolation.
+
 ---
 
-*Last updated: 2026-04-11. Living document.*
+## Prior art
+
+SME builds on and cites work from:
+
+- **LongMemEval** (ICLR 2025) — 500 questions, LLM-judge methodology.
+- **KGGen MINE** (Stanford, NeurIPS 2025) — extraction quality benchmark.
+- **GraphRAG-Bench** (ICLR 2026) — pipeline-wide RAG evaluation.
+- **Microsoft BenchmarkQED** — automated RAG benchmarking, pairwise judge pattern.
+- **Zep / Graphiti** — temporal knowledge graphs, 94.8% DMR.
+- **ENGRAM** — typed memory, 95.5% token reduction.
+- **Karpathy's LLM Wiki** (April 2026) — folders + markdown + LLM, the honest baseline for personal KBs at sub-500K-word scale. The explicit anti-pattern list is worth reading before over-engineering anything.
+
+Everything SME produces, and every system it tests, is open source.
+Everything the framework depends on (NetworkX, Ripser, ChromaDB,
+LadybugDB, tiktoken, pyyaml) is open source. The goal is shared
+instrumentation the community can run on its own systems, not a
+leaderboard any single author owns.
