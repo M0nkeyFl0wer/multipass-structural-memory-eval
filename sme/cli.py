@@ -434,6 +434,94 @@ def cmd_cat8(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cat5(args: argparse.Namespace) -> int:
+    """Run Category 5 (gap detection) against a system."""
+    from sme.categories.gap_detection import format_report, score_gap_detection
+
+    seeded: list[tuple[str, str]] | None = None
+    if args.seeded_gaps:
+        import yaml
+
+        with open(args.seeded_gaps) as f:
+            doc = yaml.safe_load(f) or {}
+        raw = doc.get("missing_edges") or doc.get("seeded_missing_edges") or []
+        seeded = [(pair[0], pair[1]) for pair in raw if len(pair) == 2]
+
+    adapter_kwargs: dict[str, Any] = {
+        "db_path": args.db,
+        "read_only": True,
+        "auto_discover": args.auto_discover,
+    }
+    if args.node_tables:
+        adapter_kwargs["include_node_tables"] = args.node_tables
+    if args.edge_tables:
+        adapter_kwargs["include_edge_tables"] = args.edge_tables
+    if args.kg_path:
+        adapter_kwargs["kg_path"] = args.kg_path
+    if args.collection_name:
+        adapter_kwargs["collection_name"] = args.collection_name
+
+    adapter = _load_adapter(args.adapter, **adapter_kwargs)
+    entities, edges = adapter.get_graph_snapshot()
+    log.info("snapshot: %d entities, %d edges", len(entities), len(edges))
+
+    report = score_gap_detection(
+        entities,
+        edges,
+        seeded_missing_edges=seeded,
+        run_homology=not args.no_homology,
+        betti_max_nodes=args.betti_max_nodes,
+        min_component_size=args.min_component_size,
+        max_type_prevalence=args.max_type_prevalence,
+        top_k=args.top_k,
+    )
+
+    print()
+    print("=" * 70)
+    print(f" {args.adapter} ({args.db})")
+    print("=" * 70)
+    print(format_report(report))
+
+    if args.json:
+        out = {
+            "adapter": args.adapter,
+            "db_path": args.db,
+            "nodes": report.nodes,
+            "edges": report.edges,
+            "components": report.components,
+            "largest_component_size": report.largest_component_size,
+            "isolated_nodes": report.isolated_nodes,
+            "bridges": report.bridges,
+            "betti_0_largest": report.betti_0_largest,
+            "betti_1_largest": report.betti_1_largest,
+            "h1_max_persistence": report.h1_max_persistence,
+            "h1_skipped": report.h1_skipped,
+            "h1_skip_reason": report.h1_skip_reason,
+            "candidate_gaps": [
+                {
+                    "component_a": g.component_a,
+                    "component_b": g.component_b,
+                    "size_a": g.size_a,
+                    "size_b": g.size_b,
+                    "shared_entity_types": g.shared_entity_types,
+                    "score": g.score,
+                    "example_ids_a": g.example_ids_a,
+                    "example_ids_b": g.example_ids_b,
+                }
+                for g in report.candidate_gaps
+            ],
+            "candidate_gaps_considered": report.candidate_gaps_considered,
+            "gap_recall": report.gap_recall,
+            "gap_precision": report.gap_precision,
+            "detection_level": report.detection_level,
+        }
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+
+    adapter.close()
+    return 0
+
+
 def cmd_cat2c(args: argparse.Namespace) -> int:
     """Produce a multi-hop recall scorecard from retrieval result JSONs."""
     from sme.categories.multi_hop import format_report, score_cat2c
@@ -834,6 +922,88 @@ def main(argv: list[str] | None = None) -> int:
     )
     c8.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c8.set_defaults(func=cmd_cat8)
+
+    # --- cat5 subcommand ---------------------------------------------
+
+    c5 = sub.add_parser(
+        "cat5",
+        help="Run Category 5 (The Missing Room — gap detection) against a "
+        "system. External (L3) reading only: components, bridges, Betti-1 on "
+        "the largest component, and candidate cross-component gaps.",
+    )
+    c5.add_argument("--adapter", required=True)
+    c5.add_argument("--db", required=True, help="path to the adapter's db")
+    c5.add_argument(
+        "--auto-discover",
+        action="store_true",
+        help="include every non-empty NODE and REL table discovered on "
+        "the database, minus operational infrastructure.",
+    )
+    c5.add_argument(
+        "--node-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="node tables to include (overrides default and --auto-discover)",
+    )
+    c5.add_argument(
+        "--edge-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="edge tables to include in the snapshot",
+    )
+    c5.add_argument(
+        "--kg-path",
+        metavar="PATH",
+        help="(mempalace) SQLite knowledge graph path override",
+    )
+    c5.add_argument(
+        "--collection-name",
+        metavar="NAME",
+        help="(mempalace/flat) ChromaDB collection name",
+    )
+    c5.add_argument(
+        "--seeded-gaps",
+        metavar="YAML",
+        help="YAML file with a `missing_edges: [[src_id, tgt_id], ...]` list "
+        "of known-missing edges. Enables gap recall/precision scoring.",
+    )
+    c5.add_argument(
+        "--no-homology",
+        action="store_true",
+        help="skip the Ripser pass (no Betti-1 reading). Useful when "
+        "ripser is not installed or the largest component is huge.",
+    )
+    c5.add_argument(
+        "--betti-max-nodes",
+        type=int,
+        default=2000,
+        help="skip homology when the largest component exceeds this size. "
+        "Default: 2000.",
+    )
+    c5.add_argument(
+        "--min-component-size",
+        type=int,
+        default=3,
+        help="candidate-gap pairs only consider components with at least "
+        "this many nodes on both sides. Filters out orphan-pair noise. "
+        "Default: 3.",
+    )
+    c5.add_argument(
+        "--max-type-prevalence",
+        type=float,
+        default=0.5,
+        help="entity types present in more than this fraction of sized "
+        "components are treated as universal and don't score. Default 0.5.",
+    )
+    c5.add_argument(
+        "--top-k",
+        type=int,
+        default=20,
+        help="keep the top-K candidate gaps by score. The report still "
+        "records how many pairs were considered. Default: 20.",
+    )
+    c5.add_argument("--json", metavar="PATH", help="write full report as JSON")
+    c5.set_defaults(func=cmd_cat5)
 
     # --- cat2c subcommand --------------------------------------------
 
