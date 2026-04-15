@@ -15,6 +15,68 @@ from __future__ import annotations
 from sme.adapters.base import Edge, Entity
 
 
+def synthetic_duplicates_graph() -> tuple[list[Entity], list[Edge], dict]:
+    """Known-collision graph for Cat 4 (The Threshold) tests.
+
+    Entities are deliberately seeded with duplicates the extractor
+    would have to canonicalize:
+
+      - "Docker" + "docker" + "  Docker  " + "DOCKER"
+        → four distinct IDs that all canonicalize to the same key
+          within entity_type='tool' (three real collisions)
+      - "Docker" + "Docker" under different entity_types
+        → NOT a collision (type matters)
+      - one entity with an empty-string name (required-field gap)
+
+    Edge-type distribution is deliberately lopsided to exercise the
+    4c monoculture signal: one edge type holds most of the edges.
+
+    Ground-truth readings:
+      - entities: 8
+      - required_field_gaps: 1 (entity with empty name)
+      - canonical_collisions: 3 (the three Docker duplicates collapse
+          onto a single canonical key within 'tool')
+      - unique_canonical_keys: 4  (tool::docker, project::docker,
+          tool::kubernetes, person::alice — the empty-name entity
+          contributes no canonical key)
+      - edge_type_counts: {RELATED: 6, MENTIONS: 1, LINKS_TO: 1}
+      - dominant_edge_type: 'RELATED' at 75%
+    """
+    entities = [
+        Entity(id="e1", name="Docker",       entity_type="tool"),
+        Entity(id="e2", name="docker",       entity_type="tool"),  # case dup
+        Entity(id="e3", name="  Docker  ",   entity_type="tool"),  # whitespace dup
+        Entity(id="e4", name="DOCKER",       entity_type="tool"),  # case dup
+        Entity(id="e5", name="Docker",       entity_type="project"),  # same name, diff type — NOT a dup
+        Entity(id="e6", name="Kubernetes",   entity_type="tool"),
+        Entity(id="e7", name="Alice",        entity_type="person"),
+        Entity(id="e8", name="",             entity_type="tool"),  # required-field gap
+    ]
+
+    edges = [
+        Edge("e1", "e6", "RELATED"),
+        Edge("e6", "e5", "RELATED"),
+        Edge("e5", "e7", "RELATED"),
+        Edge("e1", "e7", "RELATED"),
+        Edge("e6", "e7", "RELATED"),
+        Edge("e5", "e6", "RELATED"),
+        Edge("e7", "e1", "MENTIONS"),
+        Edge("e6", "e1", "LINKS_TO"),
+    ]
+
+    ground_truth = {
+        "entities": 8,
+        "required_field_gaps": 1,
+        "canonical_collisions": 3,
+        "unique_canonical_keys": 4,
+        "edge_type_counts": {"RELATED": 6, "MENTIONS": 1, "LINKS_TO": 1},
+        "dominant_edge_type": "RELATED",
+        "dominant_edge_type_fraction": 6 / 8,
+    }
+
+    return entities, edges, ground_truth
+
+
 def synthetic_gap_graph() -> tuple[list[Entity], list[Edge], dict]:
     """Known-topology graph with a seeded structural gap.
 

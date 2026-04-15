@@ -434,6 +434,152 @@ def cmd_cat8(args: argparse.Namespace) -> int:
     return 0
 
 
+def _load_adapter_from_args(args: argparse.Namespace) -> SMEAdapter:
+    """Shared adapter construction for cat4/cat5/check."""
+    adapter_kwargs: dict[str, Any] = {
+        "db_path": args.db,
+        "read_only": True,
+    }
+    for attr, key in (
+        ("auto_discover", "auto_discover"),
+        ("node_tables", "include_node_tables"),
+        ("edge_tables", "include_edge_tables"),
+        ("kg_path", "kg_path"),
+        ("collection_name", "collection_name"),
+    ):
+        val = getattr(args, attr, None)
+        if val:
+            adapter_kwargs[key] = val
+    return _load_adapter(args.adapter, **adapter_kwargs)
+
+
+def cmd_cat4(args: argparse.Namespace) -> int:
+    """Run Category 4 (ingestion integrity) against a system."""
+    from sme.categories.ingestion_integrity import (
+        format_report,
+        score_ingestion_integrity,
+    )
+
+    adapter = _load_adapter_from_args(args)
+    entities, edges = adapter.get_graph_snapshot()
+    log.info("snapshot: %d entities, %d edges", len(entities), len(edges))
+
+    report = score_ingestion_integrity(entities, edges)
+
+    print()
+    print("=" * 70)
+    print(f" {args.adapter} ({args.db})")
+    print("=" * 70)
+    print(format_report(report))
+
+    if args.json:
+        out = {
+            "adapter": args.adapter,
+            "db_path": args.db,
+            "entities": report.entities,
+            "edges": report.edges,
+            "unique_canonical_keys": report.unique_canonical_keys,
+            "canonical_collisions": report.canonical_collisions,
+            "collision_groups": [
+                {
+                    "canonical_key": g.canonical_key,
+                    "entity_type": g.entity_type,
+                    "ids": g.ids,
+                    "names": g.names,
+                }
+                for g in report.collision_groups
+            ],
+            "required_field_gaps": report.required_field_gaps,
+            "required_field_coverage": report.required_field_coverage,
+            "gap_examples": report.gap_examples,
+            "edge_type_counts": report.edge_type_counts,
+            "edge_type_entropy_bits": report.edge_type_entropy_bits,
+            "edge_type_entropy_normalized": report.edge_type_entropy_normalized,
+            "dominant_edge_type": report.dominant_edge_type,
+            "dominant_edge_type_fraction": report.dominant_edge_type_fraction,
+            "per_edge_type_components": report.per_edge_type_components,
+        }
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+
+    adapter.close()
+    return 0
+
+
+def cmd_check(args: argparse.Namespace) -> int:
+    """Run the default test suite (Cat 4 + Cat 5 + structural analyze).
+
+    One command, three readings, unified card. Designed for daily /
+    nightly use against your own graphs rather than benchmark runs.
+    """
+    from sme.categories.gap_detection import (
+        format_report as format_cat5,
+        score_gap_detection,
+    )
+    from sme.categories.ingestion_integrity import (
+        format_report as format_cat4,
+        score_ingestion_integrity,
+    )
+
+    adapter = _load_adapter_from_args(args)
+    entities, edges = adapter.get_graph_snapshot()
+    log.info("snapshot: %d entities, %d edges", len(entities), len(edges))
+
+    cat4 = score_ingestion_integrity(entities, edges)
+    cat5 = score_gap_detection(
+        entities,
+        edges,
+        run_homology=not args.no_homology,
+        betti_max_nodes=args.betti_max_nodes,
+    )
+
+    print()
+    print("=" * 70)
+    print(f" sme-eval check — {args.adapter} ({args.db})")
+    print("=" * 70)
+    print()
+    print(format_cat4(cat4))
+    print()
+    print(format_cat5(cat5))
+
+    if args.json:
+        out = {
+            "adapter": args.adapter,
+            "db_path": args.db,
+            "cat4": {
+                "entities": cat4.entities,
+                "edges": cat4.edges,
+                "canonical_collisions": cat4.canonical_collisions,
+                "unique_canonical_keys": cat4.unique_canonical_keys,
+                "required_field_gaps": cat4.required_field_gaps,
+                "required_field_coverage": cat4.required_field_coverage,
+                "edge_type_counts": cat4.edge_type_counts,
+                "edge_type_entropy_bits": cat4.edge_type_entropy_bits,
+                "edge_type_entropy_normalized": cat4.edge_type_entropy_normalized,
+                "dominant_edge_type": cat4.dominant_edge_type,
+                "dominant_edge_type_fraction": cat4.dominant_edge_type_fraction,
+                "per_edge_type_components": cat4.per_edge_type_components,
+            },
+            "cat5": {
+                "components": cat5.components,
+                "largest_component_size": cat5.largest_component_size,
+                "isolated_nodes": cat5.isolated_nodes,
+                "bridges": len(cat5.bridges),
+                "betti_0_largest": cat5.betti_0_largest,
+                "betti_1_largest": cat5.betti_1_largest,
+                "h1_max_persistence": cat5.h1_max_persistence,
+                "h1_skipped": cat5.h1_skipped,
+                "candidate_gaps_shown": len(cat5.candidate_gaps),
+                "candidate_gaps_considered": cat5.candidate_gaps_considered,
+            },
+        }
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+
+    adapter.close()
+    return 0
+
+
 def cmd_cat5(args: argparse.Namespace) -> int:
     """Run Category 5 (gap detection) against a system."""
     from sme.categories.gap_detection import format_report, score_gap_detection
@@ -922,6 +1068,80 @@ def main(argv: list[str] | None = None) -> int:
     )
     c8.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c8.set_defaults(func=cmd_cat8)
+
+    # --- cat4 subcommand ---------------------------------------------
+
+    c4 = sub.add_parser(
+        "cat4",
+        help="Run Category 4 (The Threshold — ingestion integrity) "
+        "against a system. Reports canonical-collision dedup, required-"
+        "field coverage, and edge-type monoculture signals.",
+    )
+    c4.add_argument("--adapter", required=True)
+    c4.add_argument("--db", required=True, help="path to the adapter's db")
+    c4.add_argument(
+        "--auto-discover",
+        action="store_true",
+        help="include every non-empty NODE and REL table discovered on "
+        "the database, minus operational infrastructure.",
+    )
+    c4.add_argument(
+        "--node-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="node tables to include (overrides default and --auto-discover)",
+    )
+    c4.add_argument(
+        "--edge-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="edge tables to include in the snapshot",
+    )
+    c4.add_argument(
+        "--kg-path",
+        metavar="PATH",
+        help="(mempalace) SQLite knowledge graph path override",
+    )
+    c4.add_argument(
+        "--collection-name",
+        metavar="NAME",
+        help="(mempalace/flat) ChromaDB collection name",
+    )
+    c4.add_argument("--json", metavar="PATH", help="write full report as JSON")
+    c4.set_defaults(func=cmd_cat4)
+
+    # --- check subcommand (test-suite runner) ------------------------
+
+    chk = sub.add_parser(
+        "check",
+        help="Default test suite: Cat 4 (ingestion integrity) + Cat 5 "
+        "(gap detection). One command, unified card, designed for daily "
+        "/ nightly diagnostic runs against your own graphs.",
+    )
+    chk.add_argument("--adapter", required=True)
+    chk.add_argument("--db", required=True, help="path to the adapter's db")
+    chk.add_argument(
+        "--auto-discover",
+        action="store_true",
+        help="include every non-empty NODE and REL table discovered.",
+    )
+    chk.add_argument("--node-tables", nargs="+", metavar="TABLE")
+    chk.add_argument("--edge-tables", nargs="+", metavar="TABLE")
+    chk.add_argument("--kg-path", metavar="PATH")
+    chk.add_argument("--collection-name", metavar="NAME")
+    chk.add_argument(
+        "--no-homology",
+        action="store_true",
+        help="skip the Cat 5 Ripser pass (no Betti-1 reading).",
+    )
+    chk.add_argument(
+        "--betti-max-nodes",
+        type=int,
+        default=2000,
+        help="skip homology when the largest component exceeds this size.",
+    )
+    chk.add_argument("--json", metavar="PATH", help="write combined report as JSON")
+    chk.set_defaults(func=cmd_check)
 
     # --- cat5 subcommand ---------------------------------------------
 
