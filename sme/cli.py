@@ -436,10 +436,13 @@ def cmd_cat8(args: argparse.Namespace) -> int:
 
 def _load_adapter_from_args(args: argparse.Namespace) -> SMEAdapter:
     """Shared adapter construction for cat4/cat5/check."""
-    adapter_kwargs: dict[str, Any] = {
-        "db_path": args.db,
-        "read_only": True,
-    }
+    db = getattr(args, "db", None)
+    api_url = getattr(args, "api_url", None)
+    adapter_kwargs: dict[str, Any] = {"read_only": True}
+    if db:
+        adapter_kwargs["db_path"] = db
+    if api_url:
+        adapter_kwargs["api_url"] = api_url
     for attr, key in (
         ("auto_discover", "auto_discover"),
         ("node_tables", "include_node_tables"),
@@ -451,6 +454,29 @@ def _load_adapter_from_args(args: argparse.Namespace) -> SMEAdapter:
         if val:
             adapter_kwargs[key] = val
     return _load_adapter(args.adapter, **adapter_kwargs)
+
+
+def _source_label(args: argparse.Namespace) -> str:
+    """Display label for the data source (db path or API URL)."""
+    return getattr(args, "db", None) or getattr(args, "api_url", None) or "?"
+
+
+def _add_db_or_api_args(parser: argparse.ArgumentParser) -> None:
+    """Add --db and --api-url to a subparser (at least one required)."""
+    parser.add_argument(
+        "--db",
+        default=None,
+        help="path to the adapter's db file (file mode). Optional when "
+        "--api-url is supplied.",
+    )
+    parser.add_argument(
+        "--api-url",
+        default=None,
+        metavar="URL",
+        help="HTTP base URL for the graph's API (e.g. http://localhost:7740). "
+        "Enables graph-snapshot queries through the Cypher endpoint "
+        "instead of opening the .ldb file — works against locked DBs.",
+    )
 
 
 def cmd_cat4(args: argparse.Namespace) -> int:
@@ -468,14 +494,14 @@ def cmd_cat4(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 70)
-    print(f" {args.adapter} ({args.db})")
+    print(f" {args.adapter} ({_source_label(args)})")
     print("=" * 70)
     print(format_report(report))
 
     if args.json:
         out = {
             "adapter": args.adapter,
-            "db_path": args.db,
+            "source": _source_label(args),
             "entities": report.entities,
             "edges": report.edges,
             "unique_canonical_keys": report.unique_canonical_keys,
@@ -535,7 +561,7 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 70)
-    print(f" sme-eval check — {args.adapter} ({args.db})")
+    print(f" sme-eval check — {args.adapter} ({_source_label(args)})")
     print("=" * 70)
     print()
     print(format_cat4(cat4))
@@ -545,7 +571,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     if args.json:
         out = {
             "adapter": args.adapter,
-            "db_path": args.db,
+            "source": _source_label(args),
             "cat4": {
                 "entities": cat4.entities,
                 "edges": cat4.edges,
@@ -624,14 +650,14 @@ def cmd_cat5(args: argparse.Namespace) -> int:
 
     print()
     print("=" * 70)
-    print(f" {args.adapter} ({args.db})")
+    print(f" {args.adapter} ({_source_label(args)})")
     print("=" * 70)
     print(format_report(report))
 
     if args.json:
         out = {
             "adapter": args.adapter,
-            "db_path": args.db,
+            "source": _source_label(args),
             "nodes": report.nodes,
             "edges": report.edges,
             "components": report.components,
@@ -1078,7 +1104,7 @@ def main(argv: list[str] | None = None) -> int:
         "field coverage, and edge-type monoculture signals.",
     )
     c4.add_argument("--adapter", required=True)
-    c4.add_argument("--db", required=True, help="path to the adapter's db")
+    _add_db_or_api_args(c4)
     c4.add_argument(
         "--auto-discover",
         action="store_true",
@@ -1119,7 +1145,7 @@ def main(argv: list[str] | None = None) -> int:
         "/ nightly diagnostic runs against your own graphs.",
     )
     chk.add_argument("--adapter", required=True)
-    chk.add_argument("--db", required=True, help="path to the adapter's db")
+    _add_db_or_api_args(chk)
     chk.add_argument(
         "--auto-discover",
         action="store_true",
@@ -1152,7 +1178,7 @@ def main(argv: list[str] | None = None) -> int:
         "the largest component, and candidate cross-component gaps.",
     )
     c5.add_argument("--adapter", required=True)
-    c5.add_argument("--db", required=True, help="path to the adapter's db")
+    _add_db_or_api_args(c5)
     c5.add_argument(
         "--auto-discover",
         action="store_true",

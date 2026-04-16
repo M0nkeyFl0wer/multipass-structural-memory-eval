@@ -119,6 +119,16 @@ class LadybugDBAdapter(SMEAdapter):
         self.api_timeout = api_timeout
         self.skip_infrastructure = skip_infrastructure
 
+        # Save raw user-provided table filters for API mode (before
+        # _resolve_*_selection runs, which depends on file-mode schema
+        # discovery and returns empty when the file isn't opened).
+        self._explicit_node_tables = (
+            tuple(include_node_tables) if include_node_tables else None
+        )
+        self._explicit_edge_tables = (
+            tuple(include_edge_tables) if include_edge_tables else None
+        )
+
         if self.db_path is None and self.api_url is None:
             raise ValueError(
                 "LadybugDBAdapter needs either db_path (file mode) or "
@@ -328,13 +338,18 @@ class LadybugDBAdapter(SMEAdapter):
         )
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
-        if self._conn is None:
-            log.warning(
-                "get_graph_snapshot() called on LadybugDBAdapter with no "
-                "db_path (API-only mode). Returning empty snapshot."
-            )
-            return [], []
+        if self._conn is not None:
+            return self._file_graph_snapshot()
+        if self.api_url is not None:
+            return self._api_graph_snapshot()
+        log.warning(
+            "get_graph_snapshot() called with no db_path and no api_url. "
+            "Returning empty snapshot."
+        )
+        return [], []
 
+    def _file_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
+        """Pull snapshot via direct file access (original path)."""
         entities: list[Entity] = []
         for table in self.include_node_tables:
             entities.extend(self._pull_nodes_generic(table))
@@ -348,6 +363,163 @@ class LadybugDBAdapter(SMEAdapter):
                     edges.append(edge)
 
         return entities, edges
+
+    def _api_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
+        """Pull snapshot via the API Cypher endpoint.
+
+        Works against locked databases — queries go through the running
+        API server instead of opening the .ldb file directly. Discovers
+        schema via ``CALL show_tables()``, then pulls entities and edges
+        using the same column-name heuristics as file mode.
+        """
+        import json as _json
+
+        # --- Schema discovery ----------------------------------------
+
+        tables = self._api_cypher("CALL show_tables() RETURN *")
+        node_tables = [r[1] for r in tables if r[2] == "NODE"]
+        rel_tables = [r[1] for r in tables if r[2] == "REL"]
+
+        if self.skip_infrastructure:
+            node_tables = [t for t in node_tables if t not in INFRASTRUCTURE_TABLES]
+            rel_tables = [t for t in rel_tables if t not in INFRASTRUCTURE_TABLES]
+
+        # Honour explicit include filters. In API-only mode,
+        # self.include_node/edge_tables may be empty (file-mode
+        # resolution returned nothing); use the raw user-provided
+        # filters instead.
+        node_filter = self._explicit_node_tables or self.include_node_tables
+        edge_filter = self._explicit_edge_tables or self.include_edge_tables
+        if node_filter:
+            node_tables = [t for t in node_tables if t in set(node_filter)]
+        if edge_filter:
+            rel_tables = [t for t in rel_tables if t in set(edge_filter)]
+
+        log.info(
+            "API snapshot: node tables %s, rel tables %s", node_tables, rel_tables
+        )
+
+        # --- Entities ------------------------------------------------
+
+        entities: list[Entity] = []
+        for table in node_tables:
+            rows = self._api_cypher_dicts(f"MATCH (n:{table}) RETURN n")
+            for row in rows:
+                node = row.get("n", row)
+                if isinstance(node, dict):
+                    raw_id = node.get("id", "")
+                    name = None
+                    for col in NAME_COLUMN_CANDIDATES:
+                        if col in node and node[col]:
+                            name = node[col]
+                            break
+                    etype = None
+                    for col in TYPE_COLUMN_CANDIDATES:
+                        if col in node and node[col]:
+                            etype = node[col]
+                            break
+                    entities.append(Entity(
+                        id=f"{table}:{raw_id}" if raw_id else str(node.get("_ID", "")),
+                        name=name or raw_id or "",
+                        entity_type=etype or table,
+                    ))
+            log.info("  %s: %d entities via API", table, len(rows))
+
+        node_ids = {e.id for e in entities}
+
+        # --- Edges ---------------------------------------------------
+
+        edges: list[Edge] = []
+        for table in rel_tables:
+            # Discover connection endpoints
+            conn_rows = self._api_cypher(
+                f"CALL SHOW_CONNECTION('{table}') RETURN *"
+            )
+            if not conn_rows:
+                log.warning("no connection info for %s via API — skipping", table)
+                continue
+            from_label, to_label = conn_rows[0][0], conn_rows[0][1]
+
+            # Check for edge_type discriminator column
+            col_rows = self._api_cypher(
+                f"CALL TABLE_INFO('{table}') RETURN *"
+            )
+            col_names = [r[1] for r in col_rows]
+            has_disc = EDGE_TYPE_DISCRIMINATOR in col_names
+
+            if has_disc:
+                cypher = (
+                    f"MATCH (a:{from_label})-[r:{table}]->(b:{to_label}) "
+                    f"RETURN a.id, b.id, r.{EDGE_TYPE_DISCRIMINATOR}"
+                )
+            else:
+                cypher = (
+                    f"MATCH (a:{from_label})-[r:{table}]->(b:{to_label}) "
+                    f"RETURN a.id, b.id"
+                )
+
+            rows = self._api_cypher(cypher)
+            for r in rows:
+                src_id = f"{from_label}:{r[0]}"
+                tgt_id = f"{to_label}:{r[1]}"
+                if src_id in node_ids and tgt_id in node_ids:
+                    etype = r[2] if has_disc and len(r) > 2 and r[2] else table
+                    edges.append(Edge(
+                        source_id=src_id,
+                        target_id=tgt_id,
+                        edge_type=etype,
+                    ))
+            log.info("  %s: %d edges via API", table, len(rows))
+
+        return entities, edges
+
+    def _api_cypher(self, query: str) -> list[list]:
+        """Execute Cypher via the API, return raw row arrays.
+
+        Tries ``/api/query?cypher=...`` (FastAPI pattern) then falls
+        back to ``/query?cypher=...``.
+        """
+        import urllib.error
+        import urllib.parse
+        import urllib.request
+        import json as _json
+
+        for path in ("/api/query", "/query"):
+            url = f"{self.api_url}{path}?{urllib.parse.urlencode({'cypher': query})}"
+            try:
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=self.api_timeout) as resp:
+                    body = _json.loads(resp.read().decode("utf-8"))
+                results = body.get("results", [])
+                if results or body.get("count", -1) == 0:
+                    # Convert dict rows to list rows for CALL-style results
+                    if results and isinstance(results[0], dict):
+                        return [list(r.values()) for r in results]
+                    return results
+            except urllib.error.HTTPError:
+                continue
+            except Exception as e:
+                log.warning("API Cypher failed on %s: %s", path, e)
+                continue
+        log.warning("API Cypher query returned no results: %s", query[:80])
+        return []
+
+    def _api_cypher_dicts(self, query: str) -> list[dict]:
+        """Execute Cypher via the API, return rows as dicts."""
+        import urllib.parse
+        import urllib.request
+        import json as _json
+
+        for path in ("/api/query", "/query"):
+            url = f"{self.api_url}{path}?{urllib.parse.urlencode({'cypher': query})}"
+            try:
+                req = urllib.request.Request(url, method="GET")
+                with urllib.request.urlopen(req, timeout=self.api_timeout) as resp:
+                    body = _json.loads(resp.read().decode("utf-8"))
+                return body.get("results", [])
+            except Exception:
+                continue
+        return []
 
     # --- Cat 8 ontology source -----------------------------------------
 
