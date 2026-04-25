@@ -313,3 +313,124 @@ def test_query_sends_x_api_key_header(
         or captured["headers"].get("X-Api-Key")
     )
     assert api_key_value == "my-secret"
+
+
+# --- get_graph_snapshot — /graph fast path --------------------------
+
+
+_GRAPH_RESPONSE = {
+    "wings": {
+        "memorypalace": 427,
+        "projects": 106183,
+        "umbra": 82,
+    },
+    "rooms": [
+        {"wing": "memorypalace", "rooms": {"architecture": 17, "diary": 235}},
+        {"wing": "projects", "rooms": {"architecture": 9, "general": 100}},
+        {"wing": "umbra", "rooms": {"diary": 12}},
+    ],
+    "tunnels": [
+        {"room": "architecture", "wings": ["memorypalace", "projects"]},
+        {"room": "diary", "wings": ["memorypalace", "umbra"]},
+    ],
+    "kg_entities": [
+        {"id": "e1", "name": "Multipass", "type": "concept", "properties": {}}
+    ],
+    "kg_triples": [
+        {
+            "subject": "e1",
+            "predicate": "described_by",
+            "object": "e1",
+            "valid_from": "2026-04-25",
+            "valid_to": None,
+            "confidence": 1.0,
+            "source_file": "README.md",
+        }
+    ],
+    "kg_stats": {"entities": 1, "triples": 1},
+}
+
+
+def test_snapshot_graph_endpoint_creates_wing_entities(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": _GRAPH_RESPONSE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    entities, edges = a.get_graph_snapshot()
+
+    wing_entities = [e for e in entities if e.entity_type == "wing"]
+    assert {e.name for e in wing_entities} == {"memorypalace", "projects", "umbra"}
+
+
+def test_snapshot_graph_endpoint_creates_room_entities_with_wings(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": _GRAPH_RESPONSE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    entities, _ = a.get_graph_snapshot()
+
+    rooms_by_name = {e.name: e for e in entities if e.id.startswith("room:")}
+    assert "architecture" in rooms_by_name
+    assert sorted(rooms_by_name["architecture"].properties["wings"]) == [
+        "memorypalace",
+        "projects",
+    ]
+    # 'general' is a catch-all and should be skipped, mirroring the
+    # existing direct adapter's filter.
+    assert "general" not in rooms_by_name
+
+
+def test_snapshot_graph_endpoint_member_of_edges(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": _GRAPH_RESPONSE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    _, edges = a.get_graph_snapshot()
+
+    member_of = [e for e in edges if e.edge_type == "member_of"]
+    pairs = {(e.source_id, e.target_id) for e in member_of}
+    assert ("room:architecture", "wing:memorypalace") in pairs
+    assert ("room:architecture", "wing:projects") in pairs
+    assert ("room:diary", "wing:memorypalace") in pairs
+
+
+def test_snapshot_graph_endpoint_tunnel_edges(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": _GRAPH_RESPONSE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    _, edges = a.get_graph_snapshot()
+    tunnels = [e for e in edges if e.edge_type == "tunnel"]
+    pairs = {
+        tuple(sorted([e.source_id, e.target_id]))
+        for e in tunnels
+    }
+    # architecture connects memorypalace<->projects
+    assert ("wing:memorypalace", "wing:projects") in pairs
+    # diary connects memorypalace<->umbra
+    assert ("wing:memorypalace", "wing:umbra") in pairs
+
+
+def test_snapshot_graph_endpoint_kg_entities_and_triples(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": _GRAPH_RESPONSE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    entities, edges = a.get_graph_snapshot()
+    kg_ents = [e for e in entities if e.id.startswith("kg:")]
+    assert len(kg_ents) == 1
+    assert kg_ents[0].name == "Multipass"
+
+    kg_edges = [e for e in edges if e.source_id.startswith("kg:")]
+    assert len(kg_edges) == 1
+    assert kg_edges[0].edge_type == "described_by"
