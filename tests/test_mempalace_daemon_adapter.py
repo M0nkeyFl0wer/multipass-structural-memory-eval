@@ -194,3 +194,122 @@ def test_query_question_is_url_quoted(
     a = _adapter(monkeypatch, tmp_path)
     result = a.query("hello world & more")
     assert result.error is None
+
+
+# --- query() error paths --------------------------------------------
+
+
+def test_query_warnings_emit_soft_error_with_results(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    envelope = {
+        **_OK_ENVELOPE,
+        "warnings": ["vector search unavailable: Error finding id"],
+    }
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": envelope,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    # Soft signal: error set, but context_string still populated
+    assert result.error is not None
+    assert result.error.startswith("WARN:")
+    assert "vector search unavailable" in result.error
+    assert "first chunk text" in result.context_string
+
+
+def test_query_warnings_with_empty_results(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    envelope = {
+        "query": "memory",
+        "filters": {"wing": None, "room": None},
+        "total_before_filter": 0,
+        "available_in_scope": 150811,
+        "warnings": ["vector search unavailable: Error finding id"],
+        "results": [],
+    }
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": envelope,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error.startswith("WARN:")
+    assert result.context_string == ""
+
+
+def test_query_no_results_returns_no_results(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    envelope = {**_OK_ENVELOPE, "results": [], "warnings": []}
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": envelope,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error == "NO_RESULTS"
+
+
+def test_query_auth_error_returns_AUTH(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    err = urllib.error.HTTPError(
+        "http://daemon/search", 401, "Unauthorized", {}, None
+    )
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": err,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error.startswith("AUTH:")
+    assert "401" in result.error
+
+
+def test_query_5xx_returns_HTTP_error(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    err = urllib.error.HTTPError(
+        "http://daemon/search", 500, "Server Error", {}, None
+    )
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": err,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error.startswith("HTTP 500")
+
+
+def test_query_connection_refused_returns_CONNECTION(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": (
+            urllib.error.URLError("Connection refused")
+        ),
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error.startswith("CONNECTION:")
+
+
+def test_query_sends_x_api_key_header(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    captured = {}
+
+    def capture(req):
+        captured["headers"] = dict(req.header_items())
+        captured["url"] = req.full_url
+        return _OK_ENVELOPE  # factory will wrap into a _FakeResponse
+
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": capture,
+    })
+    a = _adapter(monkeypatch, tmp_path, api_key="my-secret")
+    a.query("memory")
+    # urllib normalises header names; check both casings
+    api_key_value = (
+        captured["headers"].get("X-api-key")
+        or captured["headers"].get("X-Api-Key")
+    )
+    assert api_key_value == "my-secret"
