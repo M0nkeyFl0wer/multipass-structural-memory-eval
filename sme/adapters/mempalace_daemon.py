@@ -362,9 +362,95 @@ class MemPalaceDaemonAdapter(SMEAdapter):
         return entities, edges
 
     def _snapshot_via_mcp(self) -> tuple[list[Entity], list[Edge]]:
-        """Stub — implemented in the next task."""
-        log.warning("MCP fallback path not yet implemented; returning empty")
-        return [], []
+        """Walk the four MCP read tools and project to (entities, edges).
+
+        Used when /graph is absent (older daemons) or when
+        ``prefer_graph_endpoint=False``.
+        """
+        wings_payload = self._mcp_call("mempalace_list_wings", {})
+        if wings_payload is None:
+            log.warning("list_wings failed; returning empty snapshot")
+            return [], []
+        wings: dict[str, int] = wings_payload.get("wings") or {}
+
+        # Per-wing list_rooms — sequential to match daemon-side rate limits;
+        # the daemon's MCP server runs each tool in its own asyncio task.
+        rooms_by_wing: list[dict] = []
+        for wing in sorted(wings):
+            rooms_payload = self._mcp_call(
+                "mempalace_list_rooms", {"wing": wing}
+            )
+            if rooms_payload is None:
+                log.warning("list_rooms(wing=%s) failed; skipping", wing)
+                continue
+            rooms_by_wing.append(rooms_payload)
+
+        tunnels_payload = self._mcp_call("mempalace_list_tunnels", {})
+        if tunnels_payload is None:
+            log.warning("list_tunnels failed; tunnels omitted from snapshot")
+            tunnels_payload = []
+        # The MCP tool returns a list directly — coerce to the /graph schema
+        # so _project_graph can consume it.
+        tunnels = (
+            tunnels_payload
+            if isinstance(tunnels_payload, list)
+            else tunnels_payload.get("tunnels", [])
+        )
+
+        synthesised = {
+            "wings": wings,
+            "rooms": rooms_by_wing,
+            "tunnels": tunnels,
+            "kg_entities": [],   # not reachable via MCP without arguments
+            "kg_triples": [],
+        }
+        return self._project_graph(synthesised)
+
+    def _mcp_call(self, tool: str, arguments: dict) -> Any:
+        """POST /mcp with a tools/call envelope. Returns the parsed
+        ``content[0].text`` JSON payload, or None on failure (logged).
+        """
+        rpc_body = json.dumps(
+            {
+                "jsonrpc": "2.0",
+                "id": 1,
+                "method": "tools/call",
+                "params": {"name": tool, "arguments": arguments},
+            }
+        ).encode("utf-8")
+        req = urllib.request.Request(
+            f"{self.api_url}/mcp",
+            data=rpc_body,
+            method="POST",
+            headers={
+                "X-API-Key": self.api_key,
+                "Content-Type": "application/json",
+            },
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.api_timeout) as resp:
+                envelope = json.loads(resp.read().decode("utf-8"))
+        except (
+            urllib.error.HTTPError,
+            urllib.error.URLError,
+            TimeoutError,
+            OSError,
+        ) as e:
+            log.warning("MCP %s failed: %s", tool, e)
+            return None
+        result = envelope.get("result") or {}
+        content = result.get("content") or []
+        if not content:
+            err = envelope.get("error")
+            if err:
+                log.warning("MCP %s returned error: %s", tool, err)
+            return None
+        text = content[0].get("text", "")
+        try:
+            return json.loads(text)
+        except Exception as e:  # pragma: no cover
+            log.warning("MCP %s returned non-JSON: %s (%s)", tool, text[:80], e)
+            return None
 
     # --- HTTP plumbing ------------------------------------------------
 

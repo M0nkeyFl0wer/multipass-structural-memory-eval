@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import urllib.error
 from pathlib import Path
@@ -434,3 +435,124 @@ def test_snapshot_graph_endpoint_kg_entities_and_triples(
     kg_edges = [e for e in edges if e.source_id.startswith("kg:")]
     assert len(kg_edges) == 1
     assert kg_edges[0].edge_type == "described_by"
+
+
+# --- get_graph_snapshot — MCP fallback ------------------------------
+
+
+def _mcp_envelope(payload) -> dict:
+    """Build an MCP tools/call response envelope wrapping a JSON payload."""
+    return {
+        "jsonrpc": "2.0",
+        "id": 1,
+        "result": {"content": [{"type": "text", "text": json.dumps(payload)}]},
+    }
+
+
+def _mcp_request_router(routes_by_tool: dict):
+    """Returns a callable that fake_urlopen_factory can hand back as the
+    response for ``POST http://daemon/mcp``.
+
+    Inspects the request body to dispatch on (tool_name, arguments) and
+    returns the matching MCP envelope. Unknown tools raise AssertionError.
+    """
+    def _route(req, *, _routes=routes_by_tool):
+        body = req.data
+        if isinstance(body, bytes):
+            body = body.decode("utf-8")
+        rpc = json.loads(body)
+        params = rpc.get("params") or {}
+        name = params.get("name")
+        args = params.get("arguments") or {}
+        # Per-wing list_rooms: key on tool:wing
+        if name == "mempalace_list_rooms":
+            key = f"mempalace_list_rooms:{args.get('wing')}"
+        else:
+            key = name
+        if key not in _routes:
+            raise AssertionError(f"unrouted MCP call: {key}")
+        result = _routes[key]
+        if isinstance(result, Exception):
+            raise result
+        return _mcp_envelope(result)
+    return _route
+
+
+def test_snapshot_falls_back_to_mcp_on_404(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/graph": (
+            urllib.error.HTTPError(
+                "http://daemon/graph", 404, "Not Found", {}, None
+            )
+        ),
+        "POST http://daemon/mcp": _mcp_request_router({
+            "mempalace_list_wings": {
+                "wings": {"memorypalace": 427, "umbra": 82}
+            },
+            "mempalace_list_tunnels": [
+                {"room": "diary", "wings": ["memorypalace", "umbra"]}
+            ],
+            "mempalace_list_rooms:memorypalace": {
+                "wing": "memorypalace",
+                "rooms": {"diary": 235, "architecture": 17},
+            },
+            "mempalace_list_rooms:umbra": {
+                "wing": "umbra",
+                "rooms": {"diary": 12},
+            },
+        }),
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    entities, edges = a.get_graph_snapshot()
+    wing_names = {e.name for e in entities if e.entity_type == "wing"}
+    assert wing_names == {"memorypalace", "umbra"}
+    tunnels = [e for e in edges if e.edge_type == "tunnel"]
+    assert len(tunnels) == 1
+    pair = tuple(sorted([tunnels[0].source_id, tunnels[0].target_id]))
+    assert pair == ("wing:memorypalace", "wing:umbra")
+
+
+def test_snapshot_force_mcp_with_prefer_graph_false(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "POST http://daemon/mcp": _mcp_request_router({
+            "mempalace_list_wings": {"wings": {"only": 1}},
+            "mempalace_list_tunnels": [],
+            "mempalace_list_rooms:only": {"wing": "only", "rooms": {}},
+        }),
+    })
+    a = _adapter(
+        monkeypatch, tmp_path, prefer_graph_endpoint=False
+    )
+    entities, _ = a.get_graph_snapshot()
+    # Should NOT have hit /graph at all (no route registered for it)
+    wing_names = {e.name for e in entities if e.entity_type == "wing"}
+    assert wing_names == {"only"}
+
+
+def test_snapshot_partial_on_list_rooms_failure(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    """If list_rooms fails for one wing, the snapshot still returns
+    every other wing's data."""
+    fake_urlopen_factory({
+        "GET http://daemon/graph": urllib.error.HTTPError(
+            "http://daemon/graph", 404, "Not Found", {}, None
+        ),
+        "POST http://daemon/mcp": _mcp_request_router({
+            "mempalace_list_wings": {"wings": {"good": 1, "bad": 1}},
+            "mempalace_list_tunnels": [],
+            "mempalace_list_rooms:good": {"wing": "good", "rooms": {"r1": 5}},
+            # 'bad' wing's list_rooms raises
+            "mempalace_list_rooms:bad": urllib.error.HTTPError(
+                "http://daemon/mcp", 500, "tool error", {}, None
+            ),
+        }),
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    entities, _ = a.get_graph_snapshot()
+    room_names = {e.name for e in entities if e.id.startswith("room:")}
+    assert "r1" in room_names  # the good wing's room is present
