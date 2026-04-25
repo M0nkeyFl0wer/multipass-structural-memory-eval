@@ -79,6 +79,67 @@ the documentation and code.
   Handshake) harness-integration spec. Reference material — read the
   onboarding guide first if you want to get a test run going.
 
+## Fork roadmap (jphein)
+
+This is a fork; planned fork-specific work below. Upstream is
+[M0nkeyFl0wer/multipass-structural-memory-eval](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval) — bug fixes and category contributions still target upstream.
+
+### Planned: `mempalace-daemon` adapter
+
+The shipped `sme/adapters/mempalace.py` opens ChromaDB directly via
+`chromadb.PersistentClient`. That works for upstream MemPalace
+single-process installs but **violates the daemon-strict invariant**
+of the [palace-daemon](https://github.com/jphein/palace-daemon) /
+[jphein/mempalace](https://github.com/jphein/mempalace) architecture
+where the daemon is the only process allowed to open the palace
+SQLite. Two `PersistentClient` instances against the same palace =
+the multi-writer corruption scenario the daemon was built to
+prevent. Even for SME's read-only adapter calls, holding ChromaDB
+file handles parallel to the daemon's writers is the wrong shape.
+
+The fork-side adapter would talk only HTTP/MCP:
+
+- `get_graph_snapshot()` → POST `/mcp` with `mempalace_list_wings`,
+  `mempalace_list_rooms`, `mempalace_list_tunnels`,
+  `mempalace_kg_query`. Each tool returns structured data; the
+  adapter assembles the `(Entity, Edge)` graph from those calls.
+- `query()` → GET `/search?q=...&kind=...&limit=...` (via the
+  palace-daemon HTTP REST surface). Default `kind="content"` keeps
+  Stop-hook auto-save checkpoints out of the result set —
+  validated end-to-end against the canonical 151K-drawer palace on
+  2026-04-25, filter excludes ~637 / ~0.4% of corpus by count but
+  ~80%+ of search results before the filter.
+- No filesystem access, no ChromaDB import, no shared-process
+  constraint with the daemon.
+
+CLI invocation pattern:
+
+    sme-eval cat9 --adapter mempalace-daemon \
+      --api-url http://your-daemon:8085 --subtest 9b
+
+The existing `--api-url` flag pattern (used by the LadybugDB
+adapter) is the right shape; the new adapter just wires it through
+to palace-daemon endpoints instead of LadybugDB ones.
+
+**Why this matters:** the engram-2 critique ("0.984 R@5 but 17% E2E
+QA accuracy") is about exactly the integration-under-production-model
+slice that Cat 9 measures. The fork's `kind="content"` filter is a
+candidate fix for one specific shape of that gap. Running SME Cat 9
+through the daemon — both before and after applying the kind=
+filter at the adapter layer — would let the framework's verdict
+replace our hand-rolled A/B and would generate publishable data on
+whether the fix moves the needle. **Multi-hour adapter build** —
+not yet started; documented here as the next concrete step in the
+SME-on-MemPalace integration story.
+
+### Why the existing adapter still has a use
+
+For users running upstream MemPalace without palace-daemon (the
+default install pattern), the existing `mempalace` adapter is
+correct — single process, no daemon, direct ChromaDB access is
+fine. The fork adapter is *additive*, for users who've adopted
+palace-daemon's single-writer architecture.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
