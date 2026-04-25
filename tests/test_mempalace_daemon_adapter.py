@@ -556,3 +556,21 @@ def test_snapshot_partial_on_list_rooms_failure(
     entities, _ = a.get_graph_snapshot()
     room_names = {e.name for e in entities if e.id.startswith("room:")}
     assert "r1" in room_names  # the good wing's room is present
+
+
+# --- ontology + ingest -----------------------------------------------
+
+
+def test_get_ontology_source_matches_existing_adapter(monkeypatch, tmp_path):
+    a = _adapter(monkeypatch, tmp_path)
+    ont = a.get_ontology_source()
+    assert ont["type"] == "readme"
+    declared = {entry["kind"] for entry in ont["schema"]}
+    assert "structural" in declared
+    assert "hall_vocabulary" in declared
+
+
+def test_ingest_corpus_raises_with_helpful_message(monkeypatch, tmp_path):
+    a = _adapter(monkeypatch, tmp_path)
+    with pytest.raises(NotImplementedError, match="diagnostic-only"):
+        a.ingest_corpus([])

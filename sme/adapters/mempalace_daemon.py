@@ -483,5 +483,37 @@ class MemPalaceDaemonAdapter(SMEAdapter):
                 answer="", context_string="", error=f"INTERNAL: {e}"
             )
 
+    def get_ontology_source(self) -> dict:
+        """Return the same MemPalace readme-derived ontology as the
+        direct ChromaDB adapter, so Cat 8 results are comparable across
+        the two access paths. The schema *as documented* doesn't change
+        because the backend access path does."""
+        return {
+            "type": "readme",
+            "schema": [
+                {
+                    "kind": "structural",
+                    "entities": [
+                        "wing", "room", "hall", "tunnel", "closet", "drawer"
+                    ],
+                },
+                {
+                    "kind": "hall_vocabulary",
+                    "values": [
+                        "facts", "events", "discoveries",
+                        "preferences", "advice",
+                    ],
+                },
+            ],
+            "documentation": (
+                "MemPalace organizes memories into Wings, Rooms, Halls, "
+                "Tunnels, Closets, and Drawers. See the existing "
+                "MemPalaceAdapter docstring for the full vocabulary. "
+                "This adapter accesses the palace via palace-daemon's "
+                "HTTP API rather than direct ChromaDB; the documented "
+                "ontology is unchanged."
+            ),
+        }
+
     def close(self) -> None:
         pass
