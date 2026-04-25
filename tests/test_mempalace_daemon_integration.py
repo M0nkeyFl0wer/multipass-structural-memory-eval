@@ -47,25 +47,32 @@ def test_snapshot_returns_at_least_one_wing(adapter):
     assert len(wing_names) >= 1
 
 
-def test_kind_default_excludes_more_than_kind_all(adapter):
-    """Cross-check the README's claim: kind='content' filters strictly
-    less than kind='all'. If the live palace has any auto-save
-    checkpoints, this assertion holds; on a fresh palace it might be
-    equal — assert >= rather than > to avoid flakes."""
-    r_all = adapter.query("the", n_results=5, kind="all")
-    r_content = adapter.query("the", n_results=5, kind="content")
-    # We can't compare result counts directly because limit caps both;
-    # use total_before_filter from retrieval_path.
-    def total_before(rp):
-        for s in rp:
-            if s.startswith("total_before_filter="):
-                # value may be 'None' on errored queries
-                v = s.split("=", 1)[1]
-                try:
-                    return int(v)
-                except ValueError:
-                    return -1
-        return -1
-    assert total_before(r_all.retrieval_path) >= total_before(
-        r_content.retrieval_path
+def test_kind_content_excludes_stop_hook_checkpoints(adapter):
+    """Cross-check the README's behavioural claim: kind='content'
+    excludes Stop-hook auto-save checkpoints (which start with
+    'CHECKPOINT:' in the live palace) while kind='all' includes them.
+
+    The earlier-shape assertion on total_before_filter conflated
+    metadata math with filter behaviour — `total_before_filter` is
+    not "scope size before kind filter". The reliable signal is in
+    the returned context_string itself: do CHECKPOINT: strings
+    appear or not?
+    """
+    r_all = adapter.query("CHECKPOINT", n_results=5, kind="all")
+    r_content = adapter.query("CHECKPOINT", n_results=5, kind="content")
+
+    # If the live palace has zero checkpoints, both will be empty —
+    # skip rather than fail.
+    if "CHECKPOINT:" not in (r_all.context_string or ""):
+        pytest.skip(
+            "live palace has no Stop-hook checkpoints to test against"
+        )
+
+    # The behavioural invariant: kind='content' must have strictly
+    # fewer (or zero) CHECKPOINT: strings than kind='all'.
+    n_all = (r_all.context_string or "").count("CHECKPOINT:")
+    n_content = (r_content.context_string or "").count("CHECKPOINT:")
+    assert n_content < n_all, (
+        f"kind='content' should filter checkpoints, got "
+        f"{n_content} vs {n_all} for kind='all'"
     )
