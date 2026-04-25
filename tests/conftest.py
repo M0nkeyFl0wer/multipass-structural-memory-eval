@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import io
+import json
+
 import pytest
 
 from sme.topology.fixtures import synthetic_duplicates_graph, synthetic_gap_graph
@@ -26,11 +29,6 @@ def duplicates_graph():
     exact collisions seeded.
     """
     return synthetic_duplicates_graph()
-
-
-import io
-import json
-import urllib.error
 
 
 class _FakeResponse:
