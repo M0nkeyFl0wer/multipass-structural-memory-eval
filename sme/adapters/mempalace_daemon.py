@@ -143,11 +143,119 @@ class MemPalaceDaemonAdapter(SMEAdapter):
             "mempalace CLI directly."
         )
 
-    def query(self, question: str, **_kwargs: Any) -> QueryResult:
-        raise NotImplementedError("Implemented in a later task")
+    def query(
+        self,
+        question: str,
+        *,
+        n_results: int = 5,
+        kind: Optional[str] = None,
+        route: bool = False,  # accepted for CLI parity; daemon does its own
+        wing: Optional[str] = None,  # ignored; reserved for future expansion
+        room: Optional[str] = None,  # ignored; reserved for future expansion
+    ) -> QueryResult:
+        chosen_kind = kind or self.kind
+        params = urllib.parse.urlencode(
+            {"q": question, "limit": n_results, "kind": chosen_kind}
+        )
+        url = f"{self.api_url}/search?{params}"
+        body = self._http_get(url)
+        # body is a parsed dict here; errors are returned as QueryResult
+        if isinstance(body, QueryResult):
+            return body
+
+        results = body.get("results") or []
+        warnings = body.get("warnings") or []
+        total = body.get("total_before_filter")
+        available = body.get("available_in_scope")
+        retrieval_path = [
+            f"kind={chosen_kind}",
+            f"available_in_scope={available}",
+            f"total_before_filter={total}",
+        ]
+
+        if not results:
+            err = (
+                f"WARN: {'; '.join(warnings)}"
+                if warnings
+                else "NO_RESULTS"
+            )
+            return QueryResult(
+                answer="",
+                context_string="",
+                error=err,
+                retrieval_path=retrieval_path,
+            )
+
+        context_parts: list[str] = []
+        retrieved: list[Entity] = []
+        for i, hit in enumerate(results):
+            meta = hit.get("metadata") or {}
+            wing_name = meta.get("wing", "?")
+            room_name = meta.get("room", "?")
+            source_file = meta.get("source_file") or f"hit{i}"
+            source_label = Path(source_file).name or source_file
+            text = hit.get("text", "") or ""
+            context_parts.append(
+                f"[{i + 1}] [{wing_name}/{room_name}] {source_label}\n{text}"
+            )
+            retrieved.append(
+                Entity(
+                    id=f"drawer_hit:{i}",
+                    name=source_label,
+                    entity_type=f"drawer:{room_name}",
+                    properties={
+                        "_table": "mempalace_daemon_hit",
+                        "wing": wing_name,
+                        "room": room_name,
+                        "score": hit.get("score"),
+                        "source_file": source_file,
+                    },
+                )
+            )
+
+        context_string = "\n\n".join(context_parts)
+        warn_err = f"WARN: {'; '.join(warnings)}" if warnings else None
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=retrieved,
+            retrieval_path=retrieval_path,
+            error=warn_err,
+        )
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
         raise NotImplementedError("Implemented in a later task")
+
+    # --- HTTP plumbing ------------------------------------------------
+
+    def _http_get(self, url: str) -> Any:
+        """GET ``url`` with X-API-Key, return parsed JSON or a QueryResult
+        wrapping the error. Used by both query() and snapshot calls.
+        """
+        req = urllib.request.Request(
+            url, method="GET", headers={"X-API-Key": self.api_key}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=self.api_timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            try:
+                detail = e.read().decode("utf-8", errors="replace")[:200]
+            except Exception:
+                detail = str(e)
+            if e.code in (401, 403):
+                err = f"AUTH: invalid X-API-Key ({e.code})"
+            else:
+                err = f"HTTP {e.code}: {detail}"
+            return QueryResult(answer="", context_string="", error=err)
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            return QueryResult(
+                answer="", context_string="", error=f"CONNECTION: {e}"
+            )
+        except Exception as e:  # pragma: no cover
+            return QueryResult(
+                answer="", context_string="", error=f"INTERNAL: {e}"
+            )
 
     def close(self) -> None:
         pass

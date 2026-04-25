@@ -68,3 +68,129 @@ def test_auth_url_trailing_slash_is_stripped(monkeypatch, tmp_path):
         env_file=tmp_path / "nope",
     )
     assert a.api_url == "http://example"
+
+
+# --- query() ---------------------------------------------------------
+
+
+_OK_ENVELOPE = {
+    "query": "memory",
+    "filters": {"wing": None, "room": None},
+    "total_before_filter": 3,
+    "available_in_scope": 150811,
+    "warnings": [],
+    "results": [
+        {
+            "text": "first chunk text",
+            "metadata": {
+                "wing": "memorypalace",
+                "room": "architecture",
+                "source_file": "/path/to/notes.md",
+            },
+            "score": 0.91,
+        },
+        {
+            "text": "second chunk",
+            "metadata": {
+                "wing": "memorypalace",
+                "room": "diary",
+                "source_file": "/path/to/diary.md",
+            },
+            "score": 0.84,
+        },
+    ],
+}
+
+
+def _adapter(monkeypatch, tmp_path, **kwargs):
+    monkeypatch.delenv("PALACE_API_KEY", raising=False)
+    monkeypatch.delenv("PALACE_DAEMON_URL", raising=False)
+    defaults = dict(
+        api_url="http://daemon",
+        api_key="key",
+        env_file=tmp_path / "no-env",
+    )
+    defaults.update(kwargs)
+    return MemPalaceDaemonAdapter(**defaults)
+
+
+def test_query_success_builds_context_string(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert result.error is None
+    assert "[1] [memorypalace/architecture]" in result.context_string
+    assert "first chunk text" in result.context_string
+    assert "[2] [memorypalace/diary]" in result.context_string
+    assert "second chunk" in result.context_string
+    # Source filename basenames, not full paths
+    assert "notes.md" in result.context_string
+    assert "/path/to/notes.md" not in result.context_string
+
+
+def test_query_retrieved_entities_have_wing_room_score(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    assert len(result.retrieved_entities) == 2
+    e0 = result.retrieved_entities[0]
+    assert e0.entity_type == "drawer:architecture"
+    assert e0.properties["wing"] == "memorypalace"
+    assert e0.properties["room"] == "architecture"
+    assert e0.properties["score"] == 0.91
+
+
+def test_query_retrieval_path_includes_kind_and_counts(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=content": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory")
+    path_str = "; ".join(result.retrieval_path)
+    assert "kind=content" in path_str
+    assert "available_in_scope=150811" in path_str
+    assert "total_before_filter=3" in path_str
+
+
+def test_query_kind_kwarg_overrides_default(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=5&kind=all": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)  # kind defaults to "content"
+    result = a.query("memory", kind="all")
+    assert "kind=all" in "; ".join(result.retrieval_path)
+
+
+def test_query_n_results_threads_through_to_limit(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        "GET http://daemon/search?q=memory&limit=12&kind=content": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("memory", n_results=12)
+    assert result.error is None  # would AssertionError in fake_urlopen otherwise
+
+
+def test_query_question_is_url_quoted(
+    monkeypatch, tmp_path, fake_urlopen_factory
+):
+    fake_urlopen_factory({
+        # spaces and ampersands must be quoted in the URL
+        "GET http://daemon/search?q=hello+world+%26+more&limit=5&kind=content": _OK_ENVELOPE,
+    })
+    a = _adapter(monkeypatch, tmp_path)
+    result = a.query("hello world & more")
+    assert result.error is None
