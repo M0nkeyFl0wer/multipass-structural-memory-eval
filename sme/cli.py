@@ -64,6 +64,7 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             "buffer_pool_size",
             "api_key",
             "kind",
+            "read_only",
         ):
             kwargs.pop(k, None)
         # CLI uses --api-url; familiar adapter constructor uses base_url.
