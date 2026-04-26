@@ -241,3 +241,85 @@ def test_query_server_error_takes_precedence(fake_urlopen_factory):
     result = FamiliarAdapter().query("x")
     assert "explicit server error" in (result.error or "")
     assert "low_confidence" in (result.error or "")
+
+
+# --- Task 7: get_graph_snapshot ---
+
+def test_get_graph_snapshot_happy_path(fake_urlopen_factory):
+    body = {
+        "wings": {"realmwatch": 12, "personal": 7},
+        "rooms": [
+            {"wing": "realmwatch", "rooms": {"gatekeeper": 5}},
+            {"wing": "personal", "rooms": {"hobbies": 4}},
+        ],
+        "tunnels": [{"room": "tools", "wings": ["realmwatch", "personal"]}],
+        "kg_entities": [
+            {"id": "ent_1", "name": "JP", "type": "person", "properties": {}}
+        ],
+        "kg_triples": [
+            {"subject": "ent_1", "predicate": "owns", "object": "ent_repo"}
+        ],
+        "kg_stats": {"entities": 1, "triples": 1},
+    }
+    fake_urlopen_factory({GRAPH_ROUTE: body})
+    entities, edges = FamiliarAdapter().get_graph_snapshot()
+
+    wing_ids = [e.id for e in entities if e.entity_type == "wing"]
+    assert "wing:realmwatch" in wing_ids
+    assert "wing:personal" in wing_ids
+
+    kg_ids = [e.id for e in entities if e.entity_type.startswith("kg:")]
+    assert "kg:ent_1" in kg_ids
+
+    tunnel_edges = [e for e in edges if e.edge_type == "tunnel"]
+    assert any(
+        {edge.source_id, edge.target_id} == {"wing:realmwatch", "wing:personal"}
+        for edge in tunnel_edges
+    )
+
+
+def test_get_graph_snapshot_failure_returns_empty(fake_urlopen_factory):
+    fake_urlopen_factory({GRAPH_ROUTE: (502, {"error": "daemon down"})})
+    entities, edges = FamiliarAdapter().get_graph_snapshot()
+    assert entities == []
+    assert edges == []
+
+
+def test_get_graph_snapshot_missing_wings_returns_empty(fake_urlopen_factory):
+    """Defensive: empty/malformed body shouldn't crash project_graph."""
+    fake_urlopen_factory({GRAPH_ROUTE: {"unrelated": "shape"}})
+    entities, edges = FamiliarAdapter().get_graph_snapshot()
+    assert entities == []
+    assert edges == []
+
+
+# --- Task 8: optional methods ---
+
+def test_get_flat_retrieval_returns_entities_only(fake_urlopen_factory):
+    body = _ok_response_with_warnings([])
+    body["retrieved_entities"] = [
+        {"id": f"d{i}", "type": "drawer", "wing": "w", "room": "r"}
+        for i in range(3)
+    ]
+    fake_urlopen_factory({EVAL_ROUTE: body})
+    entities = FamiliarAdapter().get_flat_retrieval("test", k=3)
+    assert len(entities) == 3
+    assert all(e.entity_type == "drawer" for e in entities)
+
+
+def test_get_flat_retrieval_failure_returns_empty(fake_urlopen_factory):
+    fake_urlopen_factory({EVAL_ROUTE: (500, {"error": "x"})})
+    entities = FamiliarAdapter().get_flat_retrieval("test")
+    assert entities == []
+
+
+def test_get_ontology_source_returns_declared():
+    assert FamiliarAdapter().get_ontology_source() == "declared"
+
+
+def test_get_harness_manifest_returns_list():
+    """Forward-compat: returns [] if HarnessDescriptor types not importable
+    (current state); will return 2 descriptors once Cat 9 ships in multipass."""
+    manifest = FamiliarAdapter(base_url="https://familiar.jphe.in").get_harness_manifest()
+    assert isinstance(manifest, list)
+    assert len(manifest) in (0, 2)

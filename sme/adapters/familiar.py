@@ -102,7 +102,64 @@ class FamiliarAdapter(SMEAdapter):
         return self._deserialize_query(payload)
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
-        raise NotImplementedError("Task 7")
+        """GET /api/familiar/graph (familiar's proxy of palace-daemon
+        /graph) and project to (entities, edges) via the shared mapping
+        module. Failure returns ([], []) per the SME contract — a missing
+        snapshot zeroes out structural-category scores rather than
+        raising."""
+        status, body = self._get_json("/api/familiar/graph")
+        if status != 200 or not isinstance(body, dict) or "wings" not in body:
+            return [], []
+        return project_graph(body)
+
+    # --- Optional SMEAdapter methods ---
+
+    def get_flat_retrieval(self, question: str, k: int = 5) -> list[Entity]:
+        """Optional: same path as query() but returns only the entities,
+        used by Cat 7 token-budget analysis where the answer text is
+        irrelevant and only retrieval changes."""
+        body = {
+            "query": question[:250],
+            "limit": k,
+            "kind": "content",
+            "mock": self.mock_inference,
+        }
+        status, payload = self._post_json("/api/familiar/eval", body)
+        if status != 200 or not isinstance(payload, dict):
+            return []
+        raw_entities = payload.get("retrieved_entities") or []
+        return [self._entity_from_payload(e) for e in raw_entities]
+
+    def get_ontology_source(self) -> str:
+        """Wings/rooms taxonomy is author-declared (mempalace_get_taxonomy
+        MCP tool), not inferred from data. Same semantics as
+        MemPalaceDaemonAdapter."""
+        return "declared"
+
+    def get_harness_manifest(self) -> list:
+        """Forward-compat for SME Cat 9 (Handshake). Returns descriptors of
+        familiar's invocation surfaces — HTTP tool-call + MCP. Falls back
+        to [] when the multipass-side descriptor types aren't yet
+        importable (Cat 9 not implemented yet on this multipass version)."""
+        try:
+            from sme.harness import ToolCall, MCPResource  # type: ignore
+        except ImportError:
+            return []
+        return [
+            ToolCall(
+                name="familiar_query",
+                json_schema={
+                    "type": "object",
+                    "properties": {"query": {"type": "string"}},
+                    "required": ["query"],
+                },
+                backend_endpoint=f"{self.base_url}/api/familiar/eval",
+            ),
+            MCPResource(
+                server_url=f"{self.base_url}/mcp",
+                resource_uri_pattern="familiar_(recall|reflect|chat)",
+            ),
+        ]
 
     # --- Internals ---
 
@@ -175,6 +232,36 @@ class FamiliarAdapter(SMEAdapter):
                     parsed = json.loads(raw) if raw else {}
                 except json.JSONDecodeError as e:
                     return -1, {"_network_error": f"invalid JSON response: {e}"}
+                return status, parsed
+        except urllib.error.HTTPError as e:
+            try:
+                raw = e.read().decode("utf-8", errors="replace")
+                try:
+                    return e.code, json.loads(raw)
+                except json.JSONDecodeError:
+                    return e.code, {"_raw": raw[:200]}
+            except Exception:
+                return e.code, {"_raw": ""}
+        except (socket.timeout, TimeoutError) as e:
+            return -1, {"_network_error": f"timeout after {self.timeout_s}s ({e})"}
+        except urllib.error.URLError as e:
+            return -1, {"_network_error": f"connection failed: {e.reason}"}
+        except Exception as e:
+            return -1, {"_network_error": f"unexpected: {type(e).__name__}: {e}"}
+
+    def _get_json(self, path: str) -> tuple[int, Any]:
+        """GET JSON, mirror _post_json's no-raise contract."""
+        url = f"{self.base_url}{path}"
+        req = urllib.request.Request(url, method="GET")
+        opener = self._opener or urllib.request.urlopen
+        try:
+            with opener(req, timeout=self.timeout_s) as resp:
+                raw = resp.read().decode("utf-8")
+                status = resp.status if hasattr(resp, "status") else resp.getcode()
+                try:
+                    parsed = json.loads(raw) if raw else {}
+                except json.JSONDecodeError as e:
+                    return -1, {"_network_error": f"invalid JSON: {e}"}
                 return status, parsed
         except urllib.error.HTTPError as e:
             try:
