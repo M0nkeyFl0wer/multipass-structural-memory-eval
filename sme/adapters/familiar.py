@@ -35,6 +35,11 @@ log = logging.getLogger(__name__)
 DEFAULT_BASE_URL = "http://familiar:8080"
 DEFAULT_TIMEOUT_S = 30.0
 
+# Soft warnings (low_confidence, filtered_null_text_*, stuck_loop) and hard
+# warnings (palace_unreachable) both surface in QueryResult.error with a
+# WARN: prefix; the distinction lives in the surfaced message text.
+HARD_WARNING_TOKENS = ("palace_unreachable",)
+
 
 class FamiliarAdapter(SMEAdapter):
     """Adapter for a running familiar.realm.watch v0.2.0+ instance."""
@@ -49,8 +54,6 @@ class FamiliarAdapter(SMEAdapter):
         self.base_url = base_url.rstrip("/")
         self.timeout_s = timeout_s
         self.mock_inference = mock_inference
-        # `opener` is injected by tests via fake_urlopen_factory; production
-        # code uses urllib.request.urlopen directly.
         self._opener = opener
 
     # --- Required SMEAdapter methods ---
@@ -70,7 +73,121 @@ class FamiliarAdapter(SMEAdapter):
         }
 
     def query(self, question: str) -> QueryResult:
-        raise NotImplementedError("Task 4-7")
+        """POST /api/familiar/eval and deserialize the SME-shape response."""
+        body = {
+            "query": question[:250],
+            "limit": 5,
+            "kind": "content",
+            "mock": self.mock_inference,
+        }
+        status, payload = self._post_json("/api/familiar/eval", body)
+        if status == -1:
+            msg = payload.get("_network_error", "unknown network error") if isinstance(payload, dict) else "unknown error"
+            return QueryResult(
+                answer="",
+                context_string="",
+                retrieved_entities=[],
+                retrieved_edges=[],
+                error=f"familiar {msg}",
+            )
+        if status != 200:
+            snippet = json.dumps(payload)[:200] if isinstance(payload, dict) else str(payload)[:200]
+            return QueryResult(
+                answer="",
+                context_string="",
+                retrieved_entities=[],
+                retrieved_edges=[],
+                error=f"familiar endpoint {status}: {snippet}",
+            )
+        return self._deserialize_query(payload)
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
-        raise NotImplementedError("Task 8")
+        raise NotImplementedError("Task 7")
+
+    # --- Internals ---
+
+    def _deserialize_query(self, payload: dict) -> QueryResult:
+        """Map familiar's JSON response onto SME QueryResult."""
+        answer = payload.get("answer") or ""
+        context_string = payload.get("context_string") or ""
+        raw_entities = payload.get("retrieved_entities") or []
+        raw_edges = payload.get("retrieved_edges") or []
+        server_error = payload.get("error")
+        warnings = payload.get("warnings") or []
+
+        entities = [self._entity_from_payload(e) for e in raw_entities]
+        edges = [self._edge_from_payload(e) for e in raw_edges]
+
+        parts: list[str] = []
+        if server_error:
+            parts.append(str(server_error))
+        if warnings:
+            parts.append("WARN: " + "; ".join(warnings))
+        error = " | ".join(parts) if parts else None
+
+        return QueryResult(
+            answer=answer,
+            context_string=context_string,
+            retrieved_entities=entities,
+            retrieved_edges=edges,
+            error=error,
+        )
+
+    @staticmethod
+    def _entity_from_payload(p: dict) -> Entity:
+        """Map a familiar SmeEntity dict to an SME Entity dataclass."""
+        eid = p.get("id") or ""
+        return Entity(
+            id=eid,
+            name=eid,
+            entity_type=p.get("type") or "drawer",
+            properties={
+                k: v for k, v in p.items() if k not in ("id", "type") and v is not None
+            },
+        )
+
+    @staticmethod
+    def _edge_from_payload(p: dict) -> Edge:
+        return Edge(
+            source_id=p.get("subject") or "",
+            target_id=p.get("object") or "",
+            edge_type=p.get("predicate") or "",
+        )
+
+    def _post_json(self, path: str, body: dict) -> tuple[int, Any]:
+        """POST JSON, return (status, parsed_body). Translates network and
+        JSON-decode failures into a sentinel (-1 status, error-bearing dict)
+        so the adapter's error contract stays no-raise."""
+        url = f"{self.base_url}{path}"
+        data = json.dumps(body).encode("utf-8")
+        req = urllib.request.Request(
+            url,
+            data=data,
+            headers={"content-type": "application/json"},
+            method="POST",
+        )
+        opener = self._opener or urllib.request.urlopen
+        try:
+            with opener(req, timeout=self.timeout_s) as resp:
+                raw = resp.read().decode("utf-8")
+                status = resp.status if hasattr(resp, "status") else resp.getcode()
+                try:
+                    parsed = json.loads(raw) if raw else {}
+                except json.JSONDecodeError as e:
+                    return -1, {"_network_error": f"invalid JSON response: {e}"}
+                return status, parsed
+        except urllib.error.HTTPError as e:
+            try:
+                raw = e.read().decode("utf-8", errors="replace")
+                try:
+                    return e.code, json.loads(raw)
+                except json.JSONDecodeError:
+                    return e.code, {"_raw": raw[:200]}
+            except Exception:
+                return e.code, {"_raw": ""}
+        except (socket.timeout, TimeoutError) as e:
+            return -1, {"_network_error": f"timeout after {self.timeout_s}s ({e})"}
+        except urllib.error.URLError as e:
+            return -1, {"_network_error": f"connection failed: {e.reason}"}
+        except Exception as e:
+            return -1, {"_network_error": f"unexpected: {type(e).__name__}: {e}"}
