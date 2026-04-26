@@ -916,6 +916,13 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
         adapter_kwargs["kind"] = args.kind
     if getattr(args, "query_mode", None):
         adapter_kwargs["default_query_mode"] = args.query_mode
+    # mock_inference is bool — explicit None means "use adapter default"
+    mock = getattr(args, "mock_inference", None)
+    if mock is not None:
+        adapter_kwargs["mock_inference"] = mock
+    timeout = getattr(args, "familiar_timeout", None)
+    if timeout is not None:
+        adapter_kwargs["timeout_s"] = timeout
     adapter = _load_adapter(args.adapter, **adapter_kwargs)
 
     # Run each question
@@ -1226,6 +1233,30 @@ def main(argv: list[str] | None = None) -> int:
         "--json",
         metavar="PATH",
         help="write full per-question results to this JSON path",
+    )
+    ret_mock = ret.add_mutually_exclusive_group()
+    ret_mock.add_argument(
+        "--mock",
+        dest="mock_inference",
+        action="store_true",
+        default=None,
+        help="(familiar) skip LLM inference, score retrieval only "
+        "(default: True for Cat 1 substring-scoring determinism).",
+    )
+    ret_mock.add_argument(
+        "--no-mock",
+        dest="mock_inference",
+        action="store_false",
+        help="(familiar) run inference; for future Cat 9 work where the "
+        "model writes the answer.",
+    )
+    ret.add_argument(
+        "--familiar-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="(familiar) HTTP timeout for /api/familiar/eval and "
+        "/api/familiar/graph. Default 30s.",
     )
     ret.set_defaults(func=cmd_retrieve)
 
