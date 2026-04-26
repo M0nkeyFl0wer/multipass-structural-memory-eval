@@ -1,0 +1,244 @@
+# JP-realm baseline corpus — v0.1
+#
+# Questions probing JP's actual palace (~151K drawers as of 2026-04-26).
+# Mode B (diagnostic): no ingest step. Questions target content known to
+# exist in JP's palace based on session context, CLAUDE.md, and the
+# trace logs from familiar's pipeline 2026-04-25/26.
+#
+# `expected_sources` = substrings expected to appear in the adapter's
+# `context_string` if retrieval is working. Mix of drawer text, wing/
+# room labels, and topic keywords. Recall is fraction-of-expected
+# matched per question, summed across the run.
+#
+# Seed authored 2026-04-26 by Claude with JP. Expand over time as
+# retrieval failures surface gaps.
+
+version: jp-realm-v0.1
+description: |
+  Diagnostic corpus for JP's live palace via familiar v0.2 pipeline.
+  Compare familiar adapter scores vs mempalace_daemon adapter scores
+  on the same questions to measure what familiar's rerank/decay/compress/
+  grounding contributes on top of palace-daemon's recall.
+
+questions:
+  # --- Realm.watch ecosystem (5) ---
+
+  - id: q01_familiar_what
+    text: "What is familiar.realm.watch?"
+    expected_sources:
+      - familiar
+      - palace
+    min_hops: 1
+
+  - id: q02_realm_sigil_role
+    text: "What does realm-sigil do across JP's projects?"
+    expected_sources:
+      - sigil
+      - version
+    min_hops: 1
+
+  - id: q03_status_realm_watch
+    text: "What is status.realm.watch and what does it monitor?"
+    expected_sources:
+      - status
+      - realm
+    min_hops: 1
+
+  - id: q04_os_realm_watch
+    text: "What is os.realm.watch?"
+    expected_sources:
+      - "os.realm"
+      - quest
+    min_hops: 1
+
+  - id: q05_portal_realm
+    text: "What does the realm-portal VM serve?"
+    expected_sources:
+      - portal
+      - VM
+    min_hops: 1
+
+  # --- mempalace + palace-daemon (5) ---
+
+  - id: q06_mempalace_fork
+    text: "What are the key features of JP's mempalace fork vs upstream?"
+    expected_sources:
+      - mempalace
+      - fork
+    min_hops: 1
+
+  - id: q07_palace_daemon_role
+    text: "What is palace-daemon for?"
+    expected_sources:
+      - daemon
+      - HTTP
+    min_hops: 1
+
+  - id: q08_kind_filter
+    text: "What does the kind=content search filter do?"
+    expected_sources:
+      - kind
+      - checkpoint
+    min_hops: 1
+
+  - id: q09_silent_save
+    text: "What is the /silent-save endpoint?"
+    expected_sources:
+      - silent-save
+      - diary
+    min_hops: 1
+
+  - id: q10_hnsw_rebuild
+    text: "How do you rebuild the HNSW index when search recall is degraded?"
+    expected_sources:
+      - HNSW
+      - rebuild
+    min_hops: 1
+
+  # --- Forks JP has surveyed (5) ---
+
+  - id: q11_multipass_role
+    text: "What is multipass-structural-memory-eval?"
+    expected_sources:
+      - multipass
+      - eval
+    min_hops: 1
+
+  - id: q12_rlm_paper
+    text: "What is the rlm (Recursive Language Models) project about?"
+    expected_sources:
+      - rlm
+      - recursive
+    min_hops: 1
+
+  - id: q13_graphpalace
+    text: "What is GraphPalace and how does its pheromone model work?"
+    expected_sources:
+      - GraphPalace
+      - pheromone
+    min_hops: 1
+
+  - id: q14_hermes_agent
+    text: "What is hermes-agent?"
+    expected_sources:
+      - hermes
+      - agent
+    min_hops: 1
+
+  - id: q15_context_engine_emmimal
+    text: "What is the Emmimal context-engine framework?"
+    expected_sources:
+      - context-engine
+      - rerank
+    min_hops: 1
+
+  # --- Tools / workflow (5) ---
+
+  - id: q16_speech_to_cli
+    text: "What does speech-to-cli do?"
+    expected_sources:
+      - speech
+      - voice
+    min_hops: 1
+
+  - id: q17_vault_gate
+    text: "What is vault-gate and how does it unlock Vaultwarden?"
+    expected_sources:
+      - vault-gate
+      - bw
+    min_hops: 1
+
+  - id: q18_cc_switcher
+    text: "What is the cc tool used for?"
+    expected_sources:
+      - claude-code-switcher
+      - provider
+    min_hops: 1
+
+  - id: q19_outline_wiki
+    text: "What is JP's Outline wiki used for?"
+    expected_sources:
+      - outline
+      - documentation
+    min_hops: 1
+
+  - id: q20_realm_optimizer
+    text: "What is realm-optimizer?"
+    expected_sources:
+      - optimizer
+      - quest
+    min_hops: 1
+
+  # --- Infrastructure / homelab (5) ---
+
+  - id: q21_gatekeeper_router
+    text: "What is the gatekeeper firewall and what does it run?"
+    expected_sources:
+      - gatekeeper
+      - OpenWrt
+    min_hops: 1
+
+  - id: q22_ubox0_caddy
+    text: "What does ubox0 serve via Caddy?"
+    expected_sources:
+      - ubox0
+      - Caddy
+    min_hops: 1
+
+  - id: q23_disks_services
+    text: "What services run on the disks host?"
+    expected_sources:
+      - disks
+      - palace-daemon
+    min_hops: 2
+
+  - id: q24_katana_role
+    text: "What is the role of katana in JP's homelab?"
+    expected_sources:
+      - katana
+      - GPU
+    min_hops: 1
+
+  - id: q25_vlans_collectd
+    text: "How is JP's network organized in VLANs?"
+    expected_sources:
+      - VLAN
+      - collectd
+    min_hops: 2
+
+  # --- Specific incidents / decisions (5) ---
+
+  - id: q26_caddy_dns_resolvers
+    text: "What was the Caddy ACME DNS-01 cert renewal issue and the fix?"
+    expected_sources:
+      - resolvers
+      - dns-01
+    min_hops: 1
+
+  - id: q27_v02_retrieval_pipeline
+    text: "What does familiar v0.2's retrieval pipeline do?"
+    expected_sources:
+      - rerank
+      - decay
+    min_hops: 2
+
+  - id: q28_postgres_migration
+    text: "What is the planned palace storage migration to Postgres?"
+    expected_sources:
+      - Postgres
+      - pgvector
+    min_hops: 1
+
+  - id: q29_p40_upgrade
+    text: "What is the planned P40 GPU upgrade for the familiar host?"
+    expected_sources:
+      - P40
+      - VRAM
+    min_hops: 1
+
+  - id: q30_techempower
+    text: "What is JP's TechEmpower work?"
+    expected_sources:
+      - TechEmpower
+      - technology
+    min_hops: 1
