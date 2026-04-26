@@ -5,7 +5,6 @@ from __future__ import annotations
 import socket
 import urllib.error
 
-import pytest
 
 from sme.adapters.familiar import FamiliarAdapter
 
@@ -97,11 +96,6 @@ def test_query_happy_path(fake_urlopen_factory):
 def test_query_default_mock_inference_is_true(fake_urlopen_factory, monkeypatch):
     """Cat 1 determinism guarantee: default mock=true."""
     captured = {}
-
-    def capture(routes):
-        original = routes
-        # Wrap default fake — capture the body before responding
-        return None  # not used; we do this inline below
 
     # Use a custom opener to capture the request body
     import json as _json

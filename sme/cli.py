@@ -1161,7 +1161,7 @@ def main(argv: list[str] | None = None) -> int:
     ret.add_argument(
         "--adapter",
         required=True,
-        help="adapter name (flat | mempalace | mempalace-daemon | ladybugdb)",
+        help="adapter name (flat | mempalace | mempalace-daemon | familiar | ladybugdb)",
     )
     ret.add_argument(
         "--db",
@@ -1174,7 +1174,7 @@ def main(argv: list[str] | None = None) -> int:
     ret.add_argument(
         "--api-url",
         metavar="URL",
-        help="(ladybugdb, mempalace-daemon) HTTP base URL for API-mode "
+        help="(ladybugdb, mempalace-daemon, familiar) HTTP base URL for API-mode "
         "queries (e.g. http://localhost:7720 for ladybugdb, or "
         "http://disks.jphe.in:8085 for mempalace-daemon).",
     )
