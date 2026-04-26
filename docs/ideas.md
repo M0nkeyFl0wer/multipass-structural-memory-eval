@@ -376,6 +376,21 @@ any specific SME output as gospel:
   what happens in production under a specific model and harness.
   See Cat 9 in the spec for why this is the largest gap in current
   instrumentation.
+**Forward-compat in adapters (2026-04-26):** `FamiliarAdapter`
+(familiar.realm.watch v0.2's adapter) emits per-question records that
+include the verbatim `context_string` sent to inference plus structured
+`warnings` (`palace_unreachable`, `low_confidence`,
+`filtered_null_text_*`, `stuck_loop`). The `cmd_retrieve` JSON output
+captures all of this per-question, so a future
+`sme/categories/handshake.py` scorer can compute Cat 9 metrics
+(9a invocation rate, 9b call-through success, 9c result usage,
+9d negative-control rate) from existing run artifacts without
+revisiting the adapter API. `get_harness_manifest()` is also
+implemented forward-compat — currently returns `[]` because this
+multipass version doesn't import `sme.harness.HarnessDescriptor`,
+but two descriptors (HTTP `ToolCall` + `MCPResource`) are emitted as
+soon as the harness types ship.
+
 
 ---
 
