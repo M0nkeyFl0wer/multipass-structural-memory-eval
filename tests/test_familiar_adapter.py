@@ -323,3 +323,26 @@ def test_get_harness_manifest_returns_list():
     manifest = FamiliarAdapter(base_url="https://familiar.jphe.in").get_harness_manifest()
     assert isinstance(manifest, list)
     assert len(manifest) in (0, 2)
+
+
+# --- Task 9: CLI dispatch ---
+
+def test_cli_loads_familiar_adapter():
+    """The CLI's --adapter familiar branch instantiates FamiliarAdapter."""
+    from sme.cli import _load_adapter
+    adapter = _load_adapter("familiar", api_url="http://nowhere:1", timeout_s=1.0)
+    assert type(adapter).__name__ == "FamiliarAdapter"
+    assert adapter.base_url == "http://nowhere:1"  # api_url remapped
+
+
+def test_cli_mock_inference_default_when_unset():
+    """When --mock/--no-mock not given, adapter uses its constructor default (True)."""
+    from sme.cli import _load_adapter
+    adapter = _load_adapter("familiar", api_url="http://nowhere:1")
+    assert adapter.mock_inference is True
+
+
+def test_cli_no_mock_passes_through():
+    from sme.cli import _load_adapter
+    adapter = _load_adapter("familiar", api_url="http://nowhere:1", mock_inference=False)
+    assert adapter.mock_inference is False

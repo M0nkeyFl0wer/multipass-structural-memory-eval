@@ -49,6 +49,28 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             kwargs.pop(k, None)
         return MemPalaceDaemonAdapter(**kwargs)
 
+    if name == "familiar":
+        from sme.adapters.familiar import FamiliarAdapter
+
+        # Drop kwargs the familiar adapter doesn't understand
+        for k in (
+            "include_node_tables",
+            "include_edge_tables",
+            "auto_discover",
+            "kg_path",
+            "collection_name",
+            "default_query_mode",
+            "db_path",
+            "buffer_pool_size",
+            "api_key",
+            "kind",
+        ):
+            kwargs.pop(k, None)
+        # CLI uses --api-url; familiar adapter constructor uses base_url.
+        if "api_url" in kwargs:
+            kwargs["base_url"] = kwargs.pop("api_url")
+        return FamiliarAdapter(**kwargs)
+
     if name == "mempalace":
         from sme.adapters.mempalace import MemPalaceAdapter
 
@@ -475,6 +497,13 @@ def _load_adapter_from_args(args: argparse.Namespace) -> SMEAdapter:
         val = getattr(args, attr, None)
         if val:
             adapter_kwargs[key] = val
+    # mock_inference is bool — explicit None means "use adapter default"
+    mock = getattr(args, "mock_inference", None)
+    if mock is not None:
+        adapter_kwargs["mock_inference"] = mock
+    timeout = getattr(args, "familiar_timeout", None)
+    if timeout is not None:
+        adapter_kwargs["timeout_s"] = timeout
     return _load_adapter(args.adapter, **adapter_kwargs)
 
 
@@ -515,6 +544,30 @@ def _add_db_or_api_args(parser: argparse.ArgumentParser) -> None:
         help="(mempalace-daemon) /search kind filter. Defaults to "
         "'content' (excludes Stop-hook auto-save checkpoints). Use "
         "'all' to disable, or 'checkpoint' for snapshot-only lookups.",
+    )
+    mock_group = parser.add_mutually_exclusive_group()
+    mock_group.add_argument(
+        "--mock",
+        dest="mock_inference",
+        action="store_true",
+        default=None,
+        help="(familiar) skip LLM inference, score retrieval only "
+        "(default: True for Cat 1 substring-scoring determinism).",
+    )
+    mock_group.add_argument(
+        "--no-mock",
+        dest="mock_inference",
+        action="store_false",
+        help="(familiar) run inference; for future Cat 9 work where the "
+        "model writes the answer.",
+    )
+    parser.add_argument(
+        "--familiar-timeout",
+        type=float,
+        default=None,
+        metavar="SECONDS",
+        help="(familiar) HTTP timeout for /api/familiar/eval and "
+        "/api/familiar/graph. Default 30s.",
     )
 
 
