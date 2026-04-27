@@ -430,6 +430,44 @@ shape future adapter work and category implementations:
   and `baselines/jp_realm_v0_1_*.json` made it obvious where to
   add `jp_realm_v0_2`, `family_palace_v0_1`, etc. Don't refactor.
 
+## RlmAdapter — research scaffold (2026-04-26)
+
+`sme/adapters/rlm_adapter.py` ships an adapter that treats RLM
+(jphein/rlm fork of alexzhang13/rlm) as the read-side orchestrator:
+the LLM itself decides when to call `mempalace_search`, with what
+queries, and how to compose results. familiar's deterministic
+retrieve→rerank→decay→compress pipeline becomes the *baseline* this
+adapter is benchmarked against.
+
+**Design:** RLM gets `mempalace_search` registered as a
+`custom_tools` callable. The adapter wraps that callable to capture
+every search result into a per-query buffer. After `rlm.completion()`
+returns, the buffer's contents become `context_string` (in tool-call
+order) and `retrieved_entities` (one Entity per drawer). The Cat 1 /
+retrieve substring scorer measures whether `expected_sources` ended
+up in `context_string` — same contract as every other adapter.
+
+**Test coverage** (`tests/test_rlm_adapter.py`, 5 tests): tool-call
+aggregation, capture-buffer reset across queries, error-dict
+graceful handling on palace network failure, empty graph snapshot
+(Cat 8 N/A for RLM), ingest_corpus skipped.
+
+**To benchmark live:**
+```bash
+PORTKEY_API_KEY=... PALACE_DAEMON_URL=http://disks.jphe.in:8085 \
+PALACE_API_KEY=... \
+venv/bin/sme-eval retrieve --adapter rlm \
+    --questions sme/corpora/jp_realm_v0_1/questions.yaml \
+    --json baselines/jp_realm_v0_1_rlm_$(date +%Y%m%d).json
+```
+
+A live benchmark will reveal whether RLM-orchestration recovers
+recall on questions familiar misses, plateaus at the same number,
+or regresses — the answer determines whether v0.4 should
+productionize RLM into familiar's chat path. Without that data,
+the design spec's "RLM and familiar are complementary" hypothesis
+stays a hypothesis.
+
 ## What's next
 
 ### Categories that aren't implemented yet

@@ -56,6 +56,12 @@ def _mempalace_daemon_loader() -> type[SMEAdapter]:
 
 
 
+def _rlm_loader() -> type[SMEAdapter]:
+    from sme.adapters.rlm_adapter import RlmAdapter
+
+    return RlmAdapter
+
+
 def _familiar_loader() -> type[SMEAdapter]:
     from sme.adapters.familiar import FamiliarAdapter
 
@@ -104,6 +110,14 @@ _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
         accepts=frozenset({
             "api_url", "api_key", "env_file", "kind", "api_timeout",
             "prefer_graph_endpoint", "read_only",
+        }),
+    ),
+    _AdapterSpec(
+        aliases=("rlm",),
+        loader=_rlm_loader,
+        accepts=frozenset({
+            "api_url", "api_key", "backend", "backend_kwargs",
+            "environment", "verbose", "kind", "timeout_s",
         }),
     ),
     _AdapterSpec(
@@ -1384,9 +1398,9 @@ def main(argv: list[str] | None = None) -> int:
         "--adapter",
         required=True,
         help="adapter name (flat | mempalace | mempalace-daemon | familiar | "
-        "ladybugdb | full-context). full-context is the Karpathy-baseline "
-        "Condition D1 — pass --db <vault_dir> and it loads every .md file "
-        "as the prompt context with no retrieval.",
+        "rlm | ladybugdb | full-context | karpathy-compiled). full-context "
+        "is the Karpathy-baseline Condition D1 — pass --db <vault_dir> and "
+        "it loads every .md file as the prompt context with no retrieval.",
     )
     ret.add_argument(
         "--db",
