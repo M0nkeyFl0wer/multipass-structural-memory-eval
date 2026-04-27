@@ -66,12 +66,17 @@ def test_query_aggregates_tool_calls_into_context_string(monkeypatch):
     # Both captured tool calls' results land in context_string.
     assert "hermes-agent is a JP fork" in out.context_string
     assert "rlm is a recursive language model paradigm" in out.context_string
+    # The synthesized answer is also there, so substring-scorers that
+    # match on what the system surfaced see both retrieval + synthesis.
+    assert "── RLM answer ──" in out.context_string
+    assert "rlm-orchestrated answer" in out.context_string
     # And in retrieved_entities, in call order.
     ids = [e.id for e in out.retrieved_entities]
     assert ids == ["drawer_x1", "drawer_x2"]
-    # retrieval_path notes the rlm step + tool count.
-    assert out.retrieval_path[0]["step"] == "rlm_completion"
-    assert out.retrieval_path[0]["tool_calls"] == 2
+    # retrieval_path notes the rlm step + tool count (single string entry,
+    # cli formats it via '; '.join).
+    assert "rlm_completion" in out.retrieval_path[0]
+    assert "2 tool calls" in out.retrieval_path[0]
 
 
 def test_query_capture_resets_between_calls():

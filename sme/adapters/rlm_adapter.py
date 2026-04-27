@@ -39,6 +39,58 @@ from sme.adapters.base import Edge, Entity, QueryResult, SMEAdapter
 _DEFAULT_DAEMON_TIMEOUT = 10.0
 _DEFAULT_LIMIT = 5
 
+_CLOUD_CHAT_CONFIG_CANDIDATES = [
+    os.path.expanduser("~/.config/cloud-chat-assistant/config.json"),
+    os.path.expanduser("~/.cloud-chat-assistant.json"),
+]
+
+
+def _resolve_default_backend(bk: dict) -> tuple[str, dict]:
+    """Pick a backend + defaults when none was explicitly passed.
+
+    Priority order:
+      1. RLM_BASE_URL / RLM_MODEL env vars — point the openai backend
+         at any OpenAI-compat endpoint (familiar's own /v1, katana's
+         llama.cpp, vLLM, etc.). Most explicit; wins.
+      2. Cloud-chat-assistant config file (JP's home env) — Azure
+         OpenAI endpoint with key. Reads as `azure_openai`.
+      3. Standard env vars (AZURE_OPENAI / OPENAI / ANTHROPIC / PORTKEY).
+      4. Fall through to openai default (will fail without a key).
+    """
+    if os.environ.get("RLM_BASE_URL"):
+        bk.setdefault("base_url", os.environ["RLM_BASE_URL"])
+        bk.setdefault("model_name", os.environ.get("RLM_MODEL", "qwen2.5-7b"))
+        bk.setdefault("api_key", os.environ.get("RLM_API_KEY", "no-auth-needed"))
+        return "openai", bk
+
+    for path in _CLOUD_CHAT_CONFIG_CANDIDATES:
+        try:
+            with open(path) as f:
+                cfg = json.load(f)
+        except (OSError, ValueError):
+            continue
+        endpoint = cfg.get("endpoint") or cfg.get("azure_endpoint")
+        api_key = cfg.get("api_key")
+        deployment = cfg.get("deployment")
+        if endpoint and api_key:
+            bk.setdefault("azure_endpoint", endpoint)
+            bk.setdefault("api_key", api_key)
+            if deployment:
+                bk.setdefault("azure_deployment", deployment)
+                bk.setdefault("model_name", deployment)
+            bk.setdefault("api_version", cfg.get("api_version", "2024-08-01-preview"))
+            return "azure_openai", bk
+
+    if os.environ.get("AZURE_OPENAI_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT"):
+        return "azure_openai", bk
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai", bk
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "anthropic", bk
+    if os.environ.get("PORTKEY_API_KEY"):
+        return "portkey", bk
+    return "openai", bk
+
 
 class RlmAdapter(SMEAdapter):
     """RLM-orchestrated palace consumer.
@@ -59,7 +111,7 @@ class RlmAdapter(SMEAdapter):
         *,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        backend: str = "openai",
+        backend: Optional[str] = None,
         backend_kwargs: Optional[dict[str, Any]] = None,
         environment: str = "local",
         verbose: bool = False,
@@ -80,14 +132,22 @@ class RlmAdapter(SMEAdapter):
         # drained at the end of each query() call.
         self._capture: list[dict] = []
 
+        # Backend resolution. JP's home environment ships a multi-provider
+        # config in ~/.config/cloud-chat-assistant/config.json. If no
+        # explicit backend was passed, prefer that file's Azure OpenAI
+        # entry (which is what cloud-chat-assistant uses by default).
         bk = dict(backend_kwargs or {})
-        # Default to a sensible model when none is given.
+        if backend is None:
+            backend, bk = _resolve_default_backend(bk)
+        # Per-backend defaults for model + key.
         if "model_name" not in bk:
             if backend == "portkey":
                 bk["model_name"] = "@openai/gpt-5-nano"
             elif backend == "openai":
                 bk["model_name"] = "gpt-5-nano"
-        # Resolve env var fallbacks for keys.
+            elif backend == "azure_openai":
+                # Filled in by _resolve_default_backend if the file is present.
+                bk.setdefault("model_name", "gpt-4o")
         if "api_key" not in bk:
             if backend == "portkey":
                 bk["api_key"] = os.environ.get("PORTKEY_API_KEY", "")
@@ -95,6 +155,8 @@ class RlmAdapter(SMEAdapter):
                 bk["api_key"] = os.environ.get("OPENAI_API_KEY", "")
             elif backend == "anthropic":
                 bk["api_key"] = os.environ.get("ANTHROPIC_API_KEY", "")
+            elif backend == "azure_openai":
+                bk["api_key"] = os.environ.get("AZURE_OPENAI_API_KEY", "")
 
         self._rlm = RLM(
             backend=backend,
@@ -175,9 +237,13 @@ class RlmAdapter(SMEAdapter):
                 error=f"{type(e).__name__}: {e}",
             )
 
-        # Build context_string from the captured search results in call order.
-        # Mirrors familiar's "── Palace context (N drawers) ──" format so
-        # the substring scorer behaves consistently across adapters.
+        # Build context_string from BOTH the captured search results AND
+        # the synthesized answer. RLM's "context" is split between what
+        # the LM pulled via tool calls (the search captures) and what it
+        # produced via training-data synthesis (the answer). Familiar's
+        # equivalent — the system prompt — is purely retrieval. To give
+        # the substring scorer a fair shake at RLM's full output, we
+        # include both sides.
         ctx_lines = [f"── RLM-orchestrated retrieval ({len(self._capture)} drawers) ──"]
         for r in self._capture:
             tags = []
@@ -189,6 +255,8 @@ class RlmAdapter(SMEAdapter):
             ctx_lines.append("[" + " · ".join(tags) + "]")
             ctx_lines.append(r.get("text", ""))
             ctx_lines.append("")
+        ctx_lines.append("── RLM answer ──")
+        ctx_lines.append(answer)
         context_string = "\n".join(ctx_lines)
 
         # SME entities — one per captured drawer.
@@ -215,9 +283,9 @@ class RlmAdapter(SMEAdapter):
             context_string=context_string,
             retrieved_entities=entities,
             retrieved_edges=[],
+            # Strings, not dicts — cli's `'; '.join(path)` expects strings.
             retrieval_path=[
-                {"step": "rlm_completion", "elapsed_ms": elapsed_ms,
-                 "tool_calls": len(self._capture)},
+                f"rlm_completion ({elapsed_ms}ms, {len(self._capture)} tool calls)",
             ],
             error=None,
         )
