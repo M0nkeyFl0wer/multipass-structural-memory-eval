@@ -296,19 +296,26 @@ def test_get_flat_retrieval_returns_entities_only(fake_urlopen_factory):
         for i in range(3)
     ]
     fake_urlopen_factory({EVAL_ROUTE: body})
-    entities = FamiliarAdapter().get_flat_retrieval("test", k=3)
-    assert len(entities) == 3
-    assert all(e.entity_type == "drawer" for e in entities)
+    result = FamiliarAdapter().get_flat_retrieval("test", k=3)
+    assert result.answer == ""
+    assert result.context_string == ""
+    assert len(result.retrieved_entities) == 3
+    assert all(e.entity_type == "drawer" for e in result.retrieved_entities)
 
 
 def test_get_flat_retrieval_failure_returns_empty(fake_urlopen_factory):
     fake_urlopen_factory({EVAL_ROUTE: (500, {"error": "x"})})
-    entities = FamiliarAdapter().get_flat_retrieval("test")
-    assert entities == []
+    result = FamiliarAdapter().get_flat_retrieval("test")
+    assert result.retrieved_entities == []
+    assert result.error and result.error.startswith("familiar flat-retrieval")
 
 
-def test_get_ontology_source_returns_declared():
-    assert FamiliarAdapter().get_ontology_source() == "declared"
+def test_get_ontology_source_returns_declared_dict():
+    ontology = FamiliarAdapter().get_ontology_source()
+    assert isinstance(ontology, dict)
+    assert ontology["type"] == "declared"
+    assert "schema" in ontology and isinstance(ontology["schema"], list)
+    assert "documentation" in ontology
 
 
 def test_get_harness_manifest_returns_list():

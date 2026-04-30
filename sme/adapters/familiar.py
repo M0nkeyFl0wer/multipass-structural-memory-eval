@@ -72,11 +72,11 @@ class FamiliarAdapter(SMEAdapter):
             ],
         }
 
-    def query(self, question: str) -> QueryResult:
+    def query(self, question: str, n_results: int = 5) -> QueryResult:
         """POST /api/familiar/eval and deserialize the SME-shape response."""
         body = {
             "query": question[:250],
-            "limit": 5,
+            "limit": n_results,
             "kind": "content",
             "mock": self.mock_inference,
         }
@@ -114,7 +114,7 @@ class FamiliarAdapter(SMEAdapter):
 
     # --- Optional SMEAdapter methods ---
 
-    def get_flat_retrieval(self, question: str, k: int = 5) -> list[Entity]:
+    def get_flat_retrieval(self, question: str, k: int = 5) -> QueryResult:
         """Optional: same path as query() but returns only the entities,
         used by Cat 7 token-budget analysis where the answer text is
         irrelevant and only retrieval changes."""
@@ -126,15 +126,51 @@ class FamiliarAdapter(SMEAdapter):
         }
         status, payload = self._post_json("/api/familiar/eval", body)
         if status != 200 or not isinstance(payload, dict):
-            return []
+            return QueryResult(
+                answer="",
+                context_string="",
+                retrieved_entities=[],
+                retrieved_edges=[],
+                error=f"familiar flat-retrieval {status}",
+            )
         raw_entities = payload.get("retrieved_entities") or []
-        return [self._entity_from_payload(e) for e in raw_entities]
+        return QueryResult(
+            answer="",
+            context_string="",
+            retrieved_entities=[self._entity_from_payload(e) for e in raw_entities],
+            retrieved_edges=[],
+        )
 
-    def get_ontology_source(self) -> str:
+    def get_ontology_source(self) -> dict:
         """Wings/rooms taxonomy is author-declared (mempalace_get_taxonomy
-        MCP tool), not inferred from data. Same semantics as
-        MemPalaceDaemonAdapter."""
-        return "declared"
+        MCP tool). Same documented schema as the underlying MemPalace
+        install — we proxy the same palace through familiar's pipeline
+        without changing the ontology shape."""
+        return {
+            "type": "declared",
+            "schema": [
+                {
+                    "kind": "structural",
+                    "entities": [
+                        "wing", "room", "hall", "tunnel", "closet", "drawer"
+                    ],
+                },
+                {
+                    "kind": "hall_vocabulary",
+                    "values": [
+                        "facts", "events", "discoveries",
+                        "preferences", "advice",
+                    ],
+                },
+            ],
+            "documentation": (
+                "Familiar wraps a MemPalace palace with a v0.2 retrieval "
+                "pipeline (rerank, temporal decay, extractive compression, "
+                "grounding directives). The underlying ontology is "
+                "MemPalace's — Wings, Rooms, Halls, Tunnels, Closets, "
+                "Drawers."
+            ),
+        }
 
     def get_harness_manifest(self) -> list:
         """Forward-compat for SME Cat 9 (Handshake). Returns descriptors of
