@@ -49,7 +49,12 @@ def _parse_env_file(path: Path) -> dict[str, str]:
     out: dict[str, str] = {}
     if not path.exists():
         return out
-    for line in path.read_text().splitlines():
+    try:
+        text = path.read_text()
+    except (OSError, UnicodeDecodeError) as e:
+        log.warning("env file %s unreadable (%s); falling back to env vars", path, e)
+        return out
+    for line in text.splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue
