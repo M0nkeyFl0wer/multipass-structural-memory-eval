@@ -468,6 +468,48 @@ productionize RLM into familiar's chat path. Without that data,
 the design spec's "RLM and familiar are complementary" hypothesis
 stays a hypothesis.
 
+### Live benchmark answers (2026-04-30)
+
+Two RLM runs against `jp-realm-v0.1` with different orchestrator
+sizes, same `mempalace_search` plumbing, same palace:
+
+| Run | Mean recall | Full / partial / hit-rate | Tool-call distribution |
+|---|---|---|---|
+| `familiar` v0.3.9 (deterministic) | **78.33%** | 18 / 11 / 29 | n/a |
+| `rlm` + Qwen 2.5 7B Q5_K_M | **46.67%** | 10 / 18 / 18 | 25/30 zero-call, 2/30 × 5-call |
+| `rlm` + Llama 3.3 70B | **46.67%** | 6 / 22 / 24 | 22/30 zero-call, 6 × 5-call, 1 × 10-call, 1 × 15-call |
+
+The hypothesis is **rejected at 7B and at 70B**:
+
+- **Both RLM runs plateau at 46.67% recall** despite ~4× difference
+  in tool-invocation rate (6.7% vs 26.7%). The bigger model invokes
+  the tool more, but aggregate recall doesn't move. Both runs ceiling
+  at the orchestrator's willingness to invoke the tool, not at
+  retrieval quality underneath.
+- **Both regress vs `familiar` v0.3.9** by ~32 percentage points.
+  The deterministic pipeline (retrieve → rerank → temporal decay →
+  extractive compression → grounding directives) consistently calls
+  the retrieval system; the LLM-as-orchestrator path mostly doesn't.
+- **70B trades full-recalls for partial hits**: full recall drops
+  10 → 6, but hit-rate (any match) climbs 60% → 80%. Same recall
+  number, more elaborate-but-less-precise answers. Token cost
+  climbs ~3× (mean 149 → 426 tokens/q); tokens-per-correct-answer
+  ~5× (448 → 2130).
+- **2-hop performance doubles at 70B** (33% → 67% hit rate, n=3 —
+  small but directional).
+
+**Implication for v0.4 unchanged:** RLM as outer orchestrator
+calling `familiar`'s grounded `/v1/chat/completions` is the right
+shape, NOT replacing `familiar`'s pipeline with rlm-on-N-billion.
+Scaling the orchestrator alone is not the fix. The 22/30 zero-call
+rate at 70B is the load-bearing pathology — and it's the data
+behind [issue M0nkeyFl0wer/multipass-structural-memory-eval#3](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues/3)
+proposing Cat 9a (invocation rate) as a measured sub-test rather
+than an inferred decoration.
+
+Baseline JSONs: [`baselines/jp_realm_v0_1_rlm_qwen7b_20260426.json`](../baselines/jp_realm_v0_1_rlm_qwen7b_20260426.json),
+[`baselines/jp_realm_v0_1_rlm_llama70b_20260426.json`](../baselines/jp_realm_v0_1_rlm_llama70b_20260426.json).
+
 ## What's next
 
 ### Categories that aren't implemented yet
@@ -495,7 +537,14 @@ In priority order:
    method; model-runner shim for Claude Sonnet 4.5 and Opus 4.6;
    sub-tests 9a (invocation rate), 9b (call-through success), 9c
    (result usage) against a tool-call harness first; 9g (Claude
-   Code hook-driven) after.
+   Code hook-driven) after. *Status as of 2026-04-30:* 9b
+   scaffolding shipped upstream as
+   [`M0nkeyFl0wer/multipass-structural-memory-eval` PR #1](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/pull/1)
+   (call-through success, with `HarnessDescriptor` + `ProbeResult`).
+   9a (invocation rate) measurement protocol proposed in
+   [issue #3](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues/3),
+   grounded in the two `rlm` baselines above. 9c / 9e / 9f paced
+   as separate issues pending upstream engagement.
 5. **LLM judge for Cat 7 pairwise** — with k=3 samples and 20-item
    human calibration per corpus. Replaces the substring matcher with
    a judge that reads context and grades answerability.

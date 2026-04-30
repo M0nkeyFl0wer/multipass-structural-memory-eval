@@ -37,15 +37,17 @@ table.
 
 ## Status
 
-**Beta-level instrumentation, actively evolving.** Three adapters,
-two fully implemented categories, four CLI commands (`retrieve`,
-`analyze`, `cat8`, `cat2c`), and a specification for the remaining
-seven. Diagnostic posture, not benchmark — the defensible findings
-are before/after deltas under identical conditions and within-system
-A/B/C ablations. Absolute recall numbers inherit a substring-on-
-filename matcher with known biases. See the [spec](docs/sme_spec_v8.md)
-and the [onboarding guide](docs/ideas.md) for the full honest-
-limitations discussion.
+**Beta-level instrumentation, actively evolving.** Six adapters
+(`flat-baseline`, `mempalace`, `mempalace-daemon`, `familiar`, `rlm`,
+`ladybugdb`), two fully implemented categories, four CLI commands
+(`retrieve`, `analyze`, `cat8`, `cat2c`), Cat 9b (call-through
+success) scaffolding from upstream PR #1, and a specification for
+the remaining seven. Diagnostic posture, not benchmark — the
+defensible findings are before/after deltas under identical
+conditions and within-system A/B/C ablations. Absolute recall
+numbers inherit a substring-on-filename matcher with known biases.
+See the [spec](docs/sme_spec_v8.md) and the [onboarding
+guide](docs/ideas.md) for the full honest-limitations discussion.
 
 ## Install
 
@@ -191,6 +193,51 @@ sme-eval retrieve --adapter mempalace-daemon     --api-url http://your-daemon:80
 
 The `--api-url`, `--mock`/`--no-mock`, and `--familiar-timeout` flags
 work on `cat4`, `cat5`, `check`, and `retrieve` subcommands.
+
+### Shipped: `rlm` adapter
+
+`sme/adapters/rlm_adapter.py` treats [RLM](https://github.com/jphein/rlm)
+(a fork of [alexzhang13/rlm](https://github.com/alexzhang13/rlm)) as
+the **read-side orchestrator** rather than a deterministic retrieval
+pipeline. The LLM itself decides when to call `mempalace_search`,
+with what queries, and how to compose results. `familiar`'s pipeline
+is the *baseline* this adapter is benchmarked against, not the thing
+it replaces.
+
+**Design:** RLM gets `mempalace_search` registered as a `custom_tools`
+callable. The adapter wraps that callable to capture every search
+result into a per-query buffer; after `rlm.completion()` returns, the
+buffer's contents become `context_string` (in tool-call order) and
+`retrieved_entities` (one Entity per drawer). Same scoring contract
+as every other adapter.
+
+**Endpoint override:** `RLM_BASE_URL` / `RLM_MODEL` / `RLM_API_KEY`
+env vars point the openai backend at any compatible endpoint —
+local llama.cpp, hosted Llama 3.3 70B, anything OpenAI-shaped —
+without touching the cloud-chat-assistant config-file fallback path.
+
+**First two live readings on `jp-realm-v0.1` (30 questions):**
+
+| Run | Mean recall | Tool-call distribution |
+|---|---|---|
+| rlm + Qwen 2.5 7B Q5_K_M | 46.67% | 25/30 zero-call, 2/30 used tool |
+| rlm + Llama 3.3 70B | 46.67% | 22/30 zero-call, 8/30 used tool |
+| familiar v0.3.9 (deterministic) | 78.33% | n/a |
+
+Both RLM runs land at the same aggregate recall despite a 4×
+difference in tool-invocation rate — they ceiling at the
+orchestrator's willingness to invoke the tool, not at retrieval
+quality. This is the data behind the [9a invocation-rate
+issue](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues/3)
+filed upstream. See the [onboarding
+guide](docs/ideas.md#rlmadapter--research-scaffold-2026-04-26) for
+the full discussion and the per-question deltas.
+
+**Invocation:**
+
+```bash
+RLM_BASE_URL=https://your-endpoint RLM_MODEL=llama-3.3-70b RLM_API_KEY=...     PALACE_DAEMON_URL=http://your-daemon:8085 PALACE_API_KEY=...     sme-eval retrieve --adapter rlm     --questions sme/corpora/jp_realm_v0_1/questions.yaml     --json baselines/rlm_$(date +%Y%m%d).json
+```
 
 ## License
 
