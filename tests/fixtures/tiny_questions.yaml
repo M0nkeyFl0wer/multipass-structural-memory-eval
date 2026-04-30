@@ -1,0 +1,10 @@
+version: "smoke-2026-04-25"
+questions:
+  - id: q1
+    text: "what is the structural memory evaluation framework"
+    expected_sources: []
+    min_hops: 0
+  - id: q2
+    text: "how does mempalace organize memories"
+    expected_sources: []
+    min_hops: 0

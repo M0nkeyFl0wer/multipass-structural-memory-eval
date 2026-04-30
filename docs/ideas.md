@@ -376,8 +376,156 @@ any specific SME output as gospel:
   what happens in production under a specific model and harness.
   See Cat 9 in the spec for why this is the largest gap in current
   instrumentation.
+**Forward-compat in adapters (2026-04-26):** `FamiliarAdapter`
+(familiar.realm.watch v0.2's adapter) emits per-question records that
+include the verbatim `context_string` sent to inference plus structured
+`warnings` (`palace_unreachable`, `low_confidence`,
+`filtered_null_text_*`, `stuck_loop`). The `cmd_retrieve` JSON output
+captures all of this per-question, so a future
+`sme/categories/handshake.py` scorer can compute Cat 9 metrics
+(9a invocation rate, 9b call-through success, 9c result usage,
+9d negative-control rate) from existing run artifacts without
+revisiting the adapter API. `get_harness_manifest()` is also
+implemented forward-compat — currently returns `[]` because this
+multipass version doesn't import `sme.harness.HarnessDescriptor`,
+but two descriptors (HTTP `ToolCall` + `MCPResource`) are emitted as
+soon as the harness types ship.
+
 
 ---
+
+## Lessons from the first live eval — 2026-04-26
+
+The first end-to-end eval against a real 151K-drawer palace (familiar
+v0.2.0 → v0.2.1, jp-realm-v0.1 corpus) surfaced lessons that should
+shape future adapter work and category implementations:
+
+- **Substring scoring on `context_string` is the right MVP.** Mock
+  inference + literal-substring expected-source matching produced a
+  deterministic, reproducible signal that worked across two adapters
+  (`familiar`, `mempalace-daemon`) without a judge. v0.1 corpus
+  required ~30 min to author and produced actionable findings within
+  one hour. Don't chase Cat 9 LLM-judge complexity until substring
+  scoring plateaus.
+- **The eval distinguishes "system gap" from "pipeline gap".** When
+  q12 (rlm) and q13 (GraphPalace) initially scored 0.0 we couldn't
+  tell whether the palace lacked the content or whether retrieval was
+  failing. Writing the missing drawers via `palace-daemon /memory`
+  and re-running flipped q12 to 1.0 (palace gap) but left q13 at 0.0
+  (pipeline gap — embedding ranking issue). This split is the
+  diagnostic the framework was built to provide; it lands cleanly
+  with the simplest possible scoring.
+- **The corpus is a ratchet, not a benchmark.** Running the same
+  corpus before vs after a one-line client-side fix (palace-client
+  punctuation strip, `b676852`) showed a +0.50 question delta in
+  ~2 minutes. v0.1 corpora should be cheap enough to run on every
+  retrieval-pipeline PR.
+- **`retrieve` subcommand needed CLI plumbing fixes the helpers
+  hid.** The `read_only` kwarg and `--mock`/`--familiar-timeout`
+  flags only worked through `_load_adapter_from_args` (cat4/cat5
+  paths) but not through `cmd_retrieve`'s inline construction.
+  Bundle adapter-arg expansion through a single helper across all
+  subcommands rather than re-implementing in each.
+- **Per-corpus directories worked.** `sme/corpora/jp_realm_v0_1/`
+  and `baselines/jp_realm_v0_1_*.json` made it obvious where to
+  add `jp_realm_v0_2`, `family_palace_v0_1`, etc. Don't refactor.
+
+## RlmAdapter — research scaffold (2026-04-26)
+
+`sme/adapters/rlm_adapter.py` ships an adapter that treats RLM
+(jphein/rlm fork of alexzhang13/rlm) as the read-side orchestrator:
+the LLM itself decides when to call `mempalace_search`, with what
+queries, and how to compose results. familiar's deterministic
+retrieve→rerank→decay→compress pipeline becomes the *baseline* this
+adapter is benchmarked against.
+
+**Design:** RLM gets `mempalace_search` registered as a
+`custom_tools` callable. The adapter wraps that callable to capture
+every search result into a per-query buffer. After `rlm.completion()`
+returns, the buffer's contents become `context_string` (in tool-call
+order) and `retrieved_entities` (one Entity per drawer). The Cat 1 /
+retrieve substring scorer measures whether `expected_sources` ended
+up in `context_string` — same contract as every other adapter.
+
+**Test coverage** (`tests/test_rlm_adapter.py`, 5 tests): tool-call
+aggregation, capture-buffer reset across queries, error-dict
+graceful handling on palace network failure, empty graph snapshot
+(Cat 8 N/A for RLM), ingest_corpus skipped.
+
+**To benchmark live:**
+```bash
+PORTKEY_API_KEY=... PALACE_DAEMON_URL=http://disks.jphe.in:8085 \
+PALACE_API_KEY=... \
+venv/bin/sme-eval retrieve --adapter rlm \
+    --questions sme/corpora/jp_realm_v0_1/questions.yaml \
+    --json baselines/jp_realm_v0_1_rlm_$(date +%Y%m%d).json
+```
+
+A live benchmark will reveal whether RLM-orchestration recovers
+recall on questions familiar misses, plateaus at the same number,
+or regresses — the answer determines whether v0.4 should
+productionize RLM into familiar's chat path. Without that data,
+the design spec's "RLM and familiar are complementary" hypothesis
+stays a hypothesis.
+
+### Live benchmark answers (2026-04-30)
+
+Two RLM runs against `jp-realm-v0.1` with different orchestrator
+sizes, same `mempalace_search` plumbing, same palace:
+
+| Run | Mean recall | Full recall | Hits (any) | Hit rate |
+|---|---|---|---|---|
+| `familiar` v0.3.9 (deterministic) | **78.33%** | 18/30 | 29/30 | 96.7% |
+| `rlm` + Qwen 2.5 7B Q5_K_M | **46.67%** | 10/30 | 18/30 | 60.0% |
+| `rlm` + Llama 3.3 70B | **46.67%** | 6/30 | 22/30 | 73.3% |
+
+Tool-invocation distribution (questions where `_capture` ended up
+non-empty, i.e. at least one tool call returned drawers):
+
+| Run | Zero-capture | Non-zero-capture |
+|---|---|---|
+| `rlm` + Qwen 7B | 25/30 (83%) | 2/30 (7%) — remaining 3 errored |
+| `rlm` + Llama 70B | 22/30 (73%) | 8/30 (27%) |
+
+> **Caveat on the fine-grained call-count histogram.** The original
+> baseline JSONs reported `len(_capture)` (drawer count) as
+> "tool calls" — a single `_mempalace_search` returning 5 drawers
+> showed up as "5 tool calls." That's been corrected in the adapter
+> (separate `_tool_call_count`), but the JSONs in this commit
+> predate the fix; only the binary "any/none" tool-invocation read
+> on those runs is reliable. Future re-runs will carry the
+> distinction natively.
+
+The hypothesis is **rejected at 7B and at 70B**:
+
+- **Both RLM runs plateau at 46.67% recall** despite ~4× difference
+  in tool-invocation rate (7% vs 27%). The bigger model invokes the
+  tool more, but aggregate recall doesn't move. Both runs ceiling
+  at the orchestrator's willingness to invoke the tool, not at
+  retrieval quality underneath.
+- **Both regress vs `familiar` v0.3.9** by ~32 percentage points.
+  The deterministic pipeline (retrieve → rerank → temporal decay →
+  extractive compression → grounding directives) consistently calls
+  the retrieval system; the LLM-as-orchestrator path mostly doesn't.
+- **70B trades full-recalls for partial hits**: full recall drops
+  10 → 6, but hit rate (any match) climbs 60.0% → 73.3%. Same
+  aggregate recall, more elaborate-but-less-precise answers. Token
+  cost climbs ~3× (mean 149 → 426 tokens/q); tokens-per-correct-
+  answer ~5× (448 → 2130).
+- **2-hop performance doubles at 70B** (33% → 67% hit rate, n=3 —
+  small but directional).
+
+**Implication for v0.4 unchanged:** RLM as outer orchestrator
+calling `familiar`'s grounded `/v1/chat/completions` is the right
+shape, NOT replacing `familiar`'s pipeline with rlm-on-N-billion.
+Scaling the orchestrator alone is not the fix. The 22/30 zero-call
+rate at 70B is the load-bearing pathology — and it's the data
+behind [issue M0nkeyFl0wer/multipass-structural-memory-eval#3](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues/3)
+proposing Cat 9a (invocation rate) as a measured sub-test rather
+than an inferred decoration.
+
+Baseline JSONs: [`baselines/jp_realm_v0_1_rlm_qwen7b_20260426.json`](../baselines/jp_realm_v0_1_rlm_qwen7b_20260426.json),
+[`baselines/jp_realm_v0_1_rlm_llama70b_20260426.json`](../baselines/jp_realm_v0_1_rlm_llama70b_20260426.json).
 
 ## What's next
 
@@ -406,7 +554,14 @@ In priority order:
    method; model-runner shim for Claude Sonnet 4.5 and Opus 4.6;
    sub-tests 9a (invocation rate), 9b (call-through success), 9c
    (result usage) against a tool-call harness first; 9g (Claude
-   Code hook-driven) after.
+   Code hook-driven) after. *Status as of 2026-04-30:* 9b
+   scaffolding shipped upstream as
+   [`M0nkeyFl0wer/multipass-structural-memory-eval` PR #1](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/pull/1)
+   (call-through success, with `HarnessDescriptor` + `ProbeResult`).
+   9a (invocation rate) measurement protocol proposed in
+   [issue #3](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issues/3),
+   grounded in the two `rlm` baselines above. 9c / 9e / 9f paced
+   as separate issues pending upstream engagement.
 5. **LLM judge for Cat 7 pairwise** — with k=3 samples and 20-item
    human calibration per corpus. Replaces the substring matcher with
    a judge that reads context and grades answerability.
