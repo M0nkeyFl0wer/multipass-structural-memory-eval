@@ -473,17 +473,34 @@ stays a hypothesis.
 Two RLM runs against `jp-realm-v0.1` with different orchestrator
 sizes, same `mempalace_search` plumbing, same palace:
 
-| Run | Mean recall | Full / partial / hit-rate | Tool-call distribution |
-|---|---|---|---|
-| `familiar` v0.3.9 (deterministic) | **78.33%** | 18 / 11 / 29 | n/a |
-| `rlm` + Qwen 2.5 7B Q5_K_M | **46.67%** | 10 / 18 / 18 | 25/30 zero-call, 2/30 × 5-call |
-| `rlm` + Llama 3.3 70B | **46.67%** | 6 / 22 / 24 | 22/30 zero-call, 6 × 5-call, 1 × 10-call, 1 × 15-call |
+| Run | Mean recall | Full recall | Hits (any) | Hit rate |
+|---|---|---|---|---|
+| `familiar` v0.3.9 (deterministic) | **78.33%** | 18/30 | 29/30 | 96.7% |
+| `rlm` + Qwen 2.5 7B Q5_K_M | **46.67%** | 10/30 | 18/30 | 60.0% |
+| `rlm` + Llama 3.3 70B | **46.67%** | 6/30 | 22/30 | 73.3% |
+
+Tool-invocation distribution (questions where `_capture` ended up
+non-empty, i.e. at least one tool call returned drawers):
+
+| Run | Zero-capture | Non-zero-capture |
+|---|---|---|
+| `rlm` + Qwen 7B | 25/30 (83%) | 2/30 (7%) — remaining 3 errored |
+| `rlm` + Llama 70B | 22/30 (73%) | 8/30 (27%) |
+
+> **Caveat on the fine-grained call-count histogram.** The original
+> baseline JSONs reported `len(_capture)` (drawer count) as
+> "tool calls" — a single `_mempalace_search` returning 5 drawers
+> showed up as "5 tool calls." That's been corrected in the adapter
+> (separate `_tool_call_count`), but the JSONs in this commit
+> predate the fix; only the binary "any/none" tool-invocation read
+> on those runs is reliable. Future re-runs will carry the
+> distinction natively.
 
 The hypothesis is **rejected at 7B and at 70B**:
 
 - **Both RLM runs plateau at 46.67% recall** despite ~4× difference
-  in tool-invocation rate (6.7% vs 26.7%). The bigger model invokes
-  the tool more, but aggregate recall doesn't move. Both runs ceiling
+  in tool-invocation rate (7% vs 27%). The bigger model invokes the
+  tool more, but aggregate recall doesn't move. Both runs ceiling
   at the orchestrator's willingness to invoke the tool, not at
   retrieval quality underneath.
 - **Both regress vs `familiar` v0.3.9** by ~32 percentage points.
@@ -491,10 +508,10 @@ The hypothesis is **rejected at 7B and at 70B**:
   extractive compression → grounding directives) consistently calls
   the retrieval system; the LLM-as-orchestrator path mostly doesn't.
 - **70B trades full-recalls for partial hits**: full recall drops
-  10 → 6, but hit-rate (any match) climbs 60% → 80%. Same recall
-  number, more elaborate-but-less-precise answers. Token cost
-  climbs ~3× (mean 149 → 426 tokens/q); tokens-per-correct-answer
-  ~5× (448 → 2130).
+  10 → 6, but hit rate (any match) climbs 60.0% → 73.3%. Same
+  aggregate recall, more elaborate-but-less-precise answers. Token
+  cost climbs ~3× (mean 149 → 426 tokens/q); tokens-per-correct-
+  answer ~5× (448 → 2130).
 - **2-hop performance doubles at 70B** (33% → 67% hit rate, n=3 —
   small but directional).
 
