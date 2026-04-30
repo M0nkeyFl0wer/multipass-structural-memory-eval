@@ -46,9 +46,16 @@ import os
 import sqlite3
 from collections import defaultdict
 from pathlib import Path
-from typing import Iterable, Optional
+from typing import Optional
 
-from sme.adapters.base import Edge, Entity, QueryResult, SMEAdapter
+from sme.adapters.base import (
+    Edge,
+    Entity,
+    HarnessDescriptor,
+    ProbeResult,
+    QueryResult,
+    SMEAdapter,
+)
 
 log = logging.getLogger(__name__)
 
@@ -622,6 +629,126 @@ class MemPalaceAdapter(SMEAdapter):
                 "live in a separate SQLite store."
             ),
         }
+
+    # --- Category 9 harness manifest ----------------------------------
+
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Declare MemPalace's MCP-style invocation surfaces for Cat 9.
+
+        The adapter itself talks to ChromaDB + SQLite directly — it does
+        not spawn the actual mempalace MCP server process. Each probe
+        here exercises the same code path that the corresponding MCP
+        tool does on the live server, so a probe failure here predicts
+        an MCP-side failure on that tool. A probe success does NOT
+        guarantee the MCP stdio/JSON-RPC layer is wired correctly —
+        that's a separate concern for a future 9f (per-harness
+        portability) implementation that actually spawns the server.
+        """
+        return [
+            HarnessDescriptor(
+                name="mempalace_search",
+                kind="mcp_resource",
+                probe_fn=self._probe_search,
+                description="MCP tool: semantic search over drawers",
+                properties={
+                    "tool_name": "mempalace_search",
+                    "underlying_call": "query()",
+                },
+            ),
+            HarnessDescriptor(
+                name="mempalace_graph_stats",
+                kind="mcp_resource",
+                probe_fn=self._probe_graph_snapshot,
+                description="MCP tool: wing/room/tunnel graph summary",
+                properties={
+                    "tool_name": "mempalace_graph_stats",
+                    "underlying_call": "get_graph_snapshot()",
+                },
+            ),
+            HarnessDescriptor(
+                name="mempalace_kg_query",
+                kind="mcp_resource",
+                probe_fn=self._probe_kg_read,
+                description="MCP tool: knowledge-graph triple lookup",
+                properties={
+                    "tool_name": "mempalace_kg_query",
+                    "underlying_call": "_read_kg()",
+                    "optional": True,  # skipped gracefully if KG absent
+                },
+            ),
+        ]
+
+    def _probe_search(self) -> ProbeResult:
+        """Call query() with a neutral probe string, check shape."""
+        import time
+
+        start = time.perf_counter()
+        try:
+            result = self.query("probe query test")
+        except Exception as exc:  # noqa: BLE001 — adapter probe, all errors captured
+            return ProbeResult(
+                success=False,
+                latency_ms=(time.perf_counter() - start) * 1000,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        latency = (time.perf_counter() - start) * 1000
+        if result.error:
+            return ProbeResult(success=False, latency_ms=latency, error=result.error)
+        # "Success" means the machinery returned a QueryResult with
+        # context_string populated. Zero hits is still a successful
+        # call-through — that's a retrieval-quality question (Cat 1),
+        # not a harness-integration question (Cat 9b).
+        return ProbeResult(
+            success=True,
+            latency_ms=latency,
+            output=f"context_string length={len(result.context_string or '')}",
+        )
+
+    def _probe_graph_snapshot(self) -> ProbeResult:
+        import time
+
+        start = time.perf_counter()
+        try:
+            entities, edges = self.get_graph_snapshot()
+        except Exception as exc:  # noqa: BLE001
+            return ProbeResult(
+                success=False,
+                latency_ms=(time.perf_counter() - start) * 1000,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        return ProbeResult(
+            success=True,
+            latency_ms=(time.perf_counter() - start) * 1000,
+            output=f"entities={len(entities)} edges={len(edges)}",
+        )
+
+    def _probe_kg_read(self) -> ProbeResult:
+        """Probe the KG read path. Graceful no-op if KG file absent."""
+        import time
+
+        start = time.perf_counter()
+        if not (self.kg_path and os.path.isfile(self.kg_path)):
+            # No KG file — the corresponding MCP tool would return an
+            # empty result, not crash. Report success so we don't
+            # penalize palaces without a KG.
+            return ProbeResult(
+                success=True,
+                latency_ms=(time.perf_counter() - start) * 1000,
+                output=f"kg file not present at {self.kg_path!r}; probe skipped",
+            )
+        try:
+            entities, edges = self._read_kg()
+        except Exception as exc:  # noqa: BLE001
+            return ProbeResult(
+                success=False,
+                latency_ms=(time.perf_counter() - start) * 1000,
+                error=f"{type(exc).__name__}: {exc}",
+            )
+        return ProbeResult(
+            success=True,
+            latency_ms=(time.perf_counter() - start) * 1000,
+            output=f"kg_entities={len(entities)} kg_triples={len(edges)}",
+        )
 
     # --- Lifecycle ----------------------------------------------------
 

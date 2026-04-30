@@ -80,7 +80,7 @@ def _print_report(
     print(" Structural Memory Evaluation — structural analysis")
     print("=" * 70)
 
-    print(f"\nGraph size")
+    print("\nGraph size")
     print(f"  nodes:                {_fmt_int(health['nodes'])}")
     print(f"  edges:                {_fmt_int(health['edges'])}")
     print(f"  components:           {_fmt_int(health['components'])}")
@@ -92,11 +92,11 @@ def _print_report(
     print(f"  avg degree:           {health['avg_degree']:.2f}")
     print(f"  max degree:           {_fmt_int(health['max_degree'])}")
 
-    print(f"\nEntity type distribution")
+    print("\nEntity type distribution")
     for et, c in list(health["entity_type_distribution"].items())[:15]:
         print(f"  {et:35s} {c:>8,}")
 
-    print(f"\nEdge type distribution")
+    print("\nEdge type distribution")
     total_edges = sum(health["edge_type_distribution"].values()) or 1
     for et, c in health["edge_type_distribution"].items():
         pct = 100 * c / total_edges
@@ -107,7 +107,7 @@ def _print_report(
         "low bits indicate monoculture)"
     )
 
-    print(f"\nCommunity structure (Louvain)")
+    print("\nCommunity structure (Louvain)")
     print(f"  communities:          {_fmt_int(community.count)}")
     print(f"  modularity:           {community.modularity:.3f}")
     print(
@@ -116,14 +116,14 @@ def _print_report(
     )
     print(f"  top sizes:            {community.sizes[:10]}")
 
-    print(f"\nPer-edge-type component count  (Cat 4c monoculture signal)")
+    print("\nPer-edge-type component count  (Cat 4c monoculture signal)")
     for et, n_comp in sorted(
         edge_type_components.items(), key=lambda kv: -kv[1]
     )[:15]:
         print(f"  {et:35s} {n_comp:>8,}  components")
 
     if betti is not None:
-        print(f"\nPersistent homology  (Cat 5 gap detection)")
+        print("\nPersistent homology  (Cat 5 gap detection)")
         print(
             f"  component size:       {_fmt_int(betti.component_size)} nodes"
             f"  (largest connected component)"
@@ -141,7 +141,7 @@ def _print_report(
             )
             if betti.h1_bars:
                 print(f"  max H1 persistence:   {betti.max_h1_persistence:.2f} hops")
-                print(f"  top H1 bars (birth, death, persistence):")
+                print("  top H1 bars (birth, death, persistence):")
                 for b, d, p in betti.h1_bars[:10]:
                     print(
                         f"    birth={b:5.2f}  death={d:5.2f}  persistence={p:5.2f}"
@@ -181,7 +181,7 @@ def _print_report(
             for line in textwrap.wrap(doc, width=66):
                 print(f"    {line}")
 
-    print(f"\nTiming")
+    print("\nTiming")
     for step, t in elapsed.items():
         print(f"  {step:20s} {t:>7.2f}s")
     print()
@@ -278,7 +278,6 @@ def cmd_analyze(args: argparse.Namespace) -> int:
 
 def cmd_cat8(args: argparse.Namespace) -> int:
     """Run Category 8 ontology coherence against a system."""
-    import textwrap
 
     from sme.categories.ontology_coherence import (
         ImpliedOntology,
@@ -339,7 +338,7 @@ def cmd_cat8(args: argparse.Namespace) -> int:
     print(f"  vocabulary claims:      {len(implied.vocabulary_claims)}")
     print(f"  retrieval claims:       {len(implied.retrieval_claims)}")
 
-    print(f"\n8a Type coverage")
+    print("\n8a Type coverage")
     print(f"   declared:   {len(report.types_declared)}")
     print(f"   found:      {len(report.types_found)}  ({', '.join(report.types_found) or '—'})")
     print(f"   missing:    {len(report.types_missing)}  ({', '.join(report.types_missing) or '—'})")
@@ -349,7 +348,7 @@ def cmd_cat8(args: argparse.Namespace) -> int:
             print(f"     - {t}")
     print(f"   coverage:   {report.type_coverage:.1%}")
 
-    print(f"\n8b Edge vocabulary")
+    print("\n8b Edge vocabulary")
     print(f"   declared:   {len(report.edges_declared)}")
     print(f"   found:      {len(report.edges_found)}  ({', '.join(report.edges_found) or '—'})")
     print(f"   missing:    {len(report.edges_missing)}  ({', '.join(report.edges_missing) or '—'})")
@@ -357,7 +356,7 @@ def cmd_cat8(args: argparse.Namespace) -> int:
         print(f"   undeclared: {len(report.edges_undeclared)}  ({', '.join(report.edges_undeclared[:8])}{'...' if len(report.edges_undeclared) > 8 else ''})")
     print(f"   coverage:   {report.edge_vocabulary_coverage:.1%}")
 
-    print(f"\n8c Schema-data alignment")
+    print("\n8c Schema-data alignment")
     if report.entity_type_concentration:
         c = report.entity_type_concentration
         print(
@@ -368,13 +367,13 @@ def cmd_cat8(args: argparse.Namespace) -> int:
     if report.concentration_warning:
         print(f"   ⚠ {report.concentration_warning}")
 
-    print(f"\n8d Ontology drift")
+    print("\n8d Ontology drift")
     print(f"   drift score:      {report.drift_score:.1%}")
     print(f"   declared union:   {len(report.declared_union)}")
     print(f"   effective union:  {len(report.effective_union)}")
     if report.hall_usage:
         hu = report.hall_usage
-        print(f"\n   Hall usage (MemPalace-specific):")
+        print("\n   Hall usage (MemPalace-specific):")
         print(f"     total drawers:         {hu['total_drawers']}")
         print(
             f"     drawers with hall set: {hu['populated_count']}  "
@@ -382,13 +381,13 @@ def cmd_cat8(args: argparse.Namespace) -> int:
         )
         print(f"     declared vocabulary:   {', '.join(hu['declared_vocabulary'])}")
         if hu["distribution"]:
-            print(f"     actual distribution:")
+            print("     actual distribution:")
             for hv, c in list(hu["distribution"].items())[:10]:
                 print(f"       {hv:20s} {c}")
         else:
-            print(f"     actual distribution:   (empty — no drawers have hall set)")
+            print("     actual distribution:   (empty — no drawers have hall set)")
 
-    print(f"\n8e Claim verification")
+    print("\n8e Claim verification")
     print(f"   tested:      {report.claims_tested}")
     print(f"   passed:      {report.claims_passed}")
     print(f"   untestable:  {report.claims_untestable}")
@@ -416,7 +415,7 @@ def cmd_cat8(args: argparse.Namespace) -> int:
             print(f"        data:  {short_metrics}")
         print()
 
-    print(f"Introspection")
+    print("Introspection")
     print(f"   available checks: {len(report.introspection_available)}")
     print(f"   score:            {report.introspection_score:.1%}")
     print(
@@ -718,6 +717,71 @@ def cmd_cat2c(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_cat9(args: argparse.Namespace) -> int:
+    """Run Category 9 (harness integration) against a system.
+
+    Current scope: sub-test 9b (call-through success) only. Other
+    sub-tests (9a, 9c–9g) are spec'd in ``docs/sme_spec_v8.md §
+    Category 9`` and will require a real model runtime / per-harness
+    shims — implementations are tracked separately.
+    """
+    subtest = getattr(args, "subtest", "9b") or "9b"
+
+    if subtest != "9b":
+        print(
+            f"Sub-test {subtest} is spec'd but not implemented. "
+            "Only 9b (call-through success) is currently supported. "
+            "See docs/sme_spec_v8.md § Category 9 for the full plan."
+        )
+        return 2
+
+    from sme.categories.harness_integration import format_cat9b_report, run_cat9b
+
+    adapter = _load_adapter_from_args(args)
+    result = run_cat9b(adapter)
+
+    print()
+    print("=" * 70)
+    print(f" {args.adapter} ({_source_label(args)})")
+    print("=" * 70)
+    print(format_cat9b_report(result, source_label=_source_label(args)))
+
+    if args.json:
+        out = {
+            "adapter": args.adapter,
+            "source": _source_label(args),
+            "subtest": subtest,
+            "empty_manifest": result.empty_manifest,
+            "total_probes": result.total_probes,
+            "successful_probes": result.successful_probes,
+            "failed_probes": result.failed_probes,
+            "call_through_rate": result.call_through_rate,
+            "band": result.band,
+            "by_kind": result.by_kind,
+            "probes": [
+                {
+                    "name": r.descriptor.name,
+                    "kind": r.descriptor.kind,
+                    "description": r.descriptor.description,
+                    "success": r.result.success,
+                    "latency_ms": r.result.latency_ms,
+                    "error": r.result.error,
+                    "output": r.result.output,
+                }
+                for r in result.readings
+            ],
+        }
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+
+    adapter.close()
+    # Exit code: 0 on healthy call-through, 1 on any failed probe,
+    # 2 for empty-manifest (reporting outcome, not pass/fail).
+    if result.empty_manifest:
+        return 2
+    return 0 if result.failed_probes == 0 else 1
+
+
 def cmd_retrieve(args: argparse.Namespace) -> int:
     """Run a question set through an adapter's query() and score it."""
     import yaml
@@ -865,7 +929,7 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
     print(f"  partial hit:   {sum(1 for pq in per_question if pq['hit'])}/{total_n}")
     print(f"  total tokens:  {total_tokens:,}")
     print(
-        f"  tokens / correct answer: "
+        "  tokens / correct answer: "
         + (f"{tokens_per_correct:.0f}" if correct_count else "inf (no full-recall questions)")
     )
 
@@ -1280,6 +1344,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     c2c.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c2c.set_defaults(func=cmd_cat2c)
+
+    # --- cat9 subcommand ---------------------------------------------
+    c9 = sub.add_parser(
+        "cat9",
+        help="Run Category 9 (harness integration — The Handshake). "
+        "Current scope: sub-test 9b (call-through success). Probes each "
+        "declared harness surface to verify external callers can actually "
+        "reach the memory system. Other sub-tests (9a, 9c–9g) are spec'd "
+        "but need a real model runtime — see docs/sme_spec_v8.md.",
+    )
+    c9.add_argument("--adapter", required=True)
+    _add_db_or_api_args(c9)
+    c9.add_argument(
+        "--subtest",
+        default="9b",
+        choices=["9b"],
+        help="Which Cat 9 sub-test to run (default: 9b call-through success). "
+        "9a, 9c–9g are spec'd but not implemented.",
+    )
+    c9.add_argument("--json", metavar="PATH", help="write full report as JSON")
+    c9.set_defaults(func=cmd_cat9)
 
     args = parser.parse_args(argv)
     logging.basicConfig(
