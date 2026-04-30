@@ -273,7 +273,7 @@ class MemPalaceAdapter(SMEAdapter):
             try:
                 all_meta = self._collection.get(include=["metadatas"])
                 rooms = {
-                    (m.get("room") or "").strip()
+                    ((m or {}).get("room") or "").strip()
                     for m in all_meta.get("metadatas", [])
                 }
                 rooms.discard("")
@@ -342,6 +342,7 @@ class MemPalaceAdapter(SMEAdapter):
             if not ids:
                 break
             for drawer_id, meta in zip(ids, metas):
+                meta = meta or {}
                 wing = meta.get("wing") or ""
                 room = meta.get("room") or ""
                 hall = meta.get("hall") or ""  # often empty for project-mined palaces
