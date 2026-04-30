@@ -21,8 +21,8 @@ from sme.adapters.mempalace_daemon import MemPalaceDaemonAdapter
 
 
 pytestmark = pytest.mark.skipif(
-    not os.environ.get("PALACE_DAEMON_URL"),
-    reason="needs a running palace-daemon; set PALACE_DAEMON_URL to enable",
+    not (os.environ.get("PALACE_DAEMON_URL") and os.environ.get("PALACE_API_KEY")),
+    reason="needs a running palace-daemon; set PALACE_DAEMON_URL and PALACE_API_KEY to enable",
 )
 
 
