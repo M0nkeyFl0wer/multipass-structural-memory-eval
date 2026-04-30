@@ -129,8 +129,13 @@ class RlmAdapter(SMEAdapter):
         self.verbose = verbose
 
         # Per-query capture buffer — populated by _mempalace_search and
-        # drained at the end of each query() call.
+        # drained at the end of each query() call. _capture grows by one
+        # entry per drawer returned (across all tool invocations);
+        # _tool_call_count tracks actual invocations of _mempalace_search
+        # so 9a-shaped invocation-rate reads aren't conflated with
+        # per-call drawer counts.
         self._capture: list[dict] = []
+        self._tool_call_count: int = 0
 
         # Backend resolution. JP's home environment ships a multi-provider
         # config in ~/.config/cloud-chat-assistant/config.json. If no
@@ -182,6 +187,7 @@ class RlmAdapter(SMEAdapter):
 
     def _mempalace_search(self, query: str, limit: int = _DEFAULT_LIMIT) -> list[dict]:
         """HTTP call to palace-daemon /search; capture results for SME scoring."""
+        self._tool_call_count += 1
         params = {"q": query, "limit": str(limit), "kind": self.kind}
         url = f"{self.api_url}/search?" + "&".join(f"{k}={_urlrequest.quote(v)}" for k, v in params.items())
         req = _urlrequest.Request(url)
@@ -226,6 +232,7 @@ class RlmAdapter(SMEAdapter):
 
     def query(self, question: str) -> QueryResult:
         self._capture = []
+        self._tool_call_count = 0
         t0 = time.time()
         try:
             result = self._rlm.completion(question)
@@ -285,7 +292,7 @@ class RlmAdapter(SMEAdapter):
             retrieved_edges=[],
             # Strings, not dicts — cli's `'; '.join(path)` expects strings.
             retrieval_path=[
-                f"rlm_completion ({elapsed_ms}ms, {len(self._capture)} tool calls)",
+                f"rlm_completion ({elapsed_ms}ms, {self._tool_call_count} tool calls, {len(self._capture)} drawers)",
             ],
             error=None,
         )

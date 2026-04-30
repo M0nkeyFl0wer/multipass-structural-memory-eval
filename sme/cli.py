@@ -52,7 +52,9 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
     if name == "rlm":
         from sme.adapters.rlm_adapter import RlmAdapter
 
-        # Drop kwargs RLM doesn't understand.
+        # Drop kwargs RLM doesn't understand. (RlmAdapter accepts `kind`
+        # to forward into mempalace_search /search calls, so it is NOT
+        # in this drop list.)
         for k in (
             "include_node_tables",
             "include_edge_tables",
@@ -62,7 +64,6 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             "default_query_mode",
             "db_path",
             "buffer_pool_size",
-            "kind",
             "read_only",
         ):
             kwargs.pop(k, None)
