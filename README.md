@@ -79,6 +79,71 @@ the documentation and code.
   Handshake) harness-integration spec. Reference material — read the
   onboarding guide first if you want to get a test run going.
 
+## Fork roadmap (jphein)
+
+This is a fork; planned fork-specific work below. Upstream is
+[M0nkeyFl0wer/multipass-structural-memory-eval](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval) — bug fixes and category contributions still target upstream.
+
+### Shipped: `mempalace-daemon` adapter
+
+`sme/adapters/mempalace_daemon.py` talks to a running
+[`palace-daemon`](https://github.com/jphein/palace-daemon) over HTTP.
+No filesystem access, no ChromaDB import, no shared-process constraint
+with the daemon. Use this adapter when MemPalace is fronted by the
+daemon (the daemon is the single writer to the palace) — the existing
+`mempalace` adapter is still correct for single-process upstream
+installs without the daemon.
+
+**Wired endpoints:**
+
+- `query()` → `GET /search?q=…&kind=…&limit=…` with `X-API-Key`. Default
+  `kind="content"` excludes Stop-hook auto-save checkpoints; pass
+  `--kind all` to disable. Daemon-side `warnings` (e.g. broken HNSW
+  index) are surfaced into `QueryResult.error` as `WARN: …` so Cat 9
+  scoring can distinguish flagged retrieval from clean retrieval.
+- `get_graph_snapshot()` → tries `GET /graph` first (palace-daemon
+  ≥1.6.0); on 404, falls back to walking `mempalace_list_wings`,
+  `mempalace_list_rooms` per wing, and `mempalace_list_tunnels` via
+  `POST /mcp`. The MCP fallback is slower (~30s on a 151K-drawer
+  palace) but works against any palace-daemon version.
+
+**Auth resolution:** explicit `--api-url` / `--api-key` flags →
+`~/.config/palace-daemon/env` (`PALACE_DAEMON_URL`, `PALACE_API_KEY`)
+→ process environment.
+
+**Invocation:**
+
+```bash
+# With explicit daemon URL
+sme-eval retrieve --adapter mempalace-daemon \
+    --api-url http://your-daemon:8085 \
+    --questions corpus.yaml \
+    --kind content \
+    --json out.json
+
+# Or, if ~/.config/palace-daemon/env is populated, no flags needed
+sme-eval retrieve --adapter mempalace-daemon --questions corpus.yaml
+```
+
+The same `--api-url` / `--api-key` / `--kind` flags work on the
+`cat4`, `cat5`, and `check` subcommands.
+
+**Why this matters:** the engram-2 critique ("0.984 R@5 but 17% E2E
+QA accuracy") is about the integration-under-production-model slice
+that Cat 9 measures. Running SME's `retrieve` through the daemon
+surfaces exactly the kind of gap that critique describes — the
+adapter's WARN-soft-error treatment means the framework records
+"retrieval ran but the daemon flagged it as degraded" as a first-
+class signal, not as a hard failure that hides the issue.
+
+#### Why the existing adapter still has a use
+
+For users running upstream MemPalace without palace-daemon (the
+default install pattern), the existing `mempalace` adapter is
+correct — single process, no daemon, direct ChromaDB access is
+fine. The daemon adapter is *additive*, for users who've adopted
+palace-daemon's single-writer architecture.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).
