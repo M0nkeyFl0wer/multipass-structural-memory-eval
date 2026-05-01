@@ -144,6 +144,54 @@ correct — single process, no daemon, direct ChromaDB access is
 fine. The daemon adapter is *additive*, for users who've adopted
 palace-daemon's single-writer architecture.
 
+### Shipped: `familiar` adapter
+
+`sme/adapters/familiar.py` talks to a running
+[`familiar.realm.watch`](https://github.com/jphein/familiar.realm.watch)
+v0.2.0+ instance over HTTP. Familiar wraps palace-daemon with a v0.2
+retrieval pipeline (rerank, temporal decay, extractive compression,
+grounding directives). This adapter measures familiar's full pipeline;
+the sibling `mempalace-daemon` adapter measures palace alone.
+**Comparing their SME scores quantifies what familiar's v0.2
+pipeline contributes** to retrieval quality on top of the underlying
+daemon.
+
+**Wired endpoints:**
+
+- `query()` → `POST /api/familiar/eval` with body
+  `{query, limit, kind, mock}`. Familiar's eval endpoint already
+  returns SME-shape `{answer, context_string, retrieved_entities,
+  retrieved_edges, error, warnings, available_in_scope}` natively
+  (it was designed against the SME contract), so the adapter is
+  mostly deserialization with the same WARN: error-prefix
+  translation as `mempalace-daemon`.
+- `get_graph_snapshot()` → `GET /api/familiar/graph`. Familiar
+  proxies palace-daemon's `/graph` with a 5-minute server-side cache;
+  payload mapping reuses `sme/adapters/_graph_mapping.py` shared with
+  `mempalace-daemon`.
+- `get_harness_manifest()` → forward-compat for Cat 9. Returns
+  `[ToolCall, MCPResource]` once `sme.harness` ships; `[]` until then.
+
+**Determinism:** `--mock` (default) skips LLM inference so Cat 1
+substring scoring is reproducible across runs. Use `--no-mock` to
+include the model output in the per-question record (intended for
+future Cat 9 work).
+
+**Invocation:**
+
+```bash
+# Default: --mock for Cat 1 determinism
+sme-eval retrieve --adapter familiar     --api-url https://familiar.jphe.in     --questions corpus.yaml     --json familiar.json
+
+# Compare against the same palace via the daemon adapter
+sme-eval retrieve --adapter mempalace-daemon     --api-url http://your-daemon:8085     --questions corpus.yaml     --json daemon.json
+
+# The score delta = what familiar's v0.2 pipeline is worth
+```
+
+The `--api-url`, `--mock`/`--no-mock`, and `--familiar-timeout` flags
+work on `cat4`, `cat5`, `check`, and `retrieve` subcommands.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).

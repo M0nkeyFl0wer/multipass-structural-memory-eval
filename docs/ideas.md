@@ -376,8 +376,59 @@ any specific SME output as gospel:
   what happens in production under a specific model and harness.
   See Cat 9 in the spec for why this is the largest gap in current
   instrumentation.
+**Forward-compat in adapters (2026-04-26):** `FamiliarAdapter`
+(familiar.realm.watch v0.2's adapter) emits per-question records that
+include the verbatim `context_string` sent to inference plus structured
+`warnings` (`palace_unreachable`, `low_confidence`,
+`filtered_null_text_*`, `stuck_loop`). The `cmd_retrieve` JSON output
+captures all of this per-question, so a future
+`sme/categories/handshake.py` scorer can compute Cat 9 metrics
+(9a invocation rate, 9b call-through success, 9c result usage,
+9d negative-control rate) from existing run artifacts without
+revisiting the adapter API. `get_harness_manifest()` is also
+implemented forward-compat — currently returns `[]` because this
+multipass version doesn't import `sme.harness.HarnessDescriptor`,
+but two descriptors (HTTP `ToolCall` + `MCPResource`) are emitted as
+soon as the harness types ship.
+
 
 ---
+
+## Lessons from the first live eval — 2026-04-26
+
+The first end-to-end eval against a real 151K-drawer palace (familiar
+v0.2.0 → v0.2.1, jp-realm-v0.1 corpus) surfaced lessons that should
+shape future adapter work and category implementations:
+
+- **Substring scoring on `context_string` is the right MVP.** Mock
+  inference + literal-substring expected-source matching produced a
+  deterministic, reproducible signal that worked across two adapters
+  (`familiar`, `mempalace-daemon`) without a judge. v0.1 corpus
+  required ~30 min to author and produced actionable findings within
+  one hour. Don't chase Cat 9 LLM-judge complexity until substring
+  scoring plateaus.
+- **The eval distinguishes "system gap" from "pipeline gap".** When
+  q12 (rlm) and q13 (GraphPalace) initially scored 0.0 we couldn't
+  tell whether the palace lacked the content or whether retrieval was
+  failing. Writing the missing drawers via `palace-daemon /memory`
+  and re-running flipped q12 to 1.0 (palace gap) but left q13 at 0.0
+  (pipeline gap — embedding ranking issue). This split is the
+  diagnostic the framework was built to provide; it lands cleanly
+  with the simplest possible scoring.
+- **The corpus is a ratchet, not a benchmark.** Running the same
+  corpus before vs after a one-line client-side fix (palace-client
+  punctuation strip, `b676852`) showed a +0.50 question delta in
+  ~2 minutes. v0.1 corpora should be cheap enough to run on every
+  retrieval-pipeline PR.
+- **`retrieve` subcommand needed CLI plumbing fixes the helpers
+  hid.** The `read_only` kwarg and `--mock`/`--familiar-timeout`
+  flags only worked through `_load_adapter_from_args` (cat4/cat5
+  paths) but not through `cmd_retrieve`'s inline construction.
+  Bundle adapter-arg expansion through a single helper across all
+  subcommands rather than re-implementing in each.
+- **Per-corpus directories worked.** `sme/corpora/jp_realm_v0_1/`
+  and `baselines/jp_realm_v0_1_*.json` made it obvious where to
+  add `jp_realm_v0_2`, `family_palace_v0_1`, etc. Don't refactor.
 
 ## What's next
 
