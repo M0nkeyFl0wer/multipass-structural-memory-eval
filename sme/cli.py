@@ -153,6 +153,7 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             "mock_inference",
             "timeout_s",
             "buffer_pool_size",
+            "read_only",  # accepted for CLI parity; not a constructor arg
         ):
             kwargs.pop(k, None)
         if "db_path" in kwargs:

@@ -1,0 +1,180 @@
+# good-dog-corpus v0.1 — ground-truth questions
+#
+# 18 questions across the SME categories the corpus seeds (Cat 1 / 2c /
+# 3 / 4 / 6 / 7). Authored 2026-05-01 against the 24 vault notes that
+# materialize the seeded contradiction pairs, supersession chains, and
+# alias clusters declared in `ontology.yaml`.
+#
+# `expected_sources` are substrings that should appear in the adapter's
+# `context_string` if retrieval is working. Each substring was verified
+# present in at least one vault note before authoring (see
+# `tests/test_questions_yaml_smoke.py` for the validator).
+#
+# `min_hops` follows the SME spec convention: 1 for single-source recall,
+# 2-3 for multi-hop traversal across the seeded chains. Hop count is
+# fixed at corpus design time, not measured per system.
+#
+# `sme_category` annotation lets cross-validation reports group readings
+# by primitive — same convention as `sme/corpora/longmemeval/loader.py`.
+# Category nuance: the Cat 3 questions are designed for a system that
+# *flags both old and new* states, not one that silently overwrites.
+# A silent-overwriter system will look correct on Cat 1 facts but score
+# poorly here (and vice versa — see docs/related_work/longmemeval.md
+# for the KU semantic-divergence caveat).
+
+version: good-dog-corpus-v0.1
+description: |
+  Ground-truth question set for good-dog-corpus, exercising:
+    Cat 1  (factual retrieval / The Lookup)         — 4 questions
+    Cat 2c (multi-hop reasoning / The Stairway)     — 3 questions
+    Cat 3  (contradiction surfacing / The Dissonance) — 3 questions
+    Cat 4  (alias resolution / The Threshold 4a)    — 3 questions
+    Cat 6  (temporal supersession / The Archive)    — 3 questions
+    Cat 7  (token efficiency / The Abacus)          — 2 questions
+
+  Each question's `expected_sources` are substrings verified present in
+  ≥1 vault note. The substring matcher is documented as a known-limited
+  signal (see mempalace#101 long comment); upgrading to LongMemEval's
+  GPT-4o judge for Cat 1 is planned via the cross-validation harness in
+  `scripts/cross_validate_longmemeval.py`.
+
+questions:
+
+  # =========================================================
+  # Cat 1 — factual retrieval (single-source recall)
+  # =========================================================
+
+  - id: q01_fda_dcm_investigation_year
+    text: "When did the FDA open its investigation into the potential link between certain diets and canine dilated cardiomyopathy?"
+    expected_sources: ["July 2018", "FDA", "DCM"]
+    min_hops: 1
+    sme_category: cat_1
+
+  - id: q02_hills_recall_announcement_date
+    text: "When did Hill's Pet Nutrition announce the initial voluntary recall for elevated vitamin D in canned dog food?"
+    expected_sources: ["Hill's", "vitamin D", "January 31"]
+    min_hops: 1
+    sme_category: cat_1
+
+  - id: q03_schenkel_paper_subject
+    text: "What is the title and subject of Schenkel's 1947 study?"
+    expected_sources: ["Schenkel", "Expression Studies", "wolves"]
+    min_hops: 1
+    sme_category: cat_1
+
+  - id: q04_aurora_pit_bull_repeal_year
+    text: "What did Aurora voters do regarding the city's pit bull ban in 2024?"
+    expected_sources: ["Aurora", "repeal", "Pit Bull"]
+    min_hops: 1
+    sme_category: cat_1
+
+  # =========================================================
+  # Cat 2c — multi-hop reasoning (chain across notes)
+  # =========================================================
+
+  - id: q05_dominance_theory_chain_authors
+    text: "Which researchers' work shaped the modern understanding that the alpha-wolf framing in dog training is outdated?"
+    expected_sources: ["Schenkel", "Mech", "AVSAB", "dominance"]
+    min_hops: 2
+    sme_category: cat_2c
+
+  - id: q06_dcm_investigation_research_chain
+    text: "Which veterinary researchers and institutions have weighed in on the FDA's diet-DCM investigation?"
+    expected_sources: ["FDA", "DCM", "Lisa Freeman", "Tufts"]
+    min_hops: 2
+    sme_category: cat_2c
+
+  - id: q07_hills_recall_lifecycle
+    text: "Trace the Hill's vitamin D recall: when was it announced, when did it expand, and what regulatory action followed?"
+    expected_sources: ["Hill's", "January 31", "March 20", "May 20", "Warning Letter"]
+    min_hops: 3
+    sme_category: cat_2c
+
+  # =========================================================
+  # Cat 3 — contradiction surfacing
+  #   These reward systems that flag BOTH framings, not those
+  #   that silently return only the most-recent one.
+  # =========================================================
+
+  - id: q08_grain_free_dcm_causal_status
+    text: "Has the FDA established that grain-free diets cause DCM in dogs?"
+    expected_sources: ["FDA", "complex", "not established", "grain-free"]
+    min_hops: 2
+    sme_category: cat_3
+    contradiction_pair_id: dcm_grain_free_2018
+
+  - id: q09_alpha_wolf_dominance_framing_status
+    text: "Is the alpha-wolf / dominance-hierarchy framing of dog behavior currently endorsed by veterinary behavior professional bodies?"
+    expected_sources: ["Schenkel", "Mech", "AVSAB", "dominance"]
+    min_hops: 2
+    sme_category: cat_3
+    contradiction_pair_id: dominance_theory_pre_vs_post_1999
+
+  - id: q10_pit_bull_apbt_amstaff_relationship
+    text: "Are American Pit Bull Terrier and American Staffordshire Terrier the same breed?"
+    expected_sources: ["American Pit Bull Terrier", "American Staffordshire Terrier", "UKC", "AKC"]
+    min_hops: 2
+    sme_category: cat_3
+
+  # =========================================================
+  # Cat 4 — alias resolution (same-entity, different surface forms)
+  # =========================================================
+
+  - id: q11_gsd_alsatian_alias
+    text: "Are 'Alsatian' and 'German Shepherd Dog' the same breed?"
+    expected_sources: ["Alsatian", "German Shepherd", "Royal Kennel Club"]
+    min_hops: 1
+    sme_category: cat_4
+    alias_pair_id: german_shepherd
+
+  - id: q12_apbt_alias
+    text: "What does the abbreviation APBT refer to?"
+    expected_sources: ["APBT", "American Pit Bull Terrier", "UKC"]
+    min_hops: 1
+    sme_category: cat_4
+    alias_pair_id: pit_bull
+
+  - id: q13_beg_diet_alias
+    text: "What does the term 'BEG diet' refer to in the canine-DCM literature?"
+    expected_sources: ["BEG", "boutique", "exotic", "grain-free", "Tufts"]
+    min_hops: 1
+    sme_category: cat_4
+
+  # =========================================================
+  # Cat 6 — temporal supersession (when did X change)
+  # =========================================================
+
+  - id: q14_montreal_bsl_lifecycle
+    text: "When did Montreal enact a pit-bull-specific bylaw, and when (if ever) was it repealed?"
+    expected_sources: ["Montreal", "2016", "2018", "Plante", "repeal"]
+    min_hops: 2
+    sme_category: cat_6
+
+  - id: q15_dominance_theory_supersession
+    text: "When and how did the academic understanding of dominance hierarchies in wolves and dogs shift?"
+    expected_sources: ["Schenkel", "1947", "Mech", "1999", "AVSAB", "2008"]
+    min_hops: 3
+    sme_category: cat_6
+
+  - id: q16_fda_dcm_investigation_status_progression
+    text: "How has the FDA's framing of the diet-DCM relationship changed between 2018 and 2022?"
+    expected_sources: ["FDA", "2018", "2019", "2022", "DCM", "complex"]
+    min_hops: 2
+    sme_category: cat_6
+    contradiction_pair_id: dcm_grain_free_2018
+
+  # =========================================================
+  # Cat 7 — token-efficiency probes (lighter expected sources)
+  # =========================================================
+
+  - id: q17_calgary_pet_ownership_model
+    text: "What is Calgary's approach to pit-bull regulation, and how does it differ from breed-specific legislation?"
+    expected_sources: ["Calgary", "responsible pet", "behaviour"]
+    min_hops: 1
+    sme_category: cat_7
+
+  - id: q18_canine_dcm_reporting_volume
+    text: "Roughly how many DCM reports has the FDA received over the course of its investigation?"
+    expected_sources: ["FDA", "DCM", "reports"]
+    min_hops: 1
+    sme_category: cat_7
