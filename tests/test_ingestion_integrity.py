@@ -112,7 +112,7 @@ def test_normalized_entropy_bounded(duplicates_graph):
 def test_custom_canonicalize_function_is_respected():
     """Adapter can override canonicalization if the pipeline uses a
     richer rule (strip articles, punct, etc.). Cat 4 must honour it."""
-    from sme.adapters.base import Edge, Entity
+    from sme.adapters.base import Entity
 
     entities = [
         Entity(id="a", name="The Docker",  entity_type="tool"),

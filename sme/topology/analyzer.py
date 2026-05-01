@@ -17,7 +17,7 @@ import logging
 import math
 from collections import Counter
 from dataclasses import dataclass
-from typing import Iterable, Optional
+from typing import Iterable
 
 import networkx as nx
 

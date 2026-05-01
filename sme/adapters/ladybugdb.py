@@ -372,7 +372,6 @@ class LadybugDBAdapter(SMEAdapter):
         schema via ``CALL show_tables()``, then pulls entities and edges
         using the same column-name heuristics as file mode.
         """
-        import json as _json
 
         # --- Schema discovery ----------------------------------------
 

@@ -295,10 +295,10 @@ exclusions:
 
   - url: "https://example.com/rescue-memory"
     reason: >
-      Smoke-test stub URL appearing in
-      /home/m0nk/Projects/in-doggy-news/outputs/. Per task brief,
-      in-doggy-news/outputs/ entries are pipeline-generated drafts
-      and not to be included as sources verbatim.
+      Smoke-test stub URL appearing in the in-doggy-news project's
+      outputs/ directory. Per task brief, in-doggy-news/outputs/
+      entries are pipeline-generated drafts and not to be included
+      as sources verbatim.
 
   - url: "https://example.com/review-smoke"
     reason: "Same as above — pipeline smoke-test stub, not real source."

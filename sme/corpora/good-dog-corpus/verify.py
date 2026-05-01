@@ -259,7 +259,7 @@ def main() -> int:
     args = ap.parse_args()
 
     notes = find_notes()
-    print(f"--- good-dog-corpus verify ---")
+    print("--- good-dog-corpus verify ---")
     print(f"notes scanned: {len(notes)}")
 
     report: dict = {"notes_scanned": len(notes)}

@@ -118,7 +118,6 @@ def _build_condition_report(
 ) -> ConditionReport:
     """Convert a retrieve-results JSON dict into a ConditionReport."""
     questions = data.get("questions", [])
-    summary = data.get("summary", {}) or {}
 
     by_hop: dict[int, HopBreakdown] = {}
     for q in questions:
