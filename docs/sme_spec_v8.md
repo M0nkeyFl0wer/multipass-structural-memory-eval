@@ -460,11 +460,30 @@ LongMemEval tests knowledge updates (returning the latest fact). SME tests wheth
 
 ---
 
-## Category 4: Ingestion Integrity — The Threshold
+## Category 4: Ingestigation — The Threshold
+
+(Renamed 2026-05-01 from "Ingestion Integrity." See [`docs/ingestigation.md`](ingestigation.md)
+for the rationale, the existing-tools survey — SHACL, W3C PROV-O, ProVe, Splink,
+OpenLineage, Great Expectations — and the proposed Cat 4d/4e/4f sub-test additions
+informed by that research. Implementation module retains the file name
+`sme/categories/ingestion_integrity.py` for import stability.)
 
 **What it tests:** Can structural damage from the ingestion pipeline be detected — either by the system itself or by external analysis of its graph?
 
-**No existing benchmark tests this.** MINE tests extraction quality from outside. SME tests it from inside. This is the KGist anomaly detection concept applied to live ingestion pipelines.
+**Position vs prior art.** [Hofer et al. 2023 (arXiv 2302.11509)](https://arxiv.org/abs/2302.11509)
+surveys KG-construction quality vocabularies (accuracy / coverage /
+consistency / fact-level provenance). [GraphGuard (SemIIM 2023)](https://ceur-ws.org/Vol-3647/SemIIM2023_paper_5.pdf)
+integrates the W3C-PROV / DCAT / DQV stack. SHACL has been the W3C-recommended
+constraint language since 2017. [KGist / KGGen MINE (Stanford, NeurIPS 2025)](https://arxiv.org/abs/...)
+test extraction quality from outside. SME's distinctive contribution at this
+layer is **per-edge-type evidence-rule registration at corpus-design time**
+(see `good-dog-corpus/ontology.yaml#edge_types` for the worked example),
+the **A/B/C/D condition isolation** that pairs ingestigation readings
+against the corpus's own gold registry, and the **lightweight registry-
+and-lexical-rules-only fallback** for systems that don't run ProVe-grade
+LLM verification infrastructure. See `docs/ingestigation.md` for the
+full survey + the SHACL / PROV-O / Splink / OpenLineage integration
+proposals.
 
 **Critical distinction: introspection vs external.** The spec splits every sub-test into two scores:
 

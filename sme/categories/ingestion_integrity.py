@@ -1,4 +1,13 @@
-"""Category 4: Ingestion Integrity — The Threshold.
+"""Category 4: Ingestigation — investigating the ingestion process.
+
+(Renamed 2026-05-01 from "Ingestion Integrity / The Threshold" — the
+new name reflects that Cat 4 isn't a binary integrity check but an
+investigation into what the ingestion did and didn't preserve from
+the source corpus. See ``docs/ingestigation.md`` for the full
+rationale, the existing-tools survey (SHACL, W3C PROV-O, ProVe,
+Splink, OpenLineage, Great Expectations), and the proposed
+4d/4e/4f sub-test additions. Module file kept as
+``ingestion_integrity.py`` for import stability.)
 
 Measures whether the extraction pipeline is producing a clean graph,
 or double-inserting the same entity / letting edge vocabulary sprawl /
