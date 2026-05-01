@@ -32,10 +32,22 @@ jobs:
       - name: Run pytest
         run: pytest tests/ -q
 
+      - name: Install codetopo from git
+        # codetopo (agentic-coding-topology) isn't on PyPI yet — install
+        # from the GitHub repo. Separate step so a transient install
+        # failure doesn't mask test results.
+        continue-on-error: true
+        run: pip install git+https://github.com/M0nkeyFl0wer/agentic-coding-topology.git
+
       - name: Structural code-quality check (codetopo)
         # Informational only for now — surfaces structural_duplication and
         # function_bloat findings in the CI logs so PR reviewers see them.
         # Will be flipped to required (drop continue-on-error, add --fail-on error)
         # once existing duplications are resolved via the adapter testkit (#8).
         continue-on-error: true
-        run: codetopo check sme/ tests/ --recursive --output text
+        run: |
+          if command -v codetopo > /dev/null; then
+            codetopo check sme/ tests/ --recursive --output text
+          else
+            echo "codetopo not installed (install step failed); skipping structural check"
+          fi
