@@ -18,6 +18,13 @@ generated_by: "source-discovery agent (Claude)"
 discovered_count: 11
 verified_reachable_count: 11
 
+
+# Structured verification flag (machine-readable peer of the prose note above).
+verification_method: websearch_confirmed_only
+verification_note: >
+  URLs in this manifest were confirmed live via WebSearch top-result match (the URL appeared as a current result for a query naming the document)
+  Direct HTTP HEAD/GET verification was not performed by the source-discovery agent and is recommended before vault notes quote source text verbatim.
+
 sources:
 
   - id: vet_fda_dcm_third_status_report_2019

@@ -23,20 +23,11 @@ entities:
     type: concept
     canonical: "Grain-free pet diet"
     aliases: ["grain-free diet", "grain-free dog food"]
-  - id: concept_beg_diet
-    type: concept
-    canonical: "BEG diet (boutique, exotic-ingredient, or grain-free)"
-    notes: "Term used in veterinary literature to describe the diet category under FDA investigation"
   - id: event_fda_dcm_investigation_open_2018_07
     type: event
     canonical: "FDA opens investigation into diet-DCM link"
     timestamp: "2018-07"
     status: ongoing
-  - id: event_fda_dcm_status_update_2019_06
-    type: event
-    canonical: "FDA Third Status Report on Diet-DCM Investigation"
-    timestamp: "2019-06"
-    status: resolved
   - id: pub_fda_dcm_investigation_main
     type: publication
     canonical: "FDA Investigation into Potential Link between Certain Diets and Canine Dilated Cardiomyopathy"
@@ -62,7 +53,8 @@ edges:
   - from: org_us_fda
     type: regulates
     to: concept_grain_free_diet
-    evidence: "FDA regulates pet food including grain-free formulations under FFDCA"
+    evidence: "FDA regulates pet food generally; the specific statutory citation is not verified in this note's source"
+    needs_grounding: true
 
 tags: [vet_research, dcm, grain_free, fda, contradiction_pair_candidate]
 contradiction_pair_id: dcm_grain_free_2018

@@ -26,7 +26,6 @@ from __future__ import annotations
 
 import re
 import sys
-from collections import defaultdict
 from pathlib import Path
 
 import yaml
@@ -34,6 +33,7 @@ import yaml
 CORPUS_ROOT = Path(__file__).resolve().parent
 ONTOLOGY_PATH = CORPUS_ROOT / "ontology.yaml"
 VAULT_PATH = CORPUS_ROOT / "vault"
+SOURCES_PATH = CORPUS_ROOT / "sources"
 
 REQUIRED_FRONTMATTER_FIELDS = (
     "note_id",
@@ -71,6 +71,8 @@ class Report:
         self.warnings: list[str] = []
         self.notes_seen: int = 0
         self.entities_introduced: dict[str, str] = {}  # id -> note path
+        self.entities_referenced_by_edge: set[str] = set()
+        self.manifests_seen: int = 0
 
     def fail(self, msg: str) -> None:
         self.failures.append(msg)
@@ -139,6 +141,8 @@ def validate_note(
         if not src or not dst:
             report.fail(f"{rel}: edge {etype!r} missing 'from' or 'to'")
             continue
+        report.entities_referenced_by_edge.add(src)
+        report.entities_referenced_by_edge.add(dst)
         if "evidence" not in edge:
             report.warn(
                 f"{rel}: edge {src} -[{etype}]-> {dst} missing 'evidence' field "
@@ -147,7 +151,46 @@ def validate_note(
 
 
 def validate_cross_note_references(report: Report) -> None:
-    pass
+    """Catch entities declared in any note but never connected by any edge.
+
+    An orphan entity is the inverse failure mode of a phantom edge:
+    the entity exists in the graph but isn't grounded in any relationship,
+    which usually means it was declared speculatively or for a future note
+    that doesn't exist yet. Either fix: connect it via an edge, or drop the
+    declaration until the connecting note lands.
+    """
+    orphans = sorted(
+        set(report.entities_introduced) - report.entities_referenced_by_edge
+    )
+    for eid in orphans:
+        note = report.entities_introduced[eid]
+        report.fail(
+            f"{note}: entity {eid!r} is declared but no edge references it "
+            f"(orphan entity — drop or connect)"
+        )
+
+
+def validate_manifests(report: Report) -> None:
+    """Source manifests under sources/*.yaml must declare a verification_method."""
+    if not SOURCES_PATH.exists():
+        return
+    for path in sorted(SOURCES_PATH.glob("*.yaml")):
+        rel = path.relative_to(CORPUS_ROOT)
+        try:
+            data = yaml.safe_load(path.read_text())
+        except yaml.YAMLError as exc:
+            report.fail(f"{rel}: does not parse as YAML ({exc})")
+            continue
+        if not isinstance(data, dict):
+            report.fail(f"{rel}: top-level must be a mapping")
+            continue
+        report.manifests_seen += 1
+        if "verification_method" not in data:
+            report.fail(
+                f"{rel}: missing top-level 'verification_method' field "
+                f"(required so consumers can detect verification limits "
+                f"without parsing comments)"
+            )
 
 
 def main() -> int:
@@ -171,10 +214,13 @@ def main() -> int:
         validate_note(note, ontology, report)
 
     validate_cross_note_references(report)
+    validate_manifests(report)
 
-    print(f"--- good-dog-corpus validate ---")
+    print("--- good-dog-corpus validate ---")
     print(f"notes scanned: {report.notes_seen}")
+    print(f"manifests scanned: {report.manifests_seen}")
     print(f"entities introduced: {len(report.entities_introduced)}")
+    print(f"entities referenced by edges: {len(report.entities_referenced_by_edge)}")
     print(f"warnings: {len(report.warnings)}")
     print(f"failures: {len(report.failures)}")
     print()

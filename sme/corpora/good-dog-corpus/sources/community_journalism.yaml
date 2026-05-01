@@ -22,6 +22,13 @@ verification_caveat: >
   All URLs verified via WebSearch result presence only. Direct HTTP
   fetch was not available in this session. Re-verify before ingest.
 
+
+# Structured verification flag (machine-readable peer of the prose note above).
+verification_method: websearch_confirmed_only
+verification_note: >
+  URLs in this manifest were confirmed live via WebSearch top-result match (the URL appeared as a current result for a query naming the document)
+  Direct HTTP HEAD/GET verification was not performed by the source-discovery agent and is recommended before vault notes quote source text verbatim.
+
 sources:
 
   - id: cj_cpr_aurora_pit_bull_repeal_2024

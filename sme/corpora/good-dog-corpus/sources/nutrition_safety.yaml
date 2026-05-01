@@ -13,6 +13,13 @@ verified_reachable_count: 8
 # cdc.gov / wsava.org paths. A downstream maintainer with a normal browser
 # should re-verify each URL before any vault note is authored against it.
 
+
+# Structured verification flag (machine-readable peer of the prose note above).
+verification_method: websearch_confirmed_only
+verification_note: >
+  URLs in this manifest were confirmed live via WebSearch top-result match (the URL appeared as a current result for a query naming the document)
+  Direct HTTP HEAD/GET verification was not performed by the source-discovery agent and is recommended before vault notes quote source text verbatim.
+
 sources:
 
   # --- Lifecycle 1: Mid-America Pet Food / Victor brand Salmonella (2023-2024) ---
