@@ -132,6 +132,33 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             kwargs["vault_dir"] = kwargs.pop("db_path")
         return FullContextAdapter(**kwargs)
 
+    if name in ("karpathy-compiled", "karpathy_compiled"):
+        # Karpathy-baseline Condition D2 — see
+        # docs/cross_validation_2026.md § (4) and
+        # sme/conditions/karpathy_compiled.py. Reads a pre-compiled
+        # wiki + index produced by `sme-eval compile-wiki`. Treats
+        # `--db` as the path to the compiled output directory.
+        from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
+
+        for k in (
+            "include_node_tables",
+            "include_edge_tables",
+            "auto_discover",
+            "kg_path",
+            "api_url",
+            "api_key",
+            "kind",
+            "collection_name",
+            "default_query_mode",
+            "mock_inference",
+            "timeout_s",
+            "buffer_pool_size",
+        ):
+            kwargs.pop(k, None)
+        if "db_path" in kwargs:
+            kwargs["compiled_dir"] = kwargs.pop("db_path")
+        return KarpathyCompiledAdapter(**kwargs)
+
     raise SystemExit(f"unknown adapter: {name}")
 
 
@@ -939,6 +966,117 @@ def cmd_cat9(args: argparse.Namespace) -> int:
     return 0 if result.failed_probes == 0 else 1
 
 
+def cmd_compile_wiki(args: argparse.Namespace) -> int:
+    """Compile a raw vault into Karpathy-style wiki + index for Condition D2.
+
+    Runs the LLM compilation pipeline once over a raw `.md` vault and
+    writes ``wiki/<article>.md`` + ``index.md`` + ``_manifest.json`` to
+    ``--output``. After compilation, point ``--adapter karpathy-compiled``
+    at the output directory to read the compiled corpus into a query's
+    context.
+
+    The LLM client is constructed via the chosen ``--llm-provider``.
+    ``openai`` reads ``OPENAI_API_KEY`` from the environment;
+    ``stub`` writes a deterministic short summary per note (useful for
+    smoke-testing the pipeline without spending API credits).
+    """
+    from sme.conditions.wiki_compiler import compile_vault
+
+    if args.llm_provider == "stub":
+        client = _StubLLMClient()
+    elif args.llm_provider == "openai":
+        client = _OpenAILLMClient(model=args.llm_model)
+    else:
+        raise SystemExit(
+            f"unknown --llm-provider {args.llm_provider!r}; "
+            "supported: stub, openai"
+        )
+
+    report = compile_vault(
+        args.vault,
+        args.output,
+        client,
+        summary_target_words=args.summary_words,
+        force=args.force,
+    )
+
+    print()
+    print("=" * 70)
+    print(" sme-eval compile-wiki")
+    print("=" * 70)
+    print(f"  vault:           {args.vault}")
+    print(f"  output:          {args.output}")
+    print(f"  notes found:     {report.n_notes}")
+    print(f"  compiled (LLM):  {report.n_compiled}")
+    print(f"  cache hits:      {report.n_skipped_cache}")
+    print(f"  failures:        {report.n_failed}")
+    if report.failures:
+        print("  failure details:")
+        for path, err in report.failures[:5]:
+            print(f"    - {path}: {err[:120]}")
+    print(f"  wiki total chars:{report.wiki_total_chars:,}")
+    print(f"  index chars:     {report.index_chars:,}")
+    return 0 if report.n_failed == 0 else 1
+
+
+class _StubLLMClient:
+    """Deterministic LLM stub — useful for `compile-wiki --llm-provider stub`.
+
+    Produces a reproducible summary per note so the compile pipeline can
+    be exercised end-to-end without burning real LLM credits, and so
+    cross-validation runs that don't need true LLM compilation can still
+    use Condition D2 as a sanity baseline.
+    """
+
+    def complete(self, prompt: str, **kwargs) -> str:
+        if "Source path:" in prompt:
+            for line in prompt.splitlines():
+                if line.startswith("Source path: "):
+                    rel = line.split(": ", 1)[1].strip()
+                    # Pull the body so the stub at least reflects content.
+                    body_marker = "Source content:\n---\n"
+                    end_marker = "\n---"
+                    body = ""
+                    if body_marker in prompt:
+                        body = prompt.split(body_marker, 1)[1]
+                        if end_marker in body:
+                            body = body.split(end_marker, 1)[0]
+                    head = body.strip().split("\n", 1)[0][:160]
+                    return (
+                        f"# Stub summary of {rel}\n\n"
+                        f"First line of source: {head}\n"
+                    )
+        # Index prompt
+        return "# Index\n\n(stub-generated)\n"
+
+
+class _OpenAILLMClient:
+    """Thin OpenAI-API client — only used by `compile-wiki --llm-provider openai`.
+
+    Imports openai lazily so the rest of SME doesn't depend on it.
+    """
+
+    def __init__(self, *, model: str = "gpt-4o-mini") -> None:
+        try:
+            from openai import OpenAI
+        except ImportError as exc:  # pragma: no cover — runtime install
+            raise SystemExit(
+                "openai package not installed; run `pip install openai` "
+                "or use --llm-provider stub for a no-API-key compile."
+            ) from exc
+
+        self._client = OpenAI()
+        self.model = model
+
+    def complete(self, prompt: str, **kwargs) -> str:
+        response = self._client.chat.completions.create(
+            model=self.model,
+            messages=[{"role": "user", "content": prompt}],
+            temperature=0.2,
+        )
+        return response.choices[0].message.content or ""
+
+
 def cmd_retrieve(args: argparse.Namespace) -> int:
     """Run a question set through an adapter's query() and score it."""
     import yaml
@@ -1581,6 +1719,53 @@ def main(argv: list[str] | None = None) -> int:
     )
     c9.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c9.set_defaults(func=cmd_cat9)
+
+    # --- compile-wiki subcommand (Karpathy D2) ------------------------
+
+    cw = sub.add_parser(
+        "compile-wiki",
+        help="Compile a raw .md vault into Karpathy-style wiki + index "
+        "for Condition D2 (LLM-compiled context). One-time per corpus + "
+        "per change. Output is the directory you point "
+        "`--adapter karpathy-compiled --db <path>` at.",
+    )
+    cw.add_argument(
+        "--vault",
+        required=True,
+        metavar="DIR",
+        help="raw vault directory (read recursively for .md)",
+    )
+    cw.add_argument(
+        "--output",
+        required=True,
+        metavar="DIR",
+        help="where to write wiki/, index.md, and _manifest.json",
+    )
+    cw.add_argument(
+        "--llm-provider",
+        choices=["stub", "openai"],
+        default="stub",
+        help="stub = deterministic no-LLM summaries (useful for smoke "
+        "tests and sanity baselines); openai = real LLM calls (requires "
+        "OPENAI_API_KEY).",
+    )
+    cw.add_argument(
+        "--llm-model",
+        default="gpt-4o-mini",
+        help="(openai) model name. Default gpt-4o-mini.",
+    )
+    cw.add_argument(
+        "--summary-words",
+        type=int,
+        default=300,
+        help="target word count per article in the prompt (default: 300).",
+    )
+    cw.add_argument(
+        "--force",
+        action="store_true",
+        help="recompile every note regardless of cache.",
+    )
+    cw.set_defaults(func=cmd_compile_wiki)
 
     args = parser.parse_args(argv)
     logging.basicConfig(

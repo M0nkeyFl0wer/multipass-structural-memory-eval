@@ -124,9 +124,34 @@ def _make_mempalace_adapter(per_q_vault: Path) -> SMEAdapter:  # pragma: no cove
     )
 
 
+def _make_karpathy_compiled_adapter(per_q_vault: Path) -> SMEAdapter:
+    """Condition D2 wiring — per-question stub-compiled wiki.
+
+    Compiles the per-question haystack into a sibling .compiled/ directory
+    using the deterministic stub LLM client. This is a SMOKE-TEST wiring:
+    the stub doesn't actually summarize, so the resulting D2 reading
+    measures "concatenated stub text + stub index" rather than real
+    LLM-compiled compression.
+
+    For a real D2 measurement, run `sme-eval compile-wiki --llm-provider
+    openai` once over a fixed corpus and point an offline run of the
+    harness at the compiled output. That follow-up wiring is a separate
+    PR (it requires per-question compilation to amortize across the
+    LongMemEval haystack architecture).
+    """
+    from sme.cli import _StubLLMClient
+    from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
+    from sme.conditions.wiki_compiler import compile_vault
+
+    compiled_dir = per_q_vault.parent / f".compiled_{per_q_vault.name}"
+    compile_vault(per_q_vault, compiled_dir, _StubLLMClient())
+    return KarpathyCompiledAdapter(compiled_dir)
+
+
 _ADAPTER_FACTORIES: dict[str, AdapterFactory] = {
     "full-context": _make_full_context_adapter,
     "flat": _make_flat_adapter,
+    "karpathy-compiled": _make_karpathy_compiled_adapter,
     "mempalace": _make_mempalace_adapter,
 }
 
