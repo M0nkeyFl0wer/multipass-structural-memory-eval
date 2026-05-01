@@ -1,0 +1,6 @@
+# LongMemEval upstream JSON files are 15-90 MB each — not committed.
+# Download per README.md.
+data/
+*.json
+!questions.yaml
+!*.yml
