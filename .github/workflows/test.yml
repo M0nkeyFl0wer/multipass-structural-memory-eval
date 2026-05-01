@@ -31,3 +31,11 @@ jobs:
 
       - name: Run pytest
         run: pytest tests/ -q
+
+      - name: Structural code-quality check (codetopo)
+        # Informational only for now — surfaces structural_duplication and
+        # function_bloat findings in the CI logs so PR reviewers see them.
+        # Will be flipped to required (drop continue-on-error, add --fail-on error)
+        # once existing duplications are resolved via the adapter testkit (#8).
+        continue-on-error: true
+        run: codetopo check sme/ tests/ --recursive --output text
