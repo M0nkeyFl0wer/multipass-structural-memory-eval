@@ -104,6 +104,34 @@ def _load_adapter(name: str, **kwargs) -> SMEAdapter:
             kwargs.pop(k, None)
         return FlatBaselineAdapter(**kwargs)
 
+    if name in ("full-context", "full_context"):
+        # Karpathy-baseline Condition D1 — see
+        # docs/cross_validation_2026.md § (4) and
+        # sme/conditions/full_context.py. Treats `--db` as the vault
+        # path; loads every .md file under it as the prompt context.
+        from sme.conditions.full_context import FullContextAdapter
+
+        # Drop kwargs other adapters use that don't apply to D1.
+        for k in (
+            "include_node_tables",
+            "include_edge_tables",
+            "auto_discover",
+            "kg_path",
+            "api_url",
+            "api_key",
+            "kind",
+            "collection_name",
+            "default_query_mode",
+            "mock_inference",
+            "timeout_s",
+            "buffer_pool_size",
+        ):
+            kwargs.pop(k, None)
+        # FullContextAdapter takes vault_dir, not db_path.
+        if "db_path" in kwargs:
+            kwargs["vault_dir"] = kwargs.pop("db_path")
+        return FullContextAdapter(**kwargs)
+
     raise SystemExit(f"unknown adapter: {name}")
 
 
@@ -1204,7 +1232,10 @@ def main(argv: list[str] | None = None) -> int:
     ret.add_argument(
         "--adapter",
         required=True,
-        help="adapter name (flat | mempalace | mempalace-daemon | familiar | ladybugdb)",
+        help="adapter name (flat | mempalace | mempalace-daemon | familiar | "
+        "ladybugdb | full-context). full-context is the Karpathy-baseline "
+        "Condition D1 — pass --db <vault_dir> and it loads every .md file "
+        "as the prompt context with no retrieval.",
     )
     ret.add_argument(
         "--db",
