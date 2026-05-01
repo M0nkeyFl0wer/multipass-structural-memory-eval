@@ -1,0 +1,383 @@
+# Source manifest for the veterinary_research domain of good-dog-corpus.
+#
+# This is a vetted source-discovery output. No vault/ notes have been written
+# from these yet. The corpus maintainer reviews this manifest before any
+# summaries get commissioned.
+#
+# Verification method: every URL listed here was confirmed live via WebSearch
+# (the search index returns a current title + snippet, which is a positive
+# liveness signal — search engines drop dead URLs from result pages within
+# weeks). Direct WebFetch / curl HEAD was attempted but blocked in this
+# environment, so search-confirmed liveness is the verification floor used
+# here. The maintainer should re-check with `curl -sIL` before commissioning
+# vault notes that quote these sources.
+
+domain: veterinary_research
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 11
+verified_reachable_count: 11
+
+sources:
+
+  - id: vet_fda_dcm_third_status_report_2019
+    url: "https://www.fda.gov/animal-veterinary/cvm-updates/fda-provides-third-status-report-investigation-potential-connection-between-certain-diets-and-cases"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (returned with title + snippet)"
+    title: "FDA Provides Third Status Report on Investigation into Potential Connection Between Certain Diets and Cases of Canine Heart Disease"
+    publisher: "U.S. Food and Drug Administration, Center for Veterinary Medicine"
+    publication_date: "2019-06-27"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # this IS the partner to the existing 2018 note
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"
+    why_fits: >
+      Canonical Cat 3 partner to the existing 2018 FDA note. The Third Status
+      Report is where the FDA's framing shifted from "association strong
+      enough to publicize" to "complex scientific issue that may involve
+      multiple factors," with non-hereditary DCM reports now spanning both
+      grain-free and grain-containing diets. This is the seeded contradiction
+      pair the corpus's Cat 3 evaluation depends on.
+    summary_hint: >
+      As of April 30, 2019, FDA had received 524 DCM reports (515 canine,
+      9 feline). >90% of named products were grain-free; 93% had peas
+      and/or lentils. The report named pet-food brands most frequently
+      cited for the first time, and reframed the diet-DCM relationship as
+      multifactorial rather than causal.
+    notes: "URL was the 'forthcoming partner' referenced in the existing 2018 note's text."
+
+  - id: vet_fda_dcm_qa_non_hereditary
+    url: "https://www.fda.gov/animal-veterinary/animal-health-literacy/questions-answers-fdas-work-potential-causes-non-hereditary-dcm-dogs"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (canonical fda.gov path; cacmap.fda.gov mirror also indexed)"
+    title: "Questions & Answers: FDA's Work on Potential Causes of Non-Hereditary DCM in Dogs"
+    publisher: "U.S. Food and Drug Administration, Center for Veterinary Medicine"
+    publication_date: "2022-11-01"  # last-updated date for the report-count addition
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # framing-shift document
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"
+    why_fits: >
+      The framing-shift document. FDA explicitly characterizes non-hereditary
+      DCM as 'a complex medical condition that may be affected by the
+      interplay of multiple factors such as genetics, underlying medical
+      conditions, and diet,' and notes that FDA 'has not taken regulatory
+      action against or declared any specific pet food products unsafe or
+      definitively linked to DCM.' This is the explicit-marker text Cat 3
+      needs.
+    summary_hint: >
+      FAQ-format agency statement that re-characterizes the diet-DCM
+      relationship as multifactorial (genetics + underlying conditions +
+      diet ingredient sourcing/processing/formulation). Updated through
+      2022-11-01 with cumulative DCM report counts.
+    notes: "Replaces the older 'questions-answers-fda-center-veterinary-medicines-investigation-...' Q&A page (2019), which is also still live but pre-framing-shift."
+
+  - id: vet_fda_dcm_main_investigation_page
+    url: "https://www.fda.gov/animal-veterinary/outbreaks-and-advisories/fda-investigation-potential-link-between-certain-diets-and-canine-dilated-cardiomyopathy"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result on multiple searches)"
+    title: "FDA Investigation into Potential Link between Certain Diets and Canine Dilated Cardiomyopathy"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2018-07"  # original; page is updated in place over time
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"
+    why_fits: >
+      The canonical landing page for the entire FDA DCM investigation —
+      this is the URL the existing 2018 note declares as its source_url
+      (which returned 404 at the time of authoring; now confirmed live by
+      search index). Including it explicitly so the maintainer can decide
+      whether to refresh the existing note's frontmatter.
+    summary_hint: >
+      Canonical FDA landing page that links all DCM status updates,
+      Vet-LIRN reports, and Q&A pages. Itself the in-place-updated
+      narrative of the investigation from July 2018 forward.
+    notes: "Recommend the maintainer re-fetch this page directly and use it to verify the existing 2018 note's quoted text."
+
+  - id: vet_fda_dcm_vet_lirn_update
+    url: "https://www.fda.gov/animal-veterinary/science-research/vet-lirn-update-investigation-dilated-cardiomyopathy"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Vet-LIRN Update on Investigation into Dilated Cardiomyopathy"
+    publisher: "U.S. Food and Drug Administration, Veterinary Laboratory Investigation and Response Network"
+    publication_date: "2020"  # most recent Vet-LIRN update on this URL; supersedes Feb 2019
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"
+      - cat_2c_multi_hop_seed: "fda_lab_network -> diagnostic_collaboration -> peer_reviewed_findings"
+    why_fits: >
+      Vet-LIRN is the FDA's diagnostic-laboratory arm and is the
+      organization-level entity that bridges FDA (regulator) to the
+      academic-veterinary-cardiology community on DCM. Useful for Cat 2c
+      hops: FDA -> Vet-LIRN -> partner labs -> publications.
+    summary_hint: >
+      Status update from FDA's Veterinary Laboratory Investigation and
+      Response Network on the DCM investigation, describing methodology
+      and partner-laboratory work. Distinct entity from the CVM main
+      page; the regulates / member_of edges connect them.
+    notes: "Companion February-2019-specific URL also exists; this page is the rolling update."
+
+  - id: vet_freeman_2018_javma_viewpoint
+    url: "https://pubmed.ncbi.nlm.nih.gov/30451613/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (PubMed indexed)"
+    title: "Diet-associated dilated cardiomyopathy in dogs: what do we know?"
+    publisher: "Journal of the American Veterinary Medical Association (JAVMA), via PubMed (NLM)"
+    publication_date: "2018-12-01"
+    license: "fair_use_excerpt"
+    license_note: >
+      Article itself is JAVMA-copyrighted (not open access on PubMed).
+      Abstract on PubMed is in the public domain (NLM PubMed records are
+      USG works). Corpus should summarize from the abstract or use
+      fair-use quotation; do not host the full PDF.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # academic side of the pair
+      - cat_2c_multi_hop_seed: "freeman_lisa -> tufts_cummings -> javma_viewpoint -> fda_investigation"
+    why_fits: >
+      Freeman et al. is the most-cited academic counterpart to the FDA
+      investigation. Coined / popularized the 'BEG diet' (boutique,
+      exotic-ingredient, grain-free) terminology that the FDA-era
+      vet-cardiology literature uses. Author chain (Freeman, Stern, Fries,
+      Adin, Rush) is a Cat 2c affiliation chain in itself.
+    summary_hint: >
+      Viewpoint piece by Freeman, Stern, Fries, Adin, and Rush published
+      December 2018 in JAVMA (vol 253, issue 11, pp 1390-1394).
+      Recommends measuring plasma and whole-blood taurine in any DCM dog
+      eating a BEG, vegetarian, vegan, or home-prepared diet, and frames
+      the diet-DCM concern as warranting urgent investigation.
+    notes: "Publisher full text is paywalled; PubMed abstract is the canonical public reference. Some unauthorized PDF mirrors exist (crownvet.com, dcmdogfood.com) but are not authoritative — exclude."
+
+  - id: vet_freeman_2022_jvim_prospective
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC8965249/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (PMC open-access full-text)"
+    title: "Prospective study of dilated cardiomyopathy in dogs eating nontraditional or traditional diets and in dogs with subclinical cardiac abnormalities"
+    publisher: "Journal of Veterinary Internal Medicine (Wiley), open-access deposited at PMC"
+    publication_date: "2022-03-17"
+    license: "cc_by_nc_4.0"
+    license_note: >
+      JVIM is open-access under CC-BY-NC. PMC deposit confirms reuse
+      rights for non-commercial use with attribution. Verify the article
+      page for the exact CC variant before commissioning a vault note.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # the multi-year reassessment seed
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"
+      - cat_2c_multi_hop_seed: "freeman_lisa -> tufts_cummings -> jvim_2022 -> diet_change_outcome"
+    why_fits: >
+      The peer-reviewed multifactorial-reassessment paper. Documents that
+      diet change improves survival in dogs eating nontraditional diets
+      (median 611 days vs 161 days), strengthening the
+      diet-as-contributor / not-as-sole-cause framing. This is the
+      strongest open-access academic anchor for the contradiction pair's
+      'multifactorial' side.
+    summary_hint: >
+      Prospective study (Freeman, Rush, Adin, et al., JVIM 36(2):451-463,
+      2022) following dogs with diet-associated DCM and dogs with
+      subclinical cardiac abnormalities on traditional vs nontraditional
+      diets. Found dietary change associated with significantly longer
+      survival; concluded diet is a contributing factor in a multifactorial
+      etiology rather than a sole cause.
+    notes: "DOI: 10.1111/jvim.16397. PMC ID: PMC8965249. PMID: 35297103."
+
+  - id: vet_tufts_petfoodology_dcm_update_2018
+    url: "https://sites.tufts.edu/petfoodology/2018/11/29/dcm-update/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (also mirrored at vetnutrition.tufts.edu/2018/11/dcm-update/)"
+    title: "It's Not Just Grain-Free: An Update on Diet-Associated Dilated Cardiomyopathy"
+    publisher: "Tufts Cummings School of Veterinary Medicine — Petfoodology"
+    publication_date: "2018-11-29"
+    license: "fair_use_excerpt"
+    license_note: >
+      Tufts blog post; not explicitly CC-licensed. Corpus use should be
+      fair-use summary + attribution + link. Do not republish full text.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # introduces BEG terminology used downstream
+      - cat_2c_multi_hop_seed: "freeman_lisa -> tufts_cummings -> petfoodology -> beg_terminology"
+    why_fits: >
+      The widely-cited Tufts post that popularized the BEG-diet
+      framing. Anchors the BEG concept entity referenced in the existing
+      2018 FDA note. Also a Cat 2c hop bridge — this is where vet
+      cardiologists first publicly argued the issue was about ingredient
+      composition (peas, lentils) more than the grain-free label per se.
+    summary_hint: >
+      Tufts board-certified veterinary nutritionists (lead author Lisa
+      Freeman) explain that the apparent diet-DCM link likely turns on
+      pulses (peas, lentils) and exotic ingredients rather than the
+      grain-free label per se. Coins / disseminates the BEG (boutique,
+      exotic-ingredient, grain-free) shorthand. Pre-dates the FDA's
+      first public alert by months.
+    notes: "Verified via Petfoodology and the Tufts vetnutrition mirror."
+
+  - id: vet_tufts_petfoodology_dcm_update_2023
+    url: "https://sites.tufts.edu/petfoodology/2023/02/07/diet-associated-dilated-cardiomyopathy-the-cause-is-not-yet-known-but-it-hasnt-gone-away/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Diet-associated dilated cardiomyopathy: The cause is not yet known but it hasn't gone away"
+    publisher: "Tufts Cummings School of Veterinary Medicine — Petfoodology"
+    publication_date: "2023-02-07"
+    license: "fair_use_excerpt"
+    license_note: "Tufts blog post; fair-use summary appropriate."
+    ontology_targets:
+      - cat_6_temporal_chain: "dcm_investigation_lifecycle"  # later state of the chain
+      - cat_3_contradiction_pair: "dcm_grain_free_2018"  # academic-side closing position
+    why_fits: >
+      Five-year-later follow-up by the same Tufts group. Documents that
+      the question is still open: cause unknown, association persists,
+      diet-change outcomes still suggest a real signal. Useful for the
+      Cat 6 supersedes chain (2018 BEG framing -> 2022 prospective study
+      -> 2023 'cause still unknown' position).
+    summary_hint: >
+      Freeman summarizes the field in early 2023: FDA has issued a fourth
+      update; the diet-DCM association has not been disproven; cause
+      remains unidentified but the recommendation to switch off
+      nontraditional diets in affected dogs is unchanged. Frames the
+      multi-year arc of the investigation.
+    notes: ""
+
+  - id: vet_avsab_dominance_position_statement
+    url: "https://avsab.org/wp-content/uploads/2018/03/Dominance_Position_Statement_download-10-3-14.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (also mirrored at archive.org/details/dominance-position-statement)"
+    title: "Position Statement on the Use of Dominance Theory in Behavior Modification of Animals"
+    publisher: "American Veterinary Society of Animal Behavior (AVSAB)"
+    publication_date: "2008"  # original; this PDF is the 2014-10-03 reissue
+    license: "fair_use_excerpt"
+    license_note: >
+      Position statement freely distributed by AVSAB on its public
+      website; explicitly intended for redistribution to clinicians and
+      the public. Quote / summarize with attribution.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_2008"
+      - cat_6_temporal_chain: "training_methodology_consensus_shift"
+      - cat_2c_multi_hop_seed: "avsab -> position_statement -> shelter_training_practice -> municipal_policy"
+    why_fits: >
+      The seeded Cat 3 contradiction-pair anchor for the dominance-theory
+      vs positive-reinforcement debate (per ontology.yaml#sme_category_coverage
+      cat_3_contradiction.seeded_pairs). Also the canonical supersedes
+      anchor for the Cat 6 training-methodology consensus shift. Even
+      though the corpus places it in behavioral_research, vet-research
+      summaries cite it constantly — including it here is appropriate.
+    summary_hint: >
+      AVSAB position (2008, reissued 2014) explicitly opposing the use
+      of dominance theory as a general guide for behavior modification.
+      Cites empirical evidence that confrontational techniques (alpha
+      rolls, dominance downs, physical corrections) frequently elicit
+      aggression. Recommends positive-reinforcement-based methods as the
+      standard of care.
+    notes: "Cross-domain seed: behavioral_research will probably take primary stewardship of this source, but the vet research domain references it heavily."
+
+  - id: vet_acvim_2019_mmvd_consensus
+    url: "https://pmc.ncbi.nlm.nih.gov/articles/PMC6524084/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (PMC open-access deposit)"
+    title: "ACVIM consensus guidelines for the diagnosis and treatment of myxomatous mitral valve disease in dogs"
+    publisher: "Journal of Veterinary Internal Medicine (Wiley), open-access deposited at PMC"
+    publication_date: "2019-04-11"
+    license: "cc_by_nc_4.0"
+    license_note: >
+      Open-access JVIM article deposited at PMC. Verify exact CC
+      variant on the article page before commissioning a vault note.
+    ontology_targets:
+      - cat_6_temporal_chain: "mmvd_acvim_guideline_evolution"  # explicit revision of 2009 guidelines
+      - cat_2c_multi_hop_seed: "acvim -> consensus_panel -> guideline_revision -> clinical_practice"
+    why_fits: >
+      Textbook Cat 6 supersedes example: the abstract explicitly states
+      'This report revises guidelines... originally published in 2009'
+      with substantially-changed pre-clinical-stage management. This is
+      an in-domain (vet research) supersedes pair where both the
+      superseded and superseding documents are publicly identifiable.
+    summary_hint: >
+      Keene et al., JVIM 33(3):1127-1140 (2019). ACVIM consensus update
+      for MMVD diagnosis and treatment in dogs, explicitly revising the
+      2009 ACVIM guidelines. Pre-CHF management changed substantially:
+      pimobendan recommended for stage B2 patients based on EPIC trial
+      results.
+    notes: "DOI: 10.1111/jvim.15488. PMC ID: PMC6524084. PMID: 30974015."
+
+  - id: vet_hart_2020_neutering_breeds
+    url: "https://www.frontiersin.org/journals/veterinary-science/articles/10.3389/fvets.2020.00388/full"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (Frontiers open-access)"
+    title: "Assisting Decision-Making on Age of Neutering for 35 Breeds of Dogs: Associated Joint Disorders, Cancers, and Urinary Incontinence"
+    publisher: "Frontiers in Veterinary Science"
+    publication_date: "2020-07-07"
+    license: "cc_by_4.0"
+    license_note: "Frontiers journals are CC-BY 4.0 by policy; reuse with attribution permitted."
+    ontology_targets:
+      - cat_2c_multi_hop_seed: "hart_benjamin -> uc_davis -> 35_breed_neutering_study -> avma_individualized_policy"
+      - cat_6_temporal_chain: "neutering_age_recommendation_evolution"
+    why_fits: >
+      The most-cited contemporary breed-specific neutering study,
+      and the empirical anchor for AVMA's current 'no single
+      recommendation appropriate for all dogs' position (vs older
+      universal early-spay/neuter advocacy). Strong Cat 2c chain via
+      Hart -> UC Davis -> AVMA policy citation. Touches almost every
+      breed entity in the corpus.
+    summary_hint: >
+      Hart, Hart, Thigpen, and Willits (UC Davis), Frontiers in
+      Veterinary Science 7:388 (2020). Analyzes joint disorders,
+      cancers, and urinary incontinence outcomes by neutering age across
+      35 breeds. Concludes risk varies dramatically by breed and that
+      blanket early-neuter recommendations are not appropriate.
+    notes: "DOI: 10.3389/fvets.2020.00388. Companion mixed-breed paper at fvets.2020.00472 also CC-BY."
+
+# --- Exclusions --------------------------------------------------------
+
+exclusions:
+
+  - url: "https://crownvet.com/wp-content/uploads/2018/12/Freeman-et-al-Diet-associated-DCM-JAVMA-2018.pdf"
+    reason: "Unauthorized full-text PDF mirror of the JAVMA-copyrighted Freeman 2018 viewpoint. Use the PubMed record instead."
+
+  - url: "https://dcmdogfood.com/wp-content/uploads/2019/01/javma.253.11.1390.pdf"
+    reason: "Unauthorized full-text PDF mirror of Freeman 2018; same as above."
+
+  - url: "https://www.fda.gov/animal-veterinary/animal-health-literacy/questions-answers-fda-center-veterinary-medicines-investigation-possible-connection-between-diet-and"
+    reason: "Older (2019) FDA Q&A page, superseded in framing by the non-hereditary-DCM Q&A. Live, but if including only one Q&A page, use the 2022 one. Optional inclusion as a Cat 6 supersedes anchor."
+
+  - url: "https://www.fda.gov/animal-veterinary/news-events/fda-investigation-potential-link-between-certain-diets-and-canine-dilated-cardiomyopathy-february"
+    reason: "February 2019 FDA update — duplicative of the June 2019 Third Status Report and the rolling main investigation page. Skip unless explicit per-update granularity is wanted for Cat 6 chains."
+
+  - url: "https://onlinelibrary.wiley.com/doi/10.1111/jvim.15488"
+    reason: "Publisher landing for the ACVIM 2019 MMVD consensus. Live but redundant with the PMC open-access deposit; use PMC URL."
+
+  - url: "https://onlinelibrary.wiley.com/doi/10.1111/jvim.16397"
+    reason: "Publisher landing for the Freeman 2022 prospective study. Live but redundant with the PMC open-access deposit."
+
+  - url: "https://avmajournals.avma.org/view/journals/javma/253/11/javma.253.11.1390.xml"
+    reason: "JAVMA publisher landing for Freeman 2018; partial paywall. Use PubMed abstract as the public-facing canonical reference."
+
+# --- Notes for the maintainer -----------------------------------------
+
+maintainer_notes: |
+  Coverage of the seeded targets requested in the discovery brief:
+
+    1. FDA Third Status Report 2019                  -> COVERED (vet_fda_dcm_third_status_report_2019)
+    2. FDA Q&A non-hereditary DCM (updated 2022)     -> COVERED (vet_fda_dcm_qa_non_hereditary)
+    3. Peer-reviewed multifactorial vet-cardiology   -> COVERED (vet_freeman_2022_jvim_prospective, open-access at PMC)
+    4. AVSAB 2008 dominance-theory position          -> COVERED (vet_avsab_dominance_position_statement)
+    5. Tufts BEG/DCM explainer                       -> COVERED (vet_tufts_petfoodology_dcm_update_2018, +2023 follow-up)
+
+  All five seeded targets located and URL-verified live via search index.
+
+  Beyond seeds, included:
+    - vet_fda_dcm_main_investigation_page  (resolves the 404 caveat in the existing 2018 note)
+    - vet_fda_dcm_vet_lirn_update          (FDA lab arm — Cat 2c bridge)
+    - vet_freeman_2018_javma_viewpoint     (academic counterpart to FDA 2018 announcement)
+    - vet_acvim_2019_mmvd_consensus        (clean Cat 6 supersedes pair: explicitly revises 2009 ACVIM guidelines)
+    - vet_hart_2020_neutering_breeds       (broad cross-breed entity reach; Cat 2c bridge to AVMA policy)
+
+  No contradictions to the existing 2018 FDA note's facts were found; the
+  three 2019/2022/2023 sources extend the temporal arc rather than
+  challenge the 2018 claims. The 2018-vs-2022 framing shift is a
+  contradiction in the *normative* sense (the corpus's seeded Cat 3 pair),
+  but no fact in the existing note is wrong by 2026 lights.
+
+  Verification floor used: WebSearch-confirmed liveness. Direct curl HEAD
+  / WebFetch were both blocked in this discovery session. Recommend the
+  maintainer run `curl -sIL <url>` against each entry before commissioning
+  vault notes that quote them directly.

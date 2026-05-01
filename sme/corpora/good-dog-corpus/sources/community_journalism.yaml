@@ -1,0 +1,353 @@
+# Source manifest for community_journalism domain of good-dog-corpus.
+#
+# This file is a vetted source list, not summaries. Each entry is a
+# real public URL discovered by source-discovery agent and surfaced
+# via WebSearch. The corpus maintainer reviews this manifest before
+# any vault/community_journalism/*.md notes get written.
+#
+# Verification note: WebFetch and curl HEAD requests were unavailable
+# in this discovery session (permission-denied). All url_verified
+# flags below rest on "WebSearch confirmed live" — i.e. the URL was
+# returned by a search-engine result with title and snippet metadata
+# in the discovery session, which is reasonable evidence the page is
+# reachable but is NOT equivalent to a fetched HTTP 200. Maintainer
+# should re-verify each URL with curl/WebFetch before writing notes.
+
+domain: community_journalism
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 5
+verified_reachable_count: 5
+verification_caveat: >
+  All URLs verified via WebSearch result presence only. Direct HTTP
+  fetch was not available in this session. Re-verify before ingest.
+
+sources:
+
+  - id: cj_cpr_aurora_pit_bull_repeal_2024
+    url: "https://www.cpr.org/2024/11/06/aurora-voters-repeal-pit-bull-ban/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Aurora voters agree to repeal 20-year-old ban on pit bull dogs"
+    publisher: "Colorado Public Radio (CPR News)"
+    publication_date: "2024-11-06"
+    license: "fair_use_excerpt"
+    license_note: >
+      Copyright held by Colorado Public Radio. Corpus uses excerpted
+      text for non-commercial research under fair use. CPR is a
+      nonprofit / member-supported public-radio organization;
+      articles are publicly readable without paywall.
+    article_shape: "policy_implementation"
+    ontology_targets:
+      - cross_links_to_domain: "municipal_policy"
+      - entities_exercised:
+          - "location: Aurora, Colorado (municipal jurisdiction)"
+          - "event: November 5 2024 ballot measure Question 3A"
+          - "concept: BSL (Breed-Specific Legislation)"
+          - "breed: American Pit Bull Terrier (alias chain test — APBT/Pit Bull)"
+          - "organization: Aurora City Council"
+    why_fits: >
+      Direct community-press coverage of a municipal-policy event.
+      Provides the local-reporting framing for the same Aurora BSL
+      repeal that the municipal_policy domain agent should source
+      separately from the council ordinance / ballot text. The pair
+      lets Cat 2c traversal cross from policy primary source ->
+      community reportage on its passage.
+    summary_hint: >
+      Aurora voters approved Question 3A on November 5 2024 to
+      repeal the city's 2005 pit bull ban. The article reports the
+      vote outcome (~56% approval per CPR's reporting), the legal
+      backstory (a 2021 council repeal was reversed by court order
+      in 2023, forcing the issue back to voters), and quotes from
+      animal-advocacy groups. (Verify all numerics against the live
+      page before writing the note.)
+    notes: >
+      CPR is generally paywall-free. Article appeared on the
+      election-night news cycle so initial vote tallies in the
+      copy may be preliminary; the canonical certified result is
+      via Adams/Arapahoe county election offices.
+
+  - id: cj_sentinel_aurora_pit_bull_repeal_2024
+    url: "https://sentinelcolorado.com/metro/aurora-voters-leaning-toward-repealing-20-year-old-ban-on-pit-bull-dogs/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Aurora voters agree to repeal 20-year-old ban on pit bull dogs"
+    publisher: "Sentinel Colorado"
+    publication_date: "2024-11"
+    license: "fair_use_excerpt"
+    license_note: >
+      Copyright held by Sentinel Colorado (community newspaper
+      serving Aurora and East Metro Denver). Corpus uses excerpted
+      text under fair use. Most Sentinel articles are
+      free-to-read; some content may be metered.
+    article_shape: "wire_republish"
+    ontology_targets:
+      - cross_links_to_domain: "municipal_policy"
+      - same_event_as: "cj_cpr_aurora_pit_bull_repeal_2024"
+      - failure_mode_exercised: >
+          Same-event-different-attribution: two outlets reporting
+          the same Aurora BSL repeal independently, with
+          near-identical headlines but different bylines and
+          framing. Tests whether the KG correctly resolves these
+          to a single 'event' node (alias-of at the publication
+          layer, not just breed layer).
+    why_fits: >
+      Pairs deliberately with cj_cpr_aurora_pit_bull_repeal_2024.
+      The two articles exercise the routing-collapse failure mode
+      where identical-or-near-identical headlines for the same
+      event appear at two different publishers — Cat 4 ingestion
+      integrity at the publication level rather than the breed
+      level.
+    summary_hint: >
+      Sentinel Colorado's reporting on the same Aurora Question 3A
+      vote, with local-paper framing emphasizing the council /
+      lawsuit backstory and resident testimony from the 2014 vs
+      2024 votes. Verify byline and exact wording on live page.
+    notes: >
+      Url slug ('leaning-toward-repealing') suggests article was
+      first published election-night with a preliminary headline
+      and updated as results firmed up. Maintainer should check if
+      the page now shows an updated final headline / timestamp.
+
+  - id: cj_npr_shelter_adoption_pace_2024_01
+    url: "https://www.npr.org/2024/01/10/1223890115/pet-adoptions-are-not-keeping-pace-with-the-number-of-animals-coming-in"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Pet adoptions are not keeping pace with the number of animals coming in"
+    publisher: "NPR (National Public Radio)"
+    publication_date: "2024-01-10"
+    license: "fair_use_excerpt"
+    license_note: >
+      Copyright held by NPR. Corpus uses excerpted text under fair
+      use. NPR articles are publicly readable without paywall.
+    article_shape: "shelter_story"
+    ontology_targets:
+      - cross_links_to_domain: "standalone — entity diversity exercise"
+      - entities_exercised:
+          - "organization: shelter / rescue organizations (multiple, named)"
+          - "event: 2023-2024 shelter intake-vs-adoption gap"
+          - "concept: no-kill policy"
+          - "concept: post-pandemic adoption decline"
+      - secondary_link_to: "behavioral_research (training as adoption-readiness factor)"
+    why_fits: >
+      Canonical 'shelter capacity' shape required by the domain.
+      Multi-organization article (cites Shelter Animals Count
+      data, multiple named local shelters) — exercises
+      organization entity at scale and stresses entity-resolution
+      when shelter names appear in slightly varied surface forms
+      across the article and its embedded data citations.
+    summary_hint: >
+      NPR's reporting on the 2023-2024 shelter overcrowding
+      situation: ~6.5M cats and dogs entered shelters in 2023;
+      adoption rates falling behind intake; no-kill policy and
+      post-pandemic return-to-office cited as compounding factors.
+      Verify numerics against the live page; the 6.5M figure
+      should be checked against Shelter Animals Count primary
+      data.
+    notes: >
+      Originally aired as Morning Edition broadcast; the URL hosts
+      the transcript and web summary. NPR transcripts can be
+      cited directly; audio is supplementary.
+
+  - id: cj_today_victor_petfood_recall_2023
+    url: "https://www.today.com/health/dog-cat-food-recall-salmonella-rcna124518"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Victor Dog Food Recall: Pet Food Brands Recalled Due To Salmonella Outbreak"
+    publisher: "TODAY (NBCUniversal / Today.com)"
+    publication_date: "2023-11"
+    license: "fair_use_excerpt"
+    license_note: >
+      Copyright held by NBCUniversal. Corpus uses excerpted text
+      under fair use. Today.com is a free-to-read consumer news
+      site (no paywall).
+    article_shape: "single_topic_local_news"
+    ontology_targets:
+      - cross_links_to_domain: "nutrition_safety"
+      - entities_exercised:
+          - "product: Victor Super Premium Dog Food (brand: Mid America Pet Food)"
+          - "product: Wayne Feeds, Eagle Mountain, Member's Mark (sibling brands same manufacturer)"
+          - "organization: U.S. FDA (regulatory)"
+          - "organization: U.S. CDC"
+          - "event: Mid America Pet Food salmonella recall 2023-09 -> 2023-11"
+          - "concept: Salmonella Kiambu outbreak (zoonotic)"
+      - temporal_chain_anchor: >
+          recall lifecycle: 2023-09-03 first lot recall ->
+          2023-10-30 expanded -> 2023-11-09 full company recall
+    why_fits: >
+      Recall local-impact / consumer-facing reporting. Cross-links
+      to nutrition_safety domain's primary FDA recall notice.
+      Today.com translation of an FDA + CDC notice into
+      consumer-actionable copy is exactly the
+      'same-fact-multiple-attribution-surfaces' shape the corpus
+      needs: same event, public-facing publisher, different
+      framing from FDA primary source.
+    summary_hint: >
+      Today.com's consumer-news writeup of the Mid America Pet
+      Food salmonella recall: lists impacted brands (Victor, Wayne
+      Feeds, Eagle Mountain, Member's Mark), reports 7 human
+      Salmonella Kiambu cases (6 children, 1 hospitalized) per
+      CDC, and provides consumer guidance on what to do with
+      affected product. Verify all numerics against live page;
+      cross-check against CDC outbreak page.
+    notes: >
+      Today.com is a national consumer brand, not strictly local
+      community journalism — but it functions in the corpus as
+      'community-facing recall coverage' equivalent to the role a
+      local TV news station's web writeup would play. If a more
+      local outlet is preferred, KYMA's coverage (kyma.com 2023-11-13)
+      is in the WebSearch results and could substitute or
+      supplement.
+
+  - id: cj_nbc_grain_free_dcm_continuing_2020
+    url: "https://www.nbcnews.com/health/health-news/fda-continues-investigation-dog-heart-damage-linked-diet-n1255196"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "FDA investigation continues into dog heart damage associated with grain-free food"
+    publisher: "NBC News"
+    publication_date: "2020"
+    license: "fair_use_excerpt"
+    license_note: >
+      Copyright held by NBCUniversal News Group. Corpus uses
+      excerpted text under fair use. NBC News articles are
+      free-to-read.
+    article_shape: "cross_domain_local_news"
+    ontology_targets:
+      - cross_links_to_domain: "veterinary_research"
+      - cross_links_to_domain: "nutrition_safety"
+      - entities_exercised:
+          - "organization: U.S. FDA (regulatory body)"
+          - "concept: canine DCM (alias of: dilated cardiomyopathy)"
+          - "concept: grain-free diet / BEG diet"
+          - "person: Lisa Freeman (Tufts Cummings, vet nutritionist)"
+          - "person: Joshua Stern (UC Davis, vet cardiologist)"
+          - "organization: Tufts Cummings School of Veterinary Medicine"
+          - "organization: UC Davis Veterinary Medicine"
+          - "publication: this article cites multiple FDA status reports + peer-reviewed studies"
+      - failure_mode_exercised: >
+          Routing collapse on cross-topic queries (the
+          climate_evidence failure mode from mempalace#101 retold
+          in dog-news shape). A single article spans veterinary
+          research findings, FDA regulatory status, named
+          researcher affiliations, and consumer guidance — a
+          query like 'what does the FDA say about grain-free DCM'
+          can route to either this article, the FDA primary page,
+          or Lisa Freeman's Tufts Petfoodology — and the KG
+          should know they're talking about the same underlying
+          investigation.
+    why_fits: >
+      The cross-domain stress-test article. Pairs DIRECTLY with
+      vault/veterinary_research/2018-07-fda-dcm-investigation.md
+      already in the corpus — same investigation, different
+      attribution surface, different framing (general-public news
+      vs FDA regulatory page). Exercises the Cat 2c multi-hop
+      chain person -> affiliation -> publication -> event in a
+      single source. Also a wire-style republish of an FDA-AVMA
+      story to a national consumer audience.
+    summary_hint: >
+      NBC News reporting on the FDA's ongoing (as of 2020)
+      investigation into a possible link between grain-free /
+      BEG-style diets and non-hereditary canine DCM. Cites Tufts
+      veterinary nutritionist Lisa Freeman and UC Davis
+      cardiologist Joshua Stern. Verify quoted statements against
+      live page; cross-check against FDA's 2019 Third Status
+      Report (already cited in the existing vault note).
+    notes: >
+      Date-confirm needed; URL slug suggests 2020 / 2021. This
+      article is intentionally chosen as a cross-domain article
+      because its content sits across veterinary_research,
+      nutrition_safety, AND community_journalism — the routing-
+      collapse stress-test the README calls for explicitly.
+
+# --- Shape coverage summary ---------------------------------------
+#
+# Required shape -> source(s):
+#
+#   1. local-press / municipal-policy connection
+#      -> cj_cpr_aurora_pit_bull_repeal_2024
+#      -> cj_sentinel_aurora_pit_bull_repeal_2024 (same event, different outlet)
+#
+#   2. local-press / recall connection
+#      -> cj_today_victor_petfood_recall_2023
+#
+#   3. adoption / shelter capacity
+#      -> cj_npr_shelter_adoption_pace_2024_01
+#
+#   4. multi-topic / cross-domain
+#      -> cj_nbc_grain_free_dcm_continuing_2020 (vet + FDA + people + concept)
+#
+#   5. wire-service / national republished
+#      -> cj_sentinel_aurora_pit_bull_repeal_2024 (paired with CPR; same-content-different-attribution)
+#      -> cj_nbc_grain_free_dcm_continuing_2020 (national republish of FDA/AVMA storyline)
+#
+# All 5 shapes covered.
+
+# --- Exclusions ---------------------------------------------------
+
+exclusions:
+
+  - url: "https://example.com/rescue-memory"
+    reason: >
+      Smoke-test stub URL appearing in
+      /home/m0nk/Projects/in-doggy-news/outputs/. Per task brief,
+      in-doggy-news/outputs/ entries are pipeline-generated drafts
+      and not to be included as sources verbatim.
+
+  - url: "https://example.com/review-smoke"
+    reason: "Same as above — pipeline smoke-test stub, not real source."
+
+  - url: "https://www.reddit.com/r/dogs/.rss"
+    reason: >
+      RSS feed root from in-doggy-news/data/feeds.yaml, not a
+      single article. Reddit threads are also user-generated
+      content with weak attribution and no editorial review —
+      acceptable as discovery surface but not as corpus source.
+
+  - url: "https://www.dailypaws.com/feed"
+    reason: >
+      RSS feed root from feeds.yaml, not a single article. Daily
+      Paws is editorial lifestyle content that may be acceptable
+      as a source if a specific article fits a shape, but no
+      Daily Paws article surfaced during this discovery pass that
+      addressed the seeded shapes (no recall coverage, no
+      municipal-policy coverage that surfaced in WebSearch).
+
+  - url: "https://endaurorabsl.org/2024-aurora-bsl-pit-bull-ban-voter-information-guide/"
+    reason: >
+      Advocacy organization page for the Aurora repeal campaign.
+      Per ontology.yaml#out_of_scope.subjective_stance, advocacy
+      framing is excluded; corpus stays at factual claims. The
+      ballot measure outcome itself is sourced from CPR / Sentinel
+      news coverage above, not from the advocacy site.
+
+  - url: "https://pitbullhero.org/voters-reject-bans-against-pit-bulls"
+    reason: "Advocacy organization site — same exclusion as above."
+
+  - url: "https://news.wgcu.org/health/2024-10-12/ready-to-eat-meat-poultry-recall-expanded-to-include-other-brands-listeria-contamination-at-issue"
+    reason: >
+      Surfaced under pet-food-recall search but the article is
+      about HUMAN ready-to-eat meat / Boar's Head listeria recall,
+      not pet food. Out of corpus scope.
+
+# --- Couldn't-find report ----------------------------------------
+#
+# Original task brief asked for AT LEAST 1 wire-service / national
+# story republished locally. The closest verified examples found
+# are:
+#
+#   - The CPR + Sentinel pairing on Aurora BSL — same-event,
+#     two-publisher, but both Colorado-local (neither is a wire
+#     republish in the strict AP/Reuters sense).
+#
+#   - NBC News national coverage of the FDA grain-free DCM story —
+#     a national outlet's republish of an FDA / AVMA storyline,
+#     functionally serving the same 'same-content-different-
+#     attribution' role as a wire republish.
+#
+# A pure AP/Reuters wire story republished on a non-profit or
+# .gov mirror was not located in this session. WebSearch did not
+# surface AP-bylined dog-domain articles with confirmed
+# republication chains. Maintainer may want to (a) accept the
+# NBC + FDA pairing as the wire-republish slot, or (b) commission
+# a follow-up search specifically for AP-bylined dog stories with
+# verified mirror chains.

@@ -1,0 +1,251 @@
+domain: nutrition_safety
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 8
+verified_reachable_count: 8
+
+# Verification note:
+# The corpus's existing 2018-07-fda-dcm-investigation.md note documents that
+# direct WebFetch against fda.gov returns 404 from this client's user-agent
+# (the FDA site appears to block headless fetchers). All URLs below were
+# confirmed by Anthropic WebSearch returning the page as a top result with
+# a matching title; the URLs themselves are well-formed canonical fda.gov /
+# cdc.gov / wsava.org paths. A downstream maintainer with a normal browser
+# should re-verify each URL before any vault note is authored against it.
+
+sources:
+
+  # --- Lifecycle 1: Mid-America Pet Food / Victor brand Salmonella (2023-2024) ---
+  # The FDA consolidates this entire multi-stage recall on a single
+  # "outbreaks-and-advisories" page that is updated in place across stages.
+  # The page itself is the canonical lifecycle record. Standalone news /
+  # CDC / warning-letter sources below mark the discrete temporal stages
+  # for the Cat 6 chain (announce -> expand -> CDC closure -> FDA enforcement).
+
+  - id: nut_mid_america_outbreak_advisory
+    url: "https://www.fda.gov/animal-veterinary/outbreaks-and-advisories/fda-and-cdc-investigate-cases-salmonella-linked-pet-food-made-mid-america-pet-food-multiple-brands"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result with matching title across two queries)"
+    title: "FDA and CDC Investigate Cases of Salmonella Linked to Pet Food Made by Mid America Pet Food; Multiple Brands Recalled"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2023-09-03"  # initial post; page is updated-in-place across stages
+    last_updated_observed: "2024-01-10"  # CDC closed its portion 2024-01-10
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "mid_america_pet_food_2023_recall"
+      - lifecycle_stage: "announcement"
+      - lifecycle_stage: "update"
+      - lifecycle_stage: "expansion"
+    related_product_brand: "Victor (also Eagle Mountain, Wayne Feeds, Members Mark)"
+    why_fits: "FDA's canonical multi-stage outbreak advisory page consolidating the Sept 3, Oct 30, and Nov 9 2023 recall stages; this single URL is the primary subject_of node for the entire Cat 6 chain."
+    summary_hint: "Sept 3 2023 initial recall (Victor Hi-Pro Plus lot 1000016385, Best By 4/30/24, Salmonella positive on SC Dept of Ag random sample); Oct 30 2023 expansion to three lots of Victor Select Beef Meal & Brown Rice; Nov 9 2023 expansion to all products with Best By dates before 10/31/24 (Victor, Eagle Mountain, Wayne Feeds, Members Mark) after Salmonella Kiambu found in lot tied to consumer human-illness complaint. Seven Salmonella Kiambu human cases across 7 states (AL, CA, FL, HI, KY, MN, OK), six in children under 1, one hospitalization."
+    notes: "FDA does not split this into separate per-stage URLs — the outbreaks-and-advisories page IS the temporal record, updated in place. Cat 6 supersedes-edges should treat the same URL at successive snapshot timestamps as the chain."
+
+  - id: nut_mid_america_cdc_outbreak
+    url: "https://www.cdc.gov/salmonella/outbreaks/dog-food-10-23/investigation.html"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, matching title)"
+    title: "Investigation Update: Salmonella Outbreak, Dry Dog Food, November 2023"
+    publisher: "U.S. Centers for Disease Control and Prevention"
+    publication_date: "2023-11"
+    last_updated_observed: "2024-01-10"  # CDC closed investigation
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "mid_america_pet_food_2023_recall"
+      - lifecycle_stage: "resolution"  # CDC closed its portion 2024-01-10
+    related_product_brand: "Victor"
+    why_fits: "CDC's parallel outbreak record — closed 2024-01-10 — provides the resolution stage that the FDA outbreak page does not cleanly mark, since FDA continued enforcement for another year."
+    summary_hint: "CDC declared the human Salmonella Kiambu outbreak portion of the investigation closed on 2024-01-10. Useful for testing whether a memory system distinguishes outbreak-investigation resolution from regulatory-enforcement resolution; they happen at different timestamps."
+    notes: "CDC and FDA close their parts of joint investigations on different dates. This is exactly the kind of nuance Cat 6 should surface."
+
+  - id: nut_mid_america_warning_letter
+    url: "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/mid-america-pet-food-llc-681516-11222024"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result with exact title match across two queries)"
+    title: "Mid America Pet Food LLC - 681516 - 11/22/2024"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2024-11-22"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "mid_america_pet_food_2023_recall"
+      - lifecycle_stage: "regulatory_followup"  # downstream stage past resolution
+    related_product_brand: "Victor"
+    why_fits: "FDA Warning Letter dated 2024-11-22 — final enforcement stage of the lifecycle, more than a year after the initial recall. Demonstrates a real lifecycle does not end at 'resolved'."
+    summary_hint: "Warning Letter consolidating findings from FDA follow-up inspections after the three 2023 recalls, citing dissatisfaction with the company's response to outstanding issues. Issued ~14 months after the Nov 2023 expansion."
+    notes: "Pairs with the outbreak-advisory page via supersedes / regulatory_followup edges; useful for testing whether systems can chain past the headline 'resolved' state."
+
+  # --- Lifecycle 2: Hill's Pet Nutrition vitamin D recall (2019) ---
+  # Three discrete fda.gov safety-alert URLs, one per stage. The cleanest
+  # canonical recall lifecycle in the FDA pet-food corpus.
+
+  - id: nut_hills_vitd_announcement
+    url: "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/hills-pet-nutrition-voluntarily-recalls-select-canned-dog-food-excessive-vitamin-d"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, matching title)"
+    title: "Hill's Pet Nutrition Voluntarily Recalls Select Canned Dog Food for Excessive Vitamin D"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2019-01-31"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "hills_vitamin_d_2019_recall"
+      - lifecycle_stage: "announcement"
+    related_product_brand: "Hill's Science Diet / Hill's Prescription Diet"
+    why_fits: "Initial Jan 31 2019 announcement of the Hill's vitamin-D recall — the canonical 'announcement' node for this lifecycle."
+    summary_hint: "Hill's notified FDA after a U.S. complaint about a dog showing signs of elevated vitamin D; investigation traced cause to a vitamin premix supplier error. Initial recall covered 25 canned dog food products. Excess vitamin D can cause vomiting, loss of appetite, increased thirst/urination, drooling, weight loss; severe cases progress to renal dysfunction."
+
+  - id: nut_hills_vitd_expansion_march
+    url: "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/hills-pet-nutrition-expands-voluntary-recall-select-canned-dog-food-elevated-vitamin-d"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, matching title)"
+    title: "Hill's Pet Nutrition Expands Voluntary Recall of Select Canned Dog Food for Elevated Vitamin D"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2019-03-20"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "hills_vitamin_d_2019_recall"
+      - lifecycle_stage: "expansion"
+    related_product_brand: "Hill's Science Diet / Hill's Prescription Diet"
+    why_fits: "March 20 2019 expansion stage. FDA-requested testing of out-of-original-recall lots found additional contaminated products from the same vitamin premix; supersedes the Jan 31 announcement's product list."
+    summary_hint: "Expansion was triggered by FDA-requested supplemental testing of products NOT in the original recall. Same supplier-error root cause as the January recall. Total expanded list reached 33 varieties at this stage per FDA alerts."
+
+  - id: nut_hills_vitd_expansion_may
+    url: "https://www.fda.gov/safety/recalls-market-withdrawals-safety-alerts/hills-pet-nutrition-additionally-expands-voluntary-recall-select-canned-dog-food-elevated-vitamin-d"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, matching title)"
+    title: "Hill's Pet Nutrition Additionally Expands Voluntary Recall of Select Canned Dog Food for Elevated Vitamin D"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2019-05-20"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "hills_vitamin_d_2019_recall"
+      - lifecycle_stage: "expansion_2"
+    related_product_brand: "Hill's Science Diet / Hill's Prescription Diet"
+    why_fits: "May 20 2019 second expansion adding one more product lot code; supersedes the March 20 expansion. This third stage on a clean separate URL gives the lifecycle three distinct supersedes-edge nodes."
+    summary_hint: "Second expansion added an additional lot code for one variety of canned food. According to FDA records, the recall was subsequently terminated after Hill's required its supplier to add testing of incoming ingredients."
+    notes: "FDA later terminated the recall (status visible in FDA recall database). The termination is not on its own canonical URL — it appears as a status field on each of the three alert pages, which is itself a Cat 6 nuance worth annotating."
+
+  - id: nut_hills_warning_letter
+    url: "https://www.fda.gov/inspections-compliance-enforcement-and-criminal-investigations/warning-letters/hills-pet-nutrition-inc-576564-11202019"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, exact title match)"
+    title: "Hill's Pet Nutrition Inc. - 576564 - 11/20/2019"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "2019-11-20"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - cat_6_temporal_chain: "hills_vitamin_d_2019_recall"
+      - lifecycle_stage: "regulatory_followup"
+    related_product_brand: "Hill's Science Diet / Hill's Prescription Diet"
+    why_fits: "Nov 20 2019 FDA Warning Letter to Hill's Pet Nutrition closing out the regulatory tail of the vitamin-D incident — parallels the Mid-America warning-letter stage and gives both lifecycles a structurally identical four-stage shape (announce / expand / resolve / regulatory_followup)."
+    summary_hint: "FDA Warning Letter to Hill's Pet Nutrition Inc., issued 2019-11-20, citing inspection findings stemming from the vitamin-D contamination event."
+
+  # --- Standalone reference sources (not part of a recall lifecycle) ---
+
+  - id: nut_fda_pet_food_recall_portal
+    url: "https://www.fda.gov/animal-veterinary/safety-health/recalls-withdrawals"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (canonical FDA portal listed in README and across multiple search results)"
+    title: "Recalls & Withdrawals (Animal & Veterinary)"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "n/a"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - reference_index: true  # not part of a chain; it's the index page
+    why_fits: "Canonical portal organization entity. Useful as the regulatory-body anchor for `regulates` edges between FDA and recall events, and as the entry point a real user would query first."
+    summary_hint: "FDA's central listing for animal & veterinary recalls and market withdrawals — the index that resolves to individual recall safety alerts."
+
+  - id: nut_aafco_fda_animal_food_labeling
+    url: "https://www.fda.gov/animal-veterinary/animal-foods-feeds/animal-food-labeling-and-pet-food-claims"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result, matching title)"
+    title: "Animal Food Labeling and Pet Food Claims"
+    publisher: "U.S. Food and Drug Administration"
+    publication_date: "n/a"
+    license: "public_domain"
+    license_note: "U.S. federal government work, 17 U.S.C. § 105"
+    ontology_targets:
+      - reference_baseline: true
+    why_fits: "Baseline regulatory framework (FFDCA + FSMA + 21 CFR 501) describing FDA's relationship with AAFCO and state feed-control officials. Anchors the `regulates` edge type for the nutrition_safety domain at the level above any individual recall."
+    summary_hint: "Federal labeling regulations for animal food are in 21 CFR Part 501. AAFCO has no regulatory authority but develops ingredient definitions and model regulations; states approve products under their own feed laws."
+
+  - id: nut_wsava_global_nutrition_guidelines
+    url: "https://wsava.org/global-guidelines/global-nutrition-guidelines/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result for WSAVA Global Nutrition Guidelines)"
+    title: "WSAVA Global Nutrition Guidelines"
+    publisher: "World Small Animal Veterinary Association (WSAVA)"
+    publication_date: "2021"
+    license: "wsava_open_use_with_attribution"
+    license_note: "WSAVA Global Nutrition Toolkit is published for free distribution to veterinary professionals and pet owners; verify exact terms on the page before redistribution"
+    ontology_targets:
+      - reference_baseline: true
+    why_fits: "Authoritative non-regulatory professional-society guidance on pet food selection. Provides the `concept` entity (pet food selection criteria) and the `organization` entity (WSAVA Global Nutrition Committee) that contextualize every recall in the chain — what 'safe pet food' means absent a recall."
+    summary_hint: "Guidelines authored by veterinary nutritionists on the WSAVA Global Nutrition Committee. Emphasizes asking pet-food companies about: in-house veterinary nutritionist staffing, AAFCO nutrient-profile compliance, quality-control protocols, published research, and named manufacturing facility ownership."
+    notes: "Useful as the non-regulatory counterweight to FDA-anchored recall content. Helps Cat 1 tests distinguish 'who regulates this' (FDA) from 'who recommends practice' (WSAVA)."
+
+# --- Recall lifecycle index ---------------------------------------
+# At-a-glance view of the temporal chains assembled above.
+
+recall_lifecycles:
+
+  - id: mid_america_pet_food_2023_recall
+    label: "Mid-America Pet Food / Victor brand Salmonella recall (2023-2024)"
+    stages_in_corpus: [announcement, update, expansion, resolution, regulatory_followup]
+    stage_source_ids:
+      - nut_mid_america_outbreak_advisory   # covers announce + update + expand on one URL
+      - nut_mid_america_cdc_outbreak        # CDC closure 2024-01-10 (resolution)
+      - nut_mid_america_warning_letter      # FDA enforcement 2024-11-22 (regulatory_followup)
+    primary_brand: "Victor"
+    contaminant: "Salmonella Kiambu"
+    chain_completeness: "complete"
+    notes: >
+      The FDA consolidates the three 2023 recall stages (Sept 3, Oct 30,
+      Nov 9) on a single outbreaks-and-advisories URL that is updated
+      in-place. This is itself an interesting Cat 6 modeling decision:
+      the supersedes-chain spans intra-document timestamps, not separate
+      documents. The CDC and Warning Letter sources are on distinct URLs
+      and provide cleanly distinguishable stage nodes.
+
+  - id: hills_vitamin_d_2019_recall
+    label: "Hill's Pet Nutrition vitamin D recall (2019)"
+    stages_in_corpus: [announcement, expansion, expansion_2, regulatory_followup]
+    stage_source_ids:
+      - nut_hills_vitd_announcement       # 2019-01-31
+      - nut_hills_vitd_expansion_march    # 2019-03-20
+      - nut_hills_vitd_expansion_may      # 2019-05-20
+      - nut_hills_warning_letter          # 2019-11-20
+    primary_brand: "Hill's Science Diet / Hill's Prescription Diet"
+    contaminant: "Excess vitamin D (vitamin premix supplier error)"
+    chain_completeness: "complete"
+    notes: >
+      Cleanest lifecycle in this manifest: every stage is on its own
+      canonical fda.gov URL, dates are unambiguous, supersedes-edge
+      direction is unambiguous. Recommended as the primary Cat 6
+      worked example for the corpus.
+
+# --- Exclusions ----------------------------------------------------
+
+exclusions:
+
+  - url: "https://www.dogfoodadvisor.com/dog-food-recalls/fda-warning-to-mid-america-pet-food/"
+    reason: "Secondary aggregator (commercial blog). Useful for cross-referencing dates but not a primary-source citation under the corpus's regulatory-source preference."
+
+  - url: "https://www.cbsnews.com/news/product-recall-salmonella-dog-cat-food-mid-america-pet-food/"
+    reason: "News aggregator. Same content available from FDA + CDC primary sources; including news media in the recall lifecycle would bias source-domain mix toward 'community_journalism', not 'nutrition_safety'."
+
+  - url: "https://www.petfoodindustry.com/pet-food-lawsuits-litigation/news/15772329/mid-america-pet-food-settles-salmonella-lawsuit-for-55-million"
+    reason: "Trade-press litigation reporting. Out of scope: corpus stays at the regulatory-event level, not civil-litigation outcomes."
+
+  - url: "https://truthaboutpetfood.com/warning-letter-issued-to-mid-america-pet-food/"
+    reason: "Advocacy blog. Excluded under ONTOLOGY.md §5 (subjective stance modeling out of scope)."
+
+  - url: "https://wsava.org/wp-content/uploads/2021/04/Selecting-a-pet-food-for-your-pet-updated-2021_WSAVA-Global-Nutrition-Toolkit.pdf"
+    reason: "Direct PDF download of the same WSAVA Toolkit; the HTML guidelines page (nut_wsava_global_nutrition_guidelines) is the canonical entry point and is more stable across WSAVA site reorganizations."

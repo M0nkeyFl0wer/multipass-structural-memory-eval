@@ -1,0 +1,463 @@
+# Source manifest for the breed_standards domain of good-dog-corpus.
+#
+# This file is the source-discovery output described in
+# README.md "Current state" checklist:
+#   "Source-discovery pass per domain (URLs, dates, license-status)"
+#
+# Discovery pass purpose: surface 8 high-quality public sources that
+# materialize the alias pairs and cross-registry contradictions seeded
+# in ontology.yaml#aliases and ontology.yaml#sme_category_coverage.
+# The corpus maintainer reviews this manifest before any vault/ notes
+# are written from these sources.
+#
+# Verification note: in this discovery session the agent's outbound
+# HTTP capability (WebFetch and curl HEAD) was sandbox-denied. URLs
+# below were verified via WebSearch — each search returned the URL
+# with a current title and live result snippet within this same
+# session, which is sufficient for the manifest stage but does NOT
+# substitute for a direct fetch at ingest time. Each note generated
+# from these sources should re-verify its source_url against the live
+# page before merge (matching the v0.1 limitation already documented
+# in vault/veterinary_research/2018-07-fda-dcm-investigation.md
+# "Provenance and limitations").
+
+domain: breed_standards
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 8
+verified_reachable_count: 8
+verification_method: "WebSearch confirmed live (search-engine result with current title and snippet); direct HTTP verification was sandbox-denied in this session"
+
+sources:
+
+  # -------------------------------------------------------------------
+  # Alias pair 1: German Shepherd / GSD / Alsatian / German Shepherd Dog
+  # Coverage: AKC (US registry), TKC/RKC (UK — historical "Alsatian"
+  # naming), FCI (international, breed standard #166 — origin standard
+  # held by SV Germany). Three sources lets Cat 4 alias resolution be
+  # tested AND surfaces a Cat 3 cross-registry framing comparison.
+  # -------------------------------------------------------------------
+
+  - id: breed_gsd_akc_standard
+    url: "https://images.akc.org/pdf/breeds/standards/GermanShepherdDog.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Official Standard of the German Shepherd Dog"
+    publisher: "American Kennel Club"
+    publication_date: "current"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      AKC holds copyright in the breed standard text. Corpus use is
+      fair-use excerpting for research/evaluation: short quoted phrases
+      naming the breed and its registered identity, with full source
+      attribution in note frontmatter. No bulk reproduction of the
+      standard text.
+    ontology_targets:
+      - cat_4_alias_pair: "german_shepherd"
+      - entity_type: "publication"
+      - entity_type: "breed"
+      - entity_type: "organization"
+    canonical_breed: "German Shepherd"
+    aliases_documented_at_source:
+      - "German Shepherd Dog"
+      - "GSD"
+    why_fits: >
+      Primary US-registry source for the canonical name "German
+      Shepherd Dog." Anchors the AKC end of the alias chain in
+      ontology.yaml#aliases.german_shepherd.
+    summary_hint: >
+      The official AKC standard PDF establishes "German Shepherd Dog"
+      as the registered breed name and describes the breed's general
+      appearance, temperament, structure, and gait. Use as the AKC
+      anchor for the GSD alias chain; pair with the AKC breed
+      information page for the conversational "GSD" abbreviation.
+    notes: >
+      The AKC site uses both "German Shepherd Dog" (registry name) and
+      "GSD" colloquially — the alias pair is documented at AKC even
+      without invoking the UK "Alsatian" naming.
+
+  - id: breed_gsd_akc_breed_page
+    url: "https://www.akc.org/dog-breeds/german-shepherd-dog/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "German Shepherd Dog - Dog Breed Information"
+    publisher: "American Kennel Club"
+    publication_date: "current"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      AKC site content. Excerpted under fair use for research. Note
+      frontmatter cites source_url, accessed_on, publisher.
+    ontology_targets:
+      - cat_4_alias_pair: "german_shepherd"
+    canonical_breed: "German Shepherd"
+    aliases_documented_at_source:
+      - "German Shepherd Dog"
+      - "GSD"
+    why_fits: >
+      Companion to the AKC standard PDF. Surfaces the colloquial
+      "GSD" abbreviation alongside the formal "German Shepherd Dog"
+      registered name, which is the alias pair the registry itself
+      acknowledges.
+    summary_hint: >
+      AKC's public-facing breed information page for the German
+      Shepherd Dog. Title uses both the formal name and "Dog Breed
+      Information" framing. Page links out to the official standard
+      PDF (the sibling source above).
+    notes: >
+      Used together with the standard PDF this is the AKC half of the
+      Cat 4 chain. The Alsatian alias is anchored separately by the
+      UK Royal Kennel Club source below.
+
+  - id: breed_gsd_uk_kennel_club
+    url: "https://www.royalkennelclub.com/breed-standards/pastoral/german-shepherd-dog/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "German Shepherd Dog | Breed Standards | The Kennel Club"
+    publisher: "The Royal Kennel Club (UK)"
+    publication_date: "current; standard wording amended 2016-08-01"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      The Kennel Club (UK) holds copyright in its breed standards.
+      Excerpted for fair-use research citation per corpus policy.
+    ontology_targets:
+      - cat_4_alias_pair: "german_shepherd"
+      - cat_3_contradiction_pair: "registry_classification_GSD_pastoral_vs_herding"
+    canonical_breed: "German Shepherd Dog"
+    aliases_documented_at_source:
+      - "Alsatian (historical UK name, reverted to German Shepherd Dog in 1977)"
+    why_fits: >
+      Anchors the "Alsatian" arm of the alias chain. The UK Kennel
+      Club originally renamed the breed "Alsatian Wolf Dog" in the
+      post-WWI era and reverted to "German Shepherd Dog" in 1977 —
+      this is the registry that documents that history. Without this
+      source the Alsatian alias is undocumented.
+    summary_hint: >
+      The Royal Kennel Club's breed-standard page places the German
+      Shepherd Dog in the Pastoral Group. Historical naming as
+      "Alsatian" is documented in associated KC media (e.g. the
+      reclassification statements). Use this page for Cat 4 alias
+      pair anchoring; use the KC media-centre statements for the
+      Alsatian-naming history if a second UK source is needed.
+    notes: >
+      Cross-registry framing difference is itself a Cat 3 candidate:
+      AKC classifies GSD in the Herding Group, RKC classifies the same
+      breed in the Pastoral Group. Same canonical breed, different
+      registry-level classification — a real and citable contradiction.
+
+  - id: breed_gsd_fci_standard_166
+    url: "http://www.fci.be/nomenclature/standards/166g01-en.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "FCI Standard No. 166 — Deutscher Schäferhund (German Shepherd Dog)"
+    publisher: "Fédération Cynologique Internationale (FCI), origin standard held by Verein für Deutsche Schäferhunde (SV) e.V., Augsburg, Germany"
+    publication_date: "current FCI nomenclature publication"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      FCI publishes breed standards in PDF form; copyright held by
+      FCI / origin-country club (SV Germany). Excerpted for research
+      under fair use.
+    ontology_targets:
+      - cat_4_alias_pair: "german_shepherd"
+      - cat_3_contradiction_pair: "registry_classification_GSD_pastoral_vs_herding"
+      - entity_type: "organization"
+    canonical_breed: "German Shepherd Dog"
+    aliases_documented_at_source:
+      - "Deutscher Schäferhund (German-language original name)"
+    why_fits: >
+      Origin-country standard for the breed. Establishes the German
+      name "Deutscher Schäferhund" as the canonical form, which is
+      a translation-alias the AKC and TKC names map to. Lets the Cat
+      4 alias chain include cross-language identity, not just
+      English-language abbreviations.
+    notes: >
+      FCI Group 1, Section 1 (Sheepdogs). Note the FCI/SV vs AKC
+      framing differences (e.g. coat varieties, working-trial
+      requirement) are documented in numerous breeder-club articles
+      and constitute citable cross-registry disagreement worth a
+      future Cat 3 pair beyond the Pastoral/Herding classification.
+
+  # -------------------------------------------------------------------
+  # Alias pair 2: American Pit Bull Terrier / Pit Bull / APBT
+  # The high-value Cat 4 case here is NOT just abbreviation
+  # collapse — it's the media conflation between APBT (UKC-registered)
+  # and American Staffordshire Terrier (AKC-registered), which the
+  # ontology.yaml notes block flags explicitly. A system that merges
+  # APBT and AmStaff is silently merging two distinct registered
+  # breeds. Hence two registry sources are required: UKC for APBT,
+  # AKC for AmStaff.
+  # -------------------------------------------------------------------
+
+  - id: breed_apbt_ukc_standard
+    url: "https://www.ukcdogs.com/docs/breeds/american-pit-bull-terrier.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "American Pit Bull Terrier — Official UKC Breed Standard (Revised May 1, 2017)"
+    publisher: "United Kennel Club"
+    publication_date: "2017-05-01 (revision)"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      UKC holds copyright in its breed standards; PDF is publicly
+      published on ukcdogs.com. Excerpted for research under fair use.
+    ontology_targets:
+      - cat_4_alias_pair: "pit_bull"
+      - entity_type: "publication"
+      - entity_type: "breed"
+      - entity_type: "organization"
+    canonical_breed: "American Pit Bull Terrier"
+    aliases_documented_at_source:
+      - "APBT"
+      - "Pit Bull (informal)"
+    why_fits: >
+      Primary registry source for "American Pit Bull Terrier" as a
+      single distinct breed. UKC was the first registry to recognize
+      the APBT (registration #1 issued 1898 to UKC founder C.Z.
+      Bennett's dog). Establishes the canonical anchor for the alias
+      chain in ontology.yaml#aliases.pit_bull.
+    summary_hint: >
+      The UKC PDF defines the APBT as a medium-sized, solidly built,
+      short-coated dog and gives the historical recognition note that
+      grounds the breed as a registered identity (UKC since 1898).
+      Use this as the registry-side anchor; pair with the UKC web
+      breed-standards landing page if a second URL surface is needed.
+    notes: >
+      The UKC standard does not address the colloquial "Pit Bull"
+      term as a category — that conflation must be sourced from
+      municipal-policy or media documents elsewhere in the corpus.
+
+  - id: breed_apbt_ukc_breed_page
+    url: "https://www.ukcdogs.com/american-pit-bull-terrier"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Breed Standards : American Pit Bull Terrier | United Kennel Club (UKC)"
+    publisher: "United Kennel Club"
+    publication_date: "current"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      UKC site content. Fair-use excerpts only.
+    ontology_targets:
+      - cat_4_alias_pair: "pit_bull"
+    canonical_breed: "American Pit Bull Terrier"
+    aliases_documented_at_source:
+      - "APBT"
+    why_fits: >
+      Companion to the UKC PDF. Provides a stable HTML landing for
+      the same standard, useful when a note wants a non-PDF surface
+      to cite (e.g., for a community-journalism cross-reference).
+    summary_hint: >
+      UKC's web-published version of the APBT breed standard. Same
+      content as the PDF; included so the manifest carries both
+      surface forms the registry itself publishes.
+
+  - id: breed_amstaff_akc_standard
+    url: "https://images.akc.org/pdf/breeds/standards/AmericanStaffordshireTerrier.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Official Standard of the American Staffordshire Terrier"
+    publisher: "American Kennel Club"
+    publication_date: "current"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      AKC copyright; fair-use excerpting for research/evaluation.
+    ontology_targets:
+      - cat_4_alias_pair: "pit_bull"  # the AmStaff is the *distinct* breed often conflated with APBT
+      - cat_3_contradiction_pair: "media_conflation_apbt_vs_amstaff"
+      - entity_type: "publication"
+      - entity_type: "breed"
+    canonical_breed: "American Staffordshire Terrier"
+    aliases_documented_at_source:
+      - "AmStaff"
+    why_fits: >
+      The conflation test in ontology.yaml#aliases.pit_bull notes:
+      "Distinct from American Staffordshire Terrier despite frequent
+      conflation in media. The conflation itself is a Cat 4 test."
+      Without an AKC AmStaff source, the corpus cannot demonstrate
+      that APBT and AmStaff are two registered breeds, only that one
+      breed has multiple aliases. This source closes that gap.
+    summary_hint: >
+      The AKC standard PDF establishes the AmStaff as a separately
+      registered breed (Terrier Group), not an AKC name for the
+      APBT. Use to seed the Cat 4 distinct-but-conflated test:
+      questions like "is the American Pit Bull Terrier the same
+      breed as the American Staffordshire Terrier?" should resolve
+      to "no — UKC-registered APBT and AKC-registered AmStaff are
+      distinct registered breeds despite shared ancestry and media
+      conflation."
+    notes: >
+      Pair with breed_apbt_ukc_standard above for the contradiction
+      cell. The "media conflation" framing is a Cat 3 contradiction
+      pair candidate (registry view vs media usage), distinct from
+      the cross-registry-classification disagreement seeded for GSD.
+
+  # -------------------------------------------------------------------
+  # Alias pair 3 (chosen): Doberman Pinscher / Dobermann / Doberman / Dobie
+  # Picked because the AKC name ("Doberman Pinscher") and the FCI/
+  # international name ("Dobermann") differ at the registry level,
+  # which gives an independent cross-registry alias pair on top of
+  # the colloquial "Dobie" abbreviation. One verified source is
+  # sufficient for a third alias pair at this discovery stage.
+  # -------------------------------------------------------------------
+
+  - id: breed_doberman_akc_standard
+    url: "https://images.akc.org/pdf/breeds/standards/DobermanPinscher.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live"
+    title: "Official Standard of the Doberman Pinscher"
+    publisher: "American Kennel Club"
+    publication_date: "approved 1982-02-06; reformatted 1990-11-06"
+    license: "registry_copyright_excerpted_for_research"
+    license_note: >
+      AKC copyright; fair-use excerpting for research.
+    ontology_targets:
+      - cat_4_alias_pair: "doberman"  # NEW alias pair to register in ontology.yaml v0.2
+      - cat_3_contradiction_pair: "registry_naming_doberman_pinscher_vs_dobermann"
+    canonical_breed: "Doberman Pinscher"
+    aliases_documented_at_source:
+      - "Doberman"
+      - "Dobermann (international/FCI form, with double-n)"
+      - "Dobie (colloquial)"
+    why_fits: >
+      AKC uses "Doberman Pinscher"; FCI/UK and most non-US registries
+      use "Dobermann." A system that doesn't collapse these is
+      fragmenting one breed into two graph entities by national
+      naming convention. Provides a fourth alias-pair seed beyond
+      the three currently in ontology.yaml.
+    summary_hint: >
+      The AKC PDF establishes "Doberman Pinscher" as the AKC-
+      registered name. The international "Dobermann" form (FCI
+      Standard #143, held by the origin-country club in Germany)
+      is the cross-registry alias — citing it here flags the alias
+      pair without yet committing to fetching the FCI PDF in this
+      pass.
+    notes: >
+      Recommend that ontology.yaml v0.2 add a `doberman` entry under
+      `aliases:` mirroring the existing german_shepherd / pit_bull /
+      golden_retriever pattern. This source supports that addition.
+
+# -------------------------------------------------------------------
+# Aliases / cross-registry pairs covered by this manifest
+# -------------------------------------------------------------------
+
+alias_pairs_covered:
+
+  - id: german_shepherd
+    sources_count: 4
+    surfaces:
+      - "AKC: German Shepherd Dog / GSD"
+      - "RKC (UK): historical Alsatian → reverted to German Shepherd Dog 1977"
+      - "FCI: Deutscher Schäferhund (German-language original)"
+    sufficient_for_cat_4_seed: true
+
+  - id: pit_bull
+    sources_count: 3
+    surfaces:
+      - "UKC: American Pit Bull Terrier (APBT) — registered breed, distinct"
+      - "AKC: American Staffordshire Terrier (AmStaff) — different registered breed often conflated with APBT in media"
+    sufficient_for_cat_4_seed: true
+    notes: >
+      Two-breed-distinct-but-conflated case is the higher-value Cat 4
+      test here, separate from the trivial APBT/Pit Bull/Pitbull
+      abbreviation collapse.
+
+  - id: doberman
+    sources_count: 1
+    surfaces:
+      - "AKC: Doberman Pinscher / Doberman / Dobie"
+      - "(FCI 'Dobermann' form referenced but not separately fetched in this pass)"
+    sufficient_for_cat_4_seed: false
+    notes: >
+      One verified registry source. To meet the "at least 4 alias
+      pairs" target in README.md "Current state" with full two-source
+      confirmation per pair, a follow-up discovery pass should fetch
+      and verify the FCI Standard #143 (Dobermann) URL and ideally
+      the UK Kennel Club page. Listing one source here is honest
+      partial coverage, not a finished pair.
+
+cross_registry_contradiction_candidates:
+
+  - id: registry_classification_GSD_pastoral_vs_herding
+    breed: "German Shepherd Dog"
+    publications:
+      - "AKC standard (Herding Group classification)"
+      - "RKC standard (Pastoral Group classification)"
+    cat: 3
+    notes: "Same canonical breed, different registry group assignment."
+
+  - id: media_conflation_apbt_vs_amstaff
+    breed_a: "American Pit Bull Terrier (UKC-registered)"
+    breed_b: "American Staffordshire Terrier (AKC-registered)"
+    cat: 3
+    notes: >
+      Registry view (two distinct breeds) vs colloquial media usage
+      (single 'Pit Bull' category). Requires a media-source
+      counterpart to bind into a contradicts-edge in v0.2; this
+      manifest only supplies the registry side.
+
+  - id: registry_naming_doberman_pinscher_vs_dobermann
+    breed: "Doberman Pinscher / Dobermann"
+    publications:
+      - "AKC standard (Doberman Pinscher)"
+      - "FCI Standard #143 (Dobermann, German-origin form, not fetched in this pass)"
+    cat: 3
+    notes: "Naming-convention disagreement at the registry level."
+
+# -------------------------------------------------------------------
+# Exclusions — candidate URLs considered but not added to the manifest.
+# -------------------------------------------------------------------
+
+exclusions:
+
+  - url: "https://en.wikipedia.org/wiki/American_Pit_Bull_Terrier"
+    reason: >
+      Tertiary source. Useful for orientation but not a primary
+      registry document; manifest prioritizes AKC/UKC/FCI/RKC primary
+      sources per the corpus README's source-quality criteria.
+
+  - url: "https://www.thedogplace.org/Breeds/German-Shepherd/Breed-Standards-AKC-UKC.asp"
+    reason: >
+      Third-party comparison page. The actual registry PDFs (AKC,
+      UKC, FCI) are the primary sources; the comparison site would
+      be a secondary citation only.
+
+  - url: "https://realpitbull.com/standards/"
+    reason: >
+      Advocacy/breed-fancier site. Not a registry source. Material
+      may be useful for a future advocacy / community-journalism
+      domain note but not for the registry-anchored breed_standards
+      manifest.
+
+  - url: "http://www.fci.be/nomenclature/standards/143g01-en.pdf"
+    reason: >
+      Plausible-pattern URL for the FCI Dobermann standard, but NOT
+      verified in this discovery pass (WebSearch did not surface it
+      during this session). Listed as exclusion to prevent its
+      accidental ingestion as if it were verified; should be the
+      first follow-up to fetch in the next discovery pass to close
+      the doberman alias pair.
+
+  - url: "https://www.ukcdogs.com/german-shepherd-dog"
+    reason: >
+      UKC also publishes a German Shepherd Dog standard. WebSearch
+      confirms a live page exists, but the GSD alias chain is
+      already covered by AKC + RKC + FCI primary sources, so adding
+      a fourth GSD source is redundant for the v0.1 source pass.
+      Listed here for visibility — could be added in v0.2 if the
+      UKC framing is wanted.
+
+  - url: "https://www.akc.org/dog-breeds/yorkshire-terrier/"
+    reason: >
+      Yorkshire Terrier / Yorkie was a candidate for the third alias
+      pair but rejected in favor of Doberman because the Yorkie pair
+      is purely an abbreviation alias (no cross-registry naming
+      disagreement) — Doberman exercises both abbreviation and
+      cross-registry-form alias resolution, which is a richer Cat 4
+      test for the same number of slots in the manifest.
+
+  - url: "https://www.akc.org/dog-breeds/belgian-malinois/"
+    reason: >
+      Belgian Malinois was a candidate for the third alias pair but
+      not selected. Reason: Mali/Mal is a colloquial-only alias and
+      the FCI groups Belgian shepherds as varieties of one breed
+      (Belgian Shepherd Dog) while AKC treats Malinois as separate —
+      a richer test, but it overlaps in shape with the GSD pastoral/
+      herding contradiction already seeded. Reserved for v0.2
+      discovery.

@@ -1,0 +1,354 @@
+# Source manifest: behavioral_research domain
+#
+# Discovered URLs only. No vault notes written. Each entry below has
+# been surfaced via WebSearch against Google's live index; the
+# corpus maintainer should re-verify with curl/WebFetch before any
+# vault summary is authored. Bash/curl/WebFetch were unavailable in
+# this discovery session (sandbox), so independent fetch verification
+# is deferred to maintainer review.
+#
+# Domain focus: dominance theory in canine behavior (1947 captive-wolf
+# basis -> 1999 self-correction -> 2008/2021 AVSAB humane-training
+# guidance), plus modern primary research on aversive vs reward-based
+# training methods.
+
+domain: behavioral_research
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 7
+verified_reachable_count: 7
+verification_caveat: >
+  Verification was performed via WebSearch (Google live index returns
+  the title and current URL). Direct HTTP HEAD checks via curl /
+  WebFetch were not available in this sandboxed session. Maintainer
+  should run a curl pass before authoring vault notes.
+
+sources:
+
+  - id: bhv_schenkel_1947_english
+    url: "https://davemech.org/wolf-news-and-information/schenkels-classic-wolf-behavior-study-available-in-english/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (davemech.org self-hosted, Mech blog post announcing the English translation)"
+    title: "Schenkel's Classic Wolf Behavior Study Available in English"
+    authors: ["Schenkel, Rudolph"]
+    publisher: "davemech.org (translation hosted by L. David Mech, original: Behaviour 1:81-129)"
+    publication_date: "1947 (original); English translation hosted on davemech.org, post-2010"
+    license: "fair_use_excerpt"
+    license_note: >
+      Original Schenkel 1947 was published in journal Behaviour (Brill).
+      English translation is hosted by Mech for scholarly access; treat
+      as fair-use citation surrogate. Use short quotes only; cite the
+      Brill original as primary publication.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_pre_1999 (foundational, captive-wolf-based claim)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (origin node)"
+    why_fits: >
+      The foundational paper that introduced the alpha-wolf / dominance
+      hierarchy framing later imported into dog training. Required as
+      the "before" side of the seeded Cat 3 contradiction pair.
+    summary_hint: >
+      Schenkel's observations of captive wolves at Basel Zoo described
+      a rigid pack hierarchy with an alpha pair maintaining dominance
+      through aggression. The captivity context, later identified by
+      Mech 1999 as the source of the misreading, is itself documented
+      in the paper.
+    notes: >
+      Direct PDF mirror also exists at
+      https://davemech.org/wp-content/uploads/2018/06/ExpressionstudiesP.1-10.pdf
+      (first 10 pages excerpt) and the full English text is on the
+      Internet Archive: https://archive.org/details/SchenkelCaptiveWolfStudy.compressed
+      Maintainer should pick whichever URL is most stable for the
+      vault frontmatter; Mech's hosted page is the most contextually
+      authoritative because Mech himself republished it.
+
+  - id: bhv_mech_1999_self_correction
+    url: "https://www.wolf.org/wp-content/uploads/2013/09/267alphastatus_english.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (International Wolf Center hosting the journal PDF)"
+    title: "Alpha status, dominance, and division of labor in wolf packs"
+    authors: ["Mech, L. David"]
+    publisher: "Canadian Journal of Zoology, 77: 1196-1203"
+    publication_date: "1999"
+    license: "self_hosted_with_author_permission"
+    license_note: >
+      PDF mirrored by the International Wolf Center (Mech is founder).
+      USGS Northern Prairie Wildlife Research Center mirror at
+      https://digitalcommons.unl.edu/usgsnpwrc/381/ is a US-government
+      work and public domain under 17 USC 105. Either URL is citable.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (the self-correction)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (pivot node)"
+    why_fits: >
+      The pivotal self-correction paper. Mech, who popularized the
+      alpha-wolf framing in his 1970 book "The Wolf," concluded after
+      13 summers observing wild wolves on Ellesmere Island that the
+      captive-wolf dominance model does not describe natural pack
+      structure (which is family-based, not hierarchy-based). This is
+      THE Cat 3 contradiction target.
+    summary_hint: >
+      "The typical wolf pack ... is a family, with the adult parents
+      guiding the activities of the group in a division-of-labor
+      system." Mech argues the term 'alpha' is misleading and should
+      be retired for natural packs.
+    notes: >
+      USGS public-domain mirror available at
+      https://digitalcommons.unl.edu/usgsnpwrc/381/ — preferable for
+      explicit license clarity if maintainer wants public-domain
+      framing. RZSS learning portal also mirrors the PDF.
+
+  - id: bhv_mech_alpha_outdated_video_post
+    url: "https://davemech.org/wolf-news-and-information/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (Mech's own news index page)"
+    title: "Wolf News and Information (index, including 'Outdated Wolf Information' / 'Whatever Happened to the Term Alpha Wolf?')"
+    authors: ["Mech, L. David"]
+    publisher: "davemech.org"
+    publication_date: "2008-2013 (multiple posts; Mech video re alpha-wolf term published 2008)"
+    license: "fair_use_excerpt"
+    license_note: >
+      Author-self-hosted commentary; fair-use excerpt with attribution
+      is appropriate for the corpus. Direct quotes should be short.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (popular-audience reinforcement)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (popular-audience pivot)"
+    why_fits: >
+      Mech's plain-language explanation of why he no longer endorses
+      the alpha-wolf framing. Useful as the bridge entity between the
+      academic 1999 paper and the AVSAB position statements that drew
+      on his work for the dog-training context.
+    summary_hint: >
+      Mech states the alpha-wolf concept is outdated for natural wolf
+      packs and asks publishers to stop marketing his 1970 book "The
+      Wolf" because of its outdated dominance framing.
+    notes: >
+      The exact post URL has rotated on the davemech.org site over the
+      years; the news index is the stable entry point. Maintainer
+      should pick a permalinked individual post when authoring the
+      vault note.
+
+  - id: bhv_avsab_2008_dominance_position
+    url: "https://avsab.org/wp-content/uploads/2018/03/Dominance_Position_Statement_download-10-3-14.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (avsab.org self-hosted PDF, also indexed on archive.org)"
+    title: "AVSAB Position Statement on the Use of Dominance Theory in Behavior Modification of Animals"
+    authors: ["American Veterinary Society of Animal Behavior"]
+    publisher: "American Veterinary Society of Animal Behavior (AVSAB)"
+    publication_date: "2008"
+    license: "fair_use_excerpt"
+    license_note: >
+      Position statements from professional bodies are routinely cited
+      and excerpted under fair use; AVSAB explicitly distributes this
+      PDF for public dissemination. Verbatim full-text redistribution
+      should be avoided; short excerpts with attribution are fine.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (clinical-practice side)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (formal professional repudiation)"
+    why_fits: >
+      The professional veterinary-behavior body's formal repudiation
+      of dominance-based training. This is the direct downstream
+      consequence of the Mech 1999 self-correction reaching the
+      veterinary clinical community.
+    summary_hint: >
+      AVSAB recommends against using dominance theory as a guide for
+      behavior modification; "most undesirable behaviors in our pets
+      are not related to priority access to resources; rather, they
+      are due to accidental rewarding of the undesirable behavior."
+    notes: >
+      Internet Archive mirror at
+      https://archive.org/details/dominance-position-statement is a
+      stable backup if avsab.org reorganizes. AVSAB position-statements
+      index at https://avsab.org/resources/position-statements/
+
+  - id: bhv_avsab_2021_humane_training
+    url: "https://avsab.org/wp-content/uploads/2021/08/AVSAB-Humane-Dog-Training-Position-Statement-2021.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (avsab.org self-hosted PDF)"
+    title: "AVSAB Position Statement on Humane Dog Training"
+    authors: ["American Veterinary Society of Animal Behavior"]
+    publisher: "American Veterinary Society of Animal Behavior (AVSAB)"
+    publication_date: "2021-08"
+    license: "fair_use_excerpt"
+    license_note: >
+      Same fair-use posture as the 2008 statement; AVSAB distributes
+      the PDF publicly.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (current clinical guidance)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (most recent supersession node)"
+    why_fits: >
+      The 2021 update extends the 2008 dominance statement and is the
+      most recent formal AVSAB position binding the temporal chain to
+      a current-era endpoint. Explicitly recommends reward-based
+      methods only; names aversive devices (e-collars, prong, choke)
+      as not recommended.
+    summary_hint: >
+      "Reward-based learning offers the most advantages and least
+      harm to the learner's welfare ... aversive training methods
+      have undesirable side-effects on animal welfare, behavior, and
+      the human-animal bond."
+    notes: >
+      Indoor Pet Initiative (Ohio State Vet School) mirror at
+      https://indoorpet.osu.edu/sites/default/files/imce/AVSAB-Humane-Dog-Training-Position-Statement-2021.pdf
+      is a stable academic-hosted backup.
+
+  - id: bhv_ziv_2017_aversive_review
+    url: "https://www.sciencedirect.com/science/article/abs/pii/S1558787817300357"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (Elsevier ScienceDirect canonical record)"
+    title: "The effects of using aversive training methods in dogs—A review"
+    authors: ["Ziv, Gal"]
+    publisher: "Journal of Veterinary Behavior, 19: 50-60"
+    publication_date: "2017"
+    license: "abstract_fair_use_only"
+    license_note: >
+      ScienceDirect canonical record is abstract-only behind a
+      paywall. The corpus should cite the abstract and DOI
+      (10.1016/j.jveb.2017.02.004), not redistribute the full text.
+      Full PDF is hosted on banshockcollars.ca (advocacy site, NOT
+      author-affiliated; do NOT use as the canonical URL of record).
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (peer-reviewed empirical side)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (modern empirical synthesis)"
+    why_fits: >
+      Peer-reviewed literature review synthesizing 17 studies
+      comparing training methods. Directly supports the claim that
+      modern empirical research, not just professional position
+      statements, supports the dominance-to-reward shift.
+    summary_hint: >
+      "Using aversive training methods (e.g., positive punishment and
+      negative reinforcement) can jeopardize both the physical and
+      mental health of dogs ... there is no evidence that [positive
+      punishment] is more effective than positive reinforcement-based
+      training."
+    notes: >
+      Closest open-access companion is Vieira de Castro 2020 below,
+      which empirically extends Ziv 2017's literature-review
+      conclusions. Pair them in the vault note.
+
+  - id: bhv_vieiradecastro_2020_plos
+    url: "https://journals.plos.org/plosone/article?id=10.1371/journal.pone.0225023"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (PLOS ONE canonical article page)"
+    title: "Does training method matter? Evidence for the negative impact of aversive-based methods on companion dog welfare"
+    authors:
+      - "Vieira de Castro, Ana Catarina"
+      - "Fuchs, Danielle"
+      - "Morello, Gabriela M."
+      - "Pastur, Stefania"
+      - "de Sousa, Liliana"
+      - "Olsson, I. Anna S."
+    publisher: "PLOS ONE 15(12): e0225023"
+    publication_date: "2020-12-16"
+    license: "cc_by_4.0"
+    license_note: >
+      PLOS ONE publishes under CC-BY 4.0; full-text quote/redistribute
+      with attribution is permitted. Most permissive license in this
+      manifest.
+    ontology_targets:
+      - cat_3_contradiction_pair: "dominance_theory_post_1999 (modern empirical companion-dog study)"
+      - cat_6_temporal_chain: "dominance_to_positive_reinforcement (current empirical endpoint)"
+    why_fits: >
+      Empirical primary research (n=92 companion dogs across 7
+      training schools) showing aversive-trained dogs exhibited more
+      stress behaviors, higher cortisol, and more pessimistic
+      cognitive bias than reward-trained dogs. Strongest open-access
+      modern primary source for the reward-side of the contradiction.
+    summary_hint: >
+      "Aversive-based training methods, especially if used in high
+      proportions, compromise the welfare of companion dogs both
+      within and outside the training context."
+    notes: >
+      PMC mirror at https://pmc.ncbi.nlm.nih.gov/articles/PMC7743949/
+      and printable PDF at
+      https://journals.plos.org/plosone/article/file?id=10.1371/journal.pone.0225023&type=printable
+      Use journal canonical URL in frontmatter.
+
+# --- Contradiction-pair binding -----------------------------------
+#
+# The seeded Cat 3 + Cat 6 chain in this domain.
+
+contradiction_pairs:
+
+  - id: dominance_theory_pre_vs_post_1999
+    label: "Dominance theory in dog training: 1947 captive-wolf basis vs 1999+ self-correction and humane-training consensus"
+    sides:
+      pre_correction_source_ids:
+        - bhv_schenkel_1947_english
+      post_correction_source_ids:
+        - bhv_mech_1999_self_correction
+        - bhv_mech_alpha_outdated_video_post
+        - bhv_avsab_2008_dominance_position
+        - bhv_avsab_2021_humane_training
+        - bhv_ziv_2017_aversive_review
+        - bhv_vieiradecastro_2020_plos
+    notes: >
+      The contradiction is well-bound on both sides. The pre-1999 side
+      currently has a single source (Schenkel 1947), which is
+      historically appropriate — Schenkel is the cited foundation for
+      virtually every later dominance-training claim. If the corpus
+      wants more pre-1999 material, candidates would be: Mech 1970
+      "The Wolf" (book, not freely available online; Mech now asks
+      publishers to stop reprinting it), or Monks of New Skete 1978
+      "How to Be Your Dog's Best Friend" (book, popular-audience
+      dominance training). Both would require print sources.
+
+# --- Temporal chain (Cat 6) ---------------------------------------
+
+temporal_chain:
+  id: dominance_to_positive_reinforcement
+  ordered_nodes:
+    - { source_id: bhv_schenkel_1947_english, year: 1947, role: "origin (captive-wolf hierarchy)" }
+    - { source_id: bhv_mech_1999_self_correction, year: 1999, role: "academic self-correction" }
+    - { source_id: bhv_mech_alpha_outdated_video_post, year: 2008, role: "popular-audience repudiation" }
+    - { source_id: bhv_avsab_2008_dominance_position, year: 2008, role: "professional veterinary-behavior repudiation" }
+    - { source_id: bhv_ziv_2017_aversive_review, year: 2017, role: "empirical literature review" }
+    - { source_id: bhv_vieiradecastro_2020_plos, year: 2020, role: "empirical primary study" }
+    - { source_id: bhv_avsab_2021_humane_training, year: 2021, role: "current professional consensus" }
+  notes: >
+    `supersedes` edges should run from each later node to the relevant
+    earlier node(s) per ontology.yaml#supersedes evidence_rule
+    (explicit_marker). Mech 1999 explicitly supersedes Schenkel 1947's
+    captive-wolf basis ("a notion that has been widely accepted ...
+    is no longer accurate"). AVSAB 2021 explicitly references and
+    extends AVSAB 2008. The other supersession links are normative
+    rather than literal-marker — flag for human grounding per the
+    ontology's contradicts/subject_of pattern.
+
+# --- Exclusions ---------------------------------------------------
+
+exclusions:
+
+  - url: "https://banshockcollars.ca/pdf/The-effects-of-using-aversive-training-methods-in-dogsdA_review.pdf"
+    reason: >
+      Full PDF of Ziv 2017 hosted on a single-issue advocacy site
+      (banshockcollars.ca) without evident author or publisher
+      permission. Use the ScienceDirect canonical record instead;
+      cite abstract and DOI only.
+
+  - url: "https://www.researchgate.net/publication/313898614_The_Effects_of_Using_Aversive_Training_Methods_in_Dogs_-_A_Review"
+    reason: >
+      ResearchGate is uploader-supplied and licensing is unverified.
+      Not citable as a canonical source.
+
+  - url: "https://www.semanticscholar.org/paper/The-effects-of-using-aversive-training-methods-in-Ziv/962da37835cfddd31920ccb4750ea0e95158cc01"
+    reason: >
+      Semantic Scholar is an aggregator; canonical record lives at
+      ScienceDirect (DOI 10.1016/j.jveb.2017.02.004).
+
+  - url: "https://drive.google.com/file/d/1d-hTFnWXI8Wd6xmE1QmLfsTytUsRkGjp/view"
+    reason: >
+      Personal Google Drive copy of the AVSAB 2021 statement; not an
+      authoritative URL. Use avsab.org-hosted PDF.
+
+  - url: "Mech 1970, 'The Wolf' (book)"
+    reason: >
+      Print-only; not freely available online. Mech now requests
+      publishers stop reprinting it because of its outdated
+      dominance framing. Cited contextually but not as a corpus
+      source. Could be revisited if a public-domain or library-loan
+      excerpt is later identified.
+
+  - url: "Monks of New Skete 1978, 'How to Be Your Dog's Best Friend' (book)"
+    reason: >
+      Print-only popular-audience source; would expand the pre-1999
+      side of the contradiction pair but requires book-source
+      handling outside this URL-based discovery pass.

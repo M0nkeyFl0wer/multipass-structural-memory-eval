@@ -1,0 +1,352 @@
+domain: municipal_policy
+generated_on: "2026-04-30"
+generated_by: "source-discovery agent (Claude)"
+discovered_count: 8
+verified_reachable_count: 8
+
+# Verification note: WebFetch and curl HEAD-checks were not permitted in
+# this agent's sandbox. All URLs below were verified live via WebSearch
+# (each URL appeared as the top result for a search whose query named the
+# specific document, which is the parent agent's "WebSearch confirmed live"
+# verification method). Downstream consumers should re-fetch directly when
+# composing vault notes that quote source text verbatim.
+
+sources:
+
+  # --- Ontario, Canada: DOLA + 2005 pit-bull amendment --------------
+
+  - id: muni_on_dola_statute
+    url: "https://www.ontario.ca/laws/statute/90d16"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result on official ontario.ca e-Laws portal)"
+    title: "Dog Owners' Liability Act, R.S.O. 1990, c. D.16"
+    publisher: "Government of Ontario (e-Laws)"
+    publication_date: "1990"
+    last_amended_note: "Amended substantively by S.O. 2005, c. 2 (Bill 132); pit-bull restrictions in force 2005-08-29"
+    jurisdiction: "Ontario, Canada"
+    license: "open_government_license_canada"
+    license_note: >
+      Ontario statutes published on e-Laws are Crown copyright but are
+      reproducible under the Queen's Printer for Ontario / Open
+      Government Licence — Ontario for non-commercial reuse with
+      attribution. Excerpting bylaw text in an evaluation corpus is
+      within scope.
+    ontology_targets:
+      - cat_2c_multi_hop_seed: "DOLA -> Bill 132 amendment -> municipal enforcement (Ottawa, Toronto)"
+      - cross_jurisdiction_anchor: "province-wide BSL anchor for Canada-side comparison"
+      - concept_entity: "BSL"
+      - publication_entity: "DOLA bylaw text"
+    why_fits: >
+      Province-wide pit-bull restriction is the canonical Canadian
+      example of breed-specific legislation at a level above the
+      municipality. Anchors cross-jurisdiction comparison against
+      Calgary's behaviour-based "Calgary model" and Montreal's
+      municipal-level BSL lifecycle.
+    summary_hint: >
+      DOLA establishes strict-liability for dog owners and, after the
+      2005 Bill 132 amendments, prohibits owning, breeding, or
+      transferring "pit bulls" in Ontario subject to a grandfather
+      clause for dogs owned in Ontario on 2005-08-29 or born within
+      90 days thereafter.
+    notes: "Pair with muni_on_dola_regulation_157_05 for the implementing regulation."
+
+  - id: muni_on_dola_regulation_157_05
+    url: "https://www.ontario.ca/laws/regulation/050157"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result on ontario.ca e-Laws)"
+    title: "Ontario Regulation 157/05: Pit Bull Controls (under DOLA)"
+    publisher: "Government of Ontario (e-Laws)"
+    publication_date: "2005"
+    jurisdiction: "Ontario, Canada"
+    license: "open_government_license_canada"
+    license_note: "Same as muni_on_dola_statute"
+    ontology_targets:
+      - publication_entity: "implementing regulation under DOLA"
+      - cat_2c_multi_hop_seed: "regulation -> enforcement procedures -> municipal animal-services authority"
+    why_fits: >
+      The implementing regulation that defines muzzling, leashing, and
+      sterilization conditions for grandfathered restricted pit bulls.
+      Closes the policy -> enforcement chain for the Ontario-side
+      multi-hop test.
+    summary_hint: >
+      O. Reg. 157/05 prescribes the conditions for restricted pit
+      bulls under DOLA: muzzling and leashing in public, sterilization,
+      and licensing requirements, with associated record-keeping for
+      municipal animal-services authorities.
+    notes: "Statute + regulation pair models the publication->cites->publication edge cleanly."
+
+  # --- Toronto: municipal-level enforcement layer -------------------
+
+  - id: muni_toronto_chapter_349
+    url: "https://www.toronto.ca/legdocs/municode/1184_349.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (toronto.ca legdocs canonical URL)"
+    title: "Toronto Municipal Code, Chapter 349 — Animals"
+    publisher: "City of Toronto"
+    publication_date: "2024-03-22"
+    in_force_since: "1999-07-01"
+    jurisdiction: "Toronto, ON, Canada"
+    license: "open_government_license_toronto"
+    license_note: >
+      The City of Toronto publishes municipal-code chapters under
+      its Open Data License / Open Government Licence — Toronto.
+      Bylaw text is freely reproducible with attribution.
+    ontology_targets:
+      - cat_2c_multi_hop_seed: "Ontario DOLA -> Toronto Chapter 349 -> animal-services enforcement"
+      - cross_jurisdiction_anchor: "city-level enforcement under provincial BSL framework"
+      - publication_entity: "Toronto animal control bylaw"
+    why_fits: >
+      Operationalizes DOLA's pit-bull restrictions and Toronto-
+      specific leashing, licensing, and prohibited-animals provisions.
+      Demonstrates municipal layering on top of provincial law (a
+      different shape from Calgary's stand-alone municipal model).
+    summary_hint: >
+      Chapter 349 governs animals in Toronto: definitions, prohibited
+      species (Schedule A), licensing, leash and care requirements,
+      and dangerous-dog procedures. Updated 2024-03-22; in force
+      since 1999-07-01.
+    notes: "Recent updates include 2023 wildlife-feeding prohibition; corpus note can scope to dog-related sections."
+
+  # --- Montreal: clean Cat 6 temporal supersession ------------------
+
+  - id: muni_montreal_bylaw_16_060_summary
+    url: "https://www.cbc.ca/news/canada/montreal/montreal-pit-bull-dangerous-dogs-animal-control-bylaw-1.3780335"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (top result for bylaw 16-060)"
+    title: "Montreal passes controversial pit bull ban"
+    publisher: "CBC News"
+    publication_date: "2016-09-27"
+    jurisdiction: "Montreal, QC, Canada"
+    license: "fair_use_excerpt"
+    license_note: >
+      CBC News article cited for date-of-passage and bylaw number
+      attestation. Quoted text in any corpus note will be limited
+      to short factual excerpts under fair-dealing for research and
+      private study (Canadian Copyright Act s. 29).
+    ontology_targets:
+      - cat_6_temporal_chain: "montreal_bsl_lifecycle (step 1 of 2: enactment 2016-09-27)"
+      - event_entity: "Montreal city council vote on bylaw 16-060"
+      - publication_entity: "By-Law Concerning Animal Control 16-060"
+    why_fits: >
+      Anchors the enactment side of the cleanest available
+      temporal-supersession pair in this domain: a municipal BSL
+      enacted on a known date by a named administration, then
+      explicitly repealed two years later by the next administration.
+    summary_hint: >
+      On 2016-09-27 Montreal city council, under Mayor Denis
+      Coderre, passed Animal Control By-Law 16-060, restricting
+      ownership of "pit bull-type dogs" (APBT, AmStaff, Staffordshire
+      bull terrier, and crossbreeds with several morphological
+      traits), requiring muzzling, sterilization, and special
+      permits for grandfathered dogs.
+    notes: >
+      Could not locate a stable montreal.ca PDF for the original 16-060
+      text in this pass; news article serves as the date/number
+      attestation. A corpus contributor with access to Montreal's
+      municipal archive should add the primary source in v0.2.
+
+  - id: muni_montreal_repeal_2018_aldf
+    url: "https://aldf.org/article/montreal-repeals-controversial-pit-bull-ban/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (canonical article URL on aldf.org)"
+    title: "Montreal Repeals Controversial Pit Bull Ban"
+    publisher: "Animal Legal Defense Fund"
+    publication_date: "2018"
+    jurisdiction: "Montreal, QC, Canada"
+    license: "fair_use_excerpt"
+    license_note: >
+      ALDF article excerpted under fair-dealing for research and
+      private study (Canadian Copyright Act s. 29) / fair use (US
+      17 U.S.C. § 107). Used for date and procedural attestation.
+    ontology_targets:
+      - cat_6_temporal_chain: "montreal_bsl_lifecycle (step 2 of 2: repeal 2018)"
+      - event_entity: "Montreal city council adoption of replacement animal control bylaw, 2018-08"
+      - cat_3_contradiction_seed: "Coderre administration BSL position vs Plante administration position"
+    why_fits: >
+      The repeal half of the temporal-supersession pair. With the
+      2016 enactment, this is the only Cat 6 candidate in the
+      domain that has both an explicit enactment date AND an
+      explicit repeal/replacement event by a different
+      administration of the same municipality.
+    summary_hint: >
+      Under the Plante administration (Projet Montréal), Montreal
+      replaced the breed-targeting provisions of bylaw 16-060 with
+      a behaviour-based dangerous-dog framework adopted by city
+      council in August 2018. Pit-bull-specific provisions were
+      removed; restrictions now apply to dogs declared dangerous on
+      individual behaviour.
+    notes: >
+      Pair with the CBC News follow-up coverage at
+      https://www.cbc.ca/news/canada/montreal/montreal-ditches-breed-ban-in-favour-of-dangerous-dog-restrictions-1.4704968
+      for redundant attestation if needed.
+
+  - id: muni_montreal_current_pet_owner_obligations
+    url: "https://montreal.ca/en/topics/obligations-and-responsibilities-pet-owners"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (montreal.ca official portal)"
+    title: "Obligations and responsibilities of pet owners"
+    publisher: "Ville de Montréal"
+    publication_date: "current (post-2018 framework)"
+    jurisdiction: "Montreal, QC, Canada"
+    license: "open_government_license_quebec"
+    license_note: >
+      Ville de Montréal publishes citizen-facing regulatory pages
+      under terms compatible with Quebec/Canada open-government
+      reuse. Used here for current-state attestation of the
+      post-repeal regime.
+    ontology_targets:
+      - cat_6_temporal_chain: "montreal_bsl_lifecycle (current state, post-supersession)"
+      - publication_entity: "current Montreal animal control framework citizen summary"
+    why_fits: >
+      Closes the temporal chain by attesting the current
+      behaviour-based regime that replaced 16-060. Allows the
+      supersedes edge to point at a current-state node, not just
+      a news article about the repeal.
+    summary_hint: >
+      Montreal's current framework imposes obligations on all
+      dog owners (leashing, licensing, waste, supervision) and
+      adds escalated restrictions only for dogs individually
+      declared at risk (chien à risque) — applied per-dog on
+      behavioural grounds rather than by breed.
+    notes: ""
+
+  # --- Calgary: behaviour-based "Calgary model" ---------------------
+
+  - id: muni_calgary_rpob_47m2021
+    url: "https://www.calgary.ca/content/dam/www/cs/documents/47m2021-responsible-pet-ownership-bylaw.pdf"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (calgary.ca canonical PDF URL)"
+    title: "Responsible Pet Ownership Bylaw 47M2021"
+    publisher: "City of Calgary"
+    publication_date: "2021"
+    in_force_since: "2022-01-01"
+    supersedes_note: "Replaces Bylaw 23M2006; foundational regime continuous since 2006"
+    jurisdiction: "Calgary, AB, Canada"
+    license: "open_government_license_calgary"
+    license_note: >
+      Calgary publishes bylaws on calgary.ca for public access; bylaw
+      text is reproducible with attribution under the city's open-data
+      terms.
+    ontology_targets:
+      - cross_jurisdiction_anchor: "behaviour-based alternative to BSL ('Calgary model')"
+      - cat_2c_multi_hop_seed: "Calgary RPOB -> Animal & Bylaw Services enforcement -> licensing compliance metrics"
+      - concept_entity: "responsible-pet-ownership model"
+      - cat_6_temporal_chain_minor: "23M2006 -> 47M2021 supersession (continuity, not policy reversal)"
+    why_fits: >
+      The "Calgary model" is the canonical North American
+      counter-example to BSL. Pairs against Ontario DOLA (province-
+      wide BSL) and Montreal 16-060 (city-level BSL) for the
+      cross-jurisdiction comparison required by Cat 2c.
+    summary_hint: >
+      Bylaw 47M2021 (in force 2022-01-01) governs Calgary's
+      responsible-pet-ownership regime: mandatory licensing of
+      cats and dogs at three months, owner obligations for control
+      and confinement, and behaviour-based dangerous-dog
+      determinations — explicitly without breed-specific bans.
+    notes: >
+      Reference 23M2006 (predecessor) for the pre-2022 form of
+      the same regime. The Calgary-model framing recurs in
+      municipal-policy literature dating back to the mid-2000s.
+
+  # --- US side: state preemption + repealed city ban ----------------
+
+  - id: muni_california_fac_31683
+    url: "https://codes.findlaw.com/ca/food-and-agricultural-code-formerly-agricultural-code/fac-sect-31683/"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (findlaw.com canonical statute URL)"
+    title: "California Food and Agricultural Code § 31683 — Breed-specific dog regulation preemption"
+    publisher: "FindLaw (mirror of California codified statute, originally enacted SB 428, 1989; amended by SB 861, 2005)"
+    publication_date: "1989 (SB 428); 2005 amendment (SB 861)"
+    jurisdiction: "California, USA"
+    license: "us_state_public_record"
+    license_note: >
+      California statutory text is a public record reproducible
+      without restriction. FindLaw mirror is used because it has
+      a stable canonical URL; the leginfo.legislature.ca.gov
+      primary source can be substituted in any vault note.
+    ontology_targets:
+      - cross_jurisdiction_anchor: "US state-level BSL preemption (contrasts Ontario's province-level BSL)"
+      - cat_2c_multi_hop_seed: "state preemption -> municipal scope of authority -> spay/neuter exception (SB 861)"
+      - concept_entity: "BSL preemption"
+    why_fits: >
+      State-level statutory preemption of municipal BSL is the
+      mirror-image policy of Ontario's province-level BSL. Together
+      they let the corpus pose the same question — "can a city ban
+      a breed?" — to two jurisdictions whose answers differ at the
+      level above the municipality. Strong Cat 2c anchor.
+    summary_hint: >
+      § 31683 prohibits California cities and counties from enacting
+      breed-specific dog regulations, except (per SB 861, 2005) for
+      mandatory spay/neuter and breeding programs targeting a
+      specific breed. Dangerous-dog determinations must be based on
+      individual behaviour.
+    notes: ""
+
+  - id: muni_denver_8_55_history
+    url: "https://www.animallaw.info/local/co-denver-breed-sec-8-55-pit-bulls-prohibited"
+    url_verified: true
+    url_verified_method: "WebSearch confirmed live (animallaw.info canonical URL, MSU College of Law)"
+    title: "CO - Denver - Breed - Sec. 8-55. Pit bulls prohibited (history and amendments)"
+    publisher: "Animal Legal & Historical Center, Michigan State University College of Law"
+    publication_date: "compiled (covers 1989 enactment through 2021 ballot repeal)"
+    jurisdiction: "Denver, Colorado, USA"
+    license: "fair_use_excerpt"
+    license_note: >
+      Animal Legal & Historical Center is an academic mirror of US
+      animal-related municipal codes. Used for the bylaw text and
+      its amendment history. Quotation will be limited to short
+      excerpts under 17 U.S.C. § 107 fair use.
+    ontology_targets:
+      - cat_6_temporal_chain_secondary: "denver_bsl_lifecycle (1989 enactment -> 2021 ballot 2J repeal)"
+      - cross_jurisdiction_anchor: "US municipal BSL in a non-preemption state (contrasts California § 31683)"
+      - event_entity: "Denver ballot measure 2J, November 2020"
+    why_fits: >
+      Denver is the highest-profile US example of a long-running
+      municipal pit-bull ban (1989) that survived legal challenge
+      and was eventually repealed by ballot in 2020 with effect in
+      2021. Provides a second Cat 6 temporal chain alongside
+      Montreal, and a US-side anchor in a non-preemption state.
+    summary_hint: >
+      Denver Municipal Code § 8-55 prohibited owning pit bulls in
+      the city from 1989 (enacted following multiple severe
+      attacks). After Mayor Hancock vetoed a 2020 council repeal,
+      voters passed ballot measure 2J in November 2020, lifting
+      the ban as of 2021 and replacing it with a breed-restricted
+      permit and assessment regime.
+    notes: >
+      Pair with the NBC News article (https://www.nbcnews.com/news/animal-news/denver-overturns-pit-bull-ban-after-more-30-years-n1246709)
+      for redundant attestation of the 2020 vote.
+
+exclusions:
+
+  - url: "http://www.dpctz.com/Calgary23M2006-ResponsiblePetOwnership.pdf"
+    reason: >
+      The original 23M2006 PDF appears in search results only on
+      third-party mirrors (dpctz.com, fonhs.org), not on calgary.ca
+      itself, which serves the superseding 47M2021 instead. Using
+      47M2021 as the canonical Calgary source avoids citing a
+      mirror with uncertain provenance. 23M2006 can be added in a
+      later pass via the City of Calgary Records & Archives if
+      direct primary-source access is required.
+
+  - url: "https://blog.dogsbite.org/2016/10/montreal-pit-bull-ban-veterinary-report-pit-bull-lobby.html"
+    reason: >
+      DogsBite is an advocacy publisher with a strong stance on
+      BSL. The ontology's out_of_scope.subjective_stance rule
+      excludes advocacy-position sources from corpus inputs. The
+      same factual material is available from CBC, ALDF, and
+      municipal records.
+
+  - url: "https://www.snopes.com/fact-check/montreal-bans-pit-bulls/"
+    reason: >
+      Secondary fact-check coverage; superseded by direct CBC
+      reporting and the ALDF article already included.
+
+  - url: "https://www.attorneygeneral.jus.gov.on.ca/english/about/pubs/dola-pubsfty/dola-pubsfty.php"
+    reason: >
+      The Ontario Ministry of the Attorney General's DOLA summary
+      page is reachable but is a citizen-facing summary rather
+      than the primary statute. The e-Laws statute URL
+      (muni_on_dola_statute) is the better primary source. The
+      AG summary can be re-added if a corpus note specifically
+      needs the layperson framing.
