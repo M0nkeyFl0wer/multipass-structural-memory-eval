@@ -10,7 +10,9 @@ Sub-tests implemented here:
 
   4a  Canonical-collision dedup (generalizes vault-rag's DUP)
       — distinct entity IDs whose names canonicalize to the same key
-        within the same entity_type.
+        within the same entity_type. Optionally scored against a
+        gold-standard alias clustering via B-Cubed P/R/F1 (see
+        `score_alias_resolution_against_gold`).
 
   4b  Required-field coverage
       — fraction of entities with the core fields (name, entity_type)
@@ -390,3 +392,126 @@ def format_report(report: IngestionIntegrityReport) -> str:
             )
 
     return "\n".join(lines)
+
+
+# --- 4a B-Cubed scoring against a gold alias registry -----------------
+
+
+def score_alias_resolution_against_gold(
+    report: IngestionIntegrityReport,
+    entities: list[Entity],
+    gold_aliases_path,
+):
+    """Score the system's alias resolution against a gold registry.
+
+    Loads a YAML file with the shape::
+
+        aliases:
+          german_shepherd:
+            canonical: "German Shepherd"
+            aliases: ["GSD", "Alsatian", "German Shepherd Dog"]
+          pit_bull:
+            canonical: "American Pit Bull Terrier"
+            aliases: ["Pit Bull", "APBT", "Pitbull"]
+
+    For each entry, the canonical name plus its aliases form one
+    true cluster. The predicted clustering is built from the
+    `report.collision_groups` (system-detected canonical-collision
+    clusters) plus singletons for entity names that aren't in any
+    collision group, restricted to entity names that appear in the
+    gold universe.
+
+    Returns a `BCubedReport` from `sme.categories._bcubed`, or None
+    if the gold registry has no items intersecting the graph (in
+    which case there's nothing to score).
+
+    What this measures: how well the system's name-canonicalization-
+    only de-dup recovers known alias clusters. The current
+    `default_canonical_key` only does case + whitespace
+    canonicalization, so semantic aliases ("GSD" → "German Shepherd")
+    will NOT collide and will appear as singletons in the predicted
+    clustering. B-Cubed quantifies how much that hurts. Systems that
+    layer alias_of edges or richer canonicalization on top can pass a
+    custom predicted-cluster builder for a fairer score; that hook is
+    deferred to a future revision.
+    """
+    from pathlib import Path
+
+    import yaml
+
+    from sme.categories._bcubed import bcubed_score
+
+    raw = yaml.safe_load(Path(gold_aliases_path).read_text())
+    aliases_section = raw.get("aliases") if isinstance(raw, dict) else None
+    if not aliases_section:
+        raise ValueError(
+            f"{gold_aliases_path}: expected top-level `aliases:` mapping; "
+            "see ontology.yaml in good-dog-corpus for the reference shape."
+        )
+
+    # Build gold clusters and the universe of items they cover.
+    gold_clusters: list[frozenset[str]] = []
+    gold_universe: set[str] = set()
+    for entry in aliases_section.values():
+        if not isinstance(entry, dict):
+            continue
+        canonical = entry.get("canonical")
+        names = list(entry.get("aliases") or [])
+        if canonical:
+            names.append(canonical)
+        names = [n for n in names if isinstance(n, str) and n]
+        if len(names) < 2:
+            # Single-item gold cluster — nothing to test alias resolution against
+            continue
+        cluster = frozenset(names)
+        gold_clusters.append(cluster)
+        gold_universe.update(cluster)
+
+    if not gold_clusters:
+        return None
+
+    # Build the system's predicted clustering, restricted to the gold
+    # universe. For each collision group, take the names that appear in
+    # the gold universe and cluster them together. For each gold-universe
+    # name not in any collision group, add a singleton — IF that name
+    # also appears in the graph (otherwise it's not in scope for scoring).
+    graph_names = {ent.name for ent in entities if ent.name}
+    if not (gold_universe & graph_names):
+        return None  # No overlap between gold registry and graph
+
+    name_to_predicted_cluster: dict[str, frozenset[str]] = {}
+    for group in report.collision_groups:
+        in_gold = [n for n in group.names if n in gold_universe and n in graph_names]
+        if len(in_gold) >= 2:
+            cluster = frozenset(in_gold)
+            for n in in_gold:
+                name_to_predicted_cluster[n] = cluster
+
+    # In-graph + in-gold names not in any collision group → singletons
+    for n in gold_universe & graph_names:
+        if n not in name_to_predicted_cluster:
+            name_to_predicted_cluster[n] = frozenset({n})
+
+    # B-Cubed needs both clusterings to cover the same item set, so
+    # restrict gold clusters to items that appear in the graph too.
+    filtered_gold: list[frozenset[str]] = []
+    for cluster in gold_clusters:
+        in_graph = cluster & graph_names
+        if in_graph:
+            filtered_gold.append(frozenset(in_graph))
+
+    # Deduplicate predicted clusters (each item appears once in any
+    # frozenset, so a set-of-frozensets gives unique clusters).
+    predicted = list({cluster for cluster in name_to_predicted_cluster.values()})
+
+    # Verify coverage matches before scoring (defensive).
+    pred_items = {n for c in predicted for n in c}
+    gold_items = {n for c in filtered_gold for n in c}
+    if pred_items != gold_items:
+        # Should not happen given the construction above, but guard.
+        raise RuntimeError(
+            f"internal: predicted/gold item sets diverged "
+            f"({len(pred_items)} vs {len(gold_items)})"
+        )
+
+    return bcubed_score(predicted, filtered_gold)

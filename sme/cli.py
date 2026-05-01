@@ -576,6 +576,7 @@ def cmd_cat4(args: argparse.Namespace) -> int:
     """Run Category 4 (ingestion integrity) against a system."""
     from sme.categories.ingestion_integrity import (
         format_report,
+        score_alias_resolution_against_gold,
         score_ingestion_integrity,
     )
 
@@ -590,6 +591,26 @@ def cmd_cat4(args: argparse.Namespace) -> int:
     print(f" {args.adapter} ({_source_label(args)})")
     print("=" * 70)
     print(format_report(report))
+
+    bcubed = None
+    if args.gold_aliases:
+        bcubed = score_alias_resolution_against_gold(
+            report, entities, args.gold_aliases
+        )
+        print()
+        print("Cat 4a — Alias resolution vs gold registry (B-Cubed)")
+        print("─" * 60)
+        if bcubed is None:
+            print(
+                "  No overlap between gold-alias registry and graph "
+                "entity names — nothing to score."
+            )
+        else:
+            print(f"  Gold-aliases file:       {args.gold_aliases}")
+            print(f"  Items scored:            {bcubed.n_items}")
+            print(f"  B-Cubed precision:       {bcubed.precision:.3f}")
+            print(f"  B-Cubed recall:          {bcubed.recall:.3f}")
+            print(f"  B-Cubed F1:              {bcubed.f1:.3f}")
 
     if args.json:
         out = {
@@ -618,6 +639,20 @@ def cmd_cat4(args: argparse.Namespace) -> int:
             "dominant_edge_type_fraction": report.dominant_edge_type_fraction,
             "per_edge_type_components": report.per_edge_type_components,
         }
+        if bcubed is not None:
+            out["bcubed_alias_resolution"] = {
+                "gold_aliases_path": args.gold_aliases,
+                "n_items": bcubed.n_items,
+                "precision": bcubed.precision,
+                "recall": bcubed.recall,
+                "f1": bcubed.f1,
+            }
+        elif args.gold_aliases:
+            out["bcubed_alias_resolution"] = {
+                "gold_aliases_path": args.gold_aliases,
+                "scored": False,
+                "reason": "no overlap between gold registry and graph entity names",
+            }
         Path(args.json).write_text(json.dumps(out, indent=2, default=str))
         print(f"\nJSON report written to {args.json}")
 
@@ -1337,6 +1372,15 @@ def main(argv: list[str] | None = None) -> int:
         "--collection-name",
         metavar="NAME",
         help="(mempalace/flat) ChromaDB collection name",
+    )
+    c4.add_argument(
+        "--gold-aliases",
+        metavar="PATH",
+        help="(Cat 4a) YAML file with a top-level `aliases:` mapping of "
+        "{key: {canonical: str, aliases: [str, ...]}} — when supplied, the "
+        "Cat 4a output adds B-Cubed precision/recall/F1 scoring the "
+        "system's alias resolution against the gold registry. The "
+        "good-dog-corpus's ontology.yaml has the reference format.",
     )
     c4.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c4.set_defaults(func=cmd_cat4)
