@@ -47,6 +47,13 @@ ladybugdb = [
 neo4j = [
     "neo4j>=5.0",
 ]
+# RlmAdapter — Recursive Language Models (alexzhang13/rlm). Distribution
+# name is `rlms`; importable module is `rlm`. Requires Python >=3.11
+# (one minor higher than SME's >=3.10 floor), so this extra is opt-in
+# and not part of `all`. Tests are guarded with `pytest.importorskip`.
+rlm = [
+    "rlms @ git+https://github.com/alexzhang13/rlm.git",
+]
 all = [
     "sme-eval[topology,viz,ladybugdb,neo4j]",
 ]

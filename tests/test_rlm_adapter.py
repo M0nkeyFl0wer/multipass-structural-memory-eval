@@ -8,13 +8,24 @@ mempalace_search via the captured tool callable.
 A live A/B benchmark (rlm vs familiar on jp-realm-v0.1) belongs in
 baselines/, not in unit tests — it's a research run, not a contract
 check.
+
+The `rlm` package itself is not installable from PyPI under that name
+(the distribution is `rlms`, source on GitHub) and requires Python
+>=3.11, so it sits behind the `[rlm]` extra in pyproject. On a fresh
+clone without that extra installed, this whole test module skips.
+Install via:
+    pip install -e ".[rlm]"
 """
 
 from __future__ import annotations
 
-import json
-from unittest.mock import MagicMock, patch
-from urllib import request as _urlrequest
+import pytest
+
+pytest.importorskip("rlm")
+
+import json  # noqa: E402  (intentionally after importorskip)
+from unittest.mock import MagicMock, patch  # noqa: E402
+from urllib import request as _urlrequest  # noqa: E402
 
 
 def _stub_palace_response(results: list[dict]) -> bytes:

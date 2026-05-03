@@ -254,9 +254,12 @@ class RlmAdapter(SMEAdapter):
         ctx_lines = [f"── RLM-orchestrated retrieval ({len(self._capture)} drawers) ──"]
         for r in self._capture:
             tags = []
-            if r.get("drawer_id"): tags.append(f"drawer_id={r['drawer_id']}")
-            if r.get("wing"): tags.append(f"wing={r['wing']}")
-            if r.get("room"): tags.append(f"room={r['room']}")
+            if r.get("drawer_id"):
+                tags.append(f"drawer_id={r['drawer_id']}")
+            if r.get("wing"):
+                tags.append(f"wing={r['wing']}")
+            if r.get("room"):
+                tags.append(f"room={r['room']}")
             if isinstance(r.get("similarity"), (int, float)):
                 tags.append(f"similarity={r['similarity']:.3f}")
             ctx_lines.append("[" + " · ".join(tags) + "]")
