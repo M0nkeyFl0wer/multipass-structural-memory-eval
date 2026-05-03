@@ -15,7 +15,15 @@ memories.
 > behaviours that hide on any single pass become visible when the
 > readings are compared side by side.
 
+## Contents
+
+[What this is](#what-this-is) · [Status](#status) · [Install](#install) ·
+[Next steps](#next-steps) · [Adapters](#adapters)
+
 ## What this is
+
+See the [nine-category menu](docs/ideas.md#who-should-run-which-categories)
+for what each test measures and which to run for your setup.
 
 Standard memory benchmarks (LongMemEval, LoCoMo, MINE, GraphRAG-Bench,
 BEAM) ask "can you find a memory?" That's necessary but not
@@ -37,15 +45,17 @@ table.
 
 ## Status
 
-**Beta-level instrumentation, actively evolving.** Three adapters,
-two fully implemented categories, four CLI commands (`retrieve`,
-`analyze`, `cat8`, `cat2c`), and a specification for the remaining
-seven. Diagnostic posture, not benchmark — the defensible findings
-are before/after deltas under identical conditions and within-system
-A/B/C ablations. Absolute recall numbers inherit a substring-on-
-filename matcher with known biases. See the [spec](docs/sme_spec_v8.md)
-and the [onboarding guide](docs/ideas.md) for the full honest-
-limitations discussion.
+**Beta-level instrumentation, actively evolving.** Six adapters
+(`flat`, `mempalace`, `mempalace-daemon`, `familiar`, `ladybugdb`,
+`full-context`), nine CLI commands (`retrieve`, `analyze`, `cat8`,
+`cat2c`, `cat4`, `cat5`, `check`, `cat9`, `compile-wiki`), Cat 4
+and Cat 5 partially implemented, and a specification for the
+remaining categories.
+Diagnostic posture, not benchmark — the defensible findings are
+before/after deltas under identical conditions and within-system
+A/B/C ablations. See the [spec](docs/sme_spec_v8.md) and the
+[onboarding guide](docs/ideas.md) for the full honest-limitations
+discussion.
 
 ## Install
 
@@ -62,16 +72,20 @@ Installs as the Python package `sme-eval` with CLI entrypoint
 the acronym **SME** (Structural Memory Evaluation) is used throughout
 the documentation and code.
 
+**Quick start:** run your first diagnostic in 5 minutes with the
+[onboarding guide](docs/ideas.md#quickstart-your-first-diagnostic-run).
+Need the spec? Start at [docs/sme_spec_v8.md](docs/sme_spec_v8.md).
+
 ## Next steps
 
 - **[`docs/ideas.md`](docs/ideas.md) — onboarding guide.** Start here
   if you want to run SME against your own memory system. Covers the
   nine-category menu, how to write an adapter for your backend, how
-  to write a corpus from your own content, how to run the three
-  implemented categories, and how to read what comes out the other
-  end. This is also where the methodology framing lives — why A/B/C
-  isolation matters, why multi-corpus testing is load-bearing, and
-  why "the delta is the product, the levels are decoration."
+  to write a corpus from your own content, how to run the implemented
+  categories, and how to read what comes out the other end. This is
+  also where the methodology framing lives — why A/B/C isolation
+  matters, why multi-corpus testing is load-bearing, and why "the
+  delta is the product, the levels are decoration."
 
 - **[`docs/sme_spec_v8.md`](docs/sme_spec_v8.md) — full specification.**
   Precise category-by-category definitions, metric formulas, adapter
@@ -79,20 +93,36 @@ the documentation and code.
   Handshake) harness-integration spec. Reference material — read the
   onboarding guide first if you want to get a test run going.
 
-## Fork roadmap (jphein)
+- **[`docs/cross_validation_2026.md`](docs/cross_validation_2026.md) —
+  current work.** Cross-validation of SME categories against
+  LongMemEval / MemoryBench, Karpathy-condition D baselines (full-
+  corpus-in-context), and first readings from the live benchmark
+  harness. Active development; this is where near-term SME findings
+  land.
 
-This is a fork; planned fork-specific work below. Upstream is
-[M0nkeyFl0wer/multipass-structural-memory-eval](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval) — bug fixes and category contributions still target upstream.
+- **[`docs/industry_standards_integration.md`](docs/industry_standards_integration.md)
+  — integration audit.** Survey of where SME rolls its own vs. where
+  battle-tested standards exist (SHACL, PROV-O, OpenLineage, B-Cubed,
+  Ripser). Constitutional principle: SME stays lightweight and locally
+  runnable — no server hosting required.
 
-### Shipped: `mempalace-daemon` adapter
+## Adapters
+
+SME ships adapters for several memory systems. Each adapter teaches
+the framework to speak the wire protocol of a specific system so the
+same eval questions can run across multiple backends. Adapters live in
+`sme/adapters/` and implement the `SMEAdapter` ABC.
+
+### `mempalace-daemon` — by [jphein](https://github.com/jphein)
 
 `sme/adapters/mempalace_daemon.py` talks to a running
-[`palace-daemon`](https://github.com/jphein/palace-daemon) over HTTP.
-No filesystem access, no ChromaDB import, no shared-process constraint
-with the daemon. Use this adapter when MemPalace is fronted by the
-daemon (the daemon is the single writer to the palace) — the existing
-`mempalace` adapter is still correct for single-process upstream
-installs without the daemon.
+[`palace-daemon`](https://github.com/jphein/palace-daemon) over HTTP —
+by [`jphein`](https://github.com/jphein). No filesystem access, no
+ChromaDB import, no shared-process constraint with the daemon. Use
+this adapter when MemPalace is fronted by the daemon (the daemon is
+the single writer to the palace) — the existing `mempalace` adapter
+is still correct for single-process upstream installs without the
+daemon.
 
 **Wired endpoints:**
 
@@ -144,17 +174,15 @@ correct — single process, no daemon, direct ChromaDB access is
 fine. The daemon adapter is *additive*, for users who've adopted
 palace-daemon's single-writer architecture.
 
-### Shipped: `familiar` adapter
+### familiar — by [jphein](https://github.com/jphein)
 
-`sme/adapters/familiar.py` talks to a running
 [`familiar.realm.watch`](https://github.com/jphein/familiar.realm.watch)
-v0.2.0+ instance over HTTP. Familiar wraps palace-daemon with a v0.2
-retrieval pipeline (rerank, temporal decay, extractive compression,
-grounding directives). This adapter measures familiar's full pipeline;
-the sibling `mempalace-daemon` adapter measures palace alone.
-**Comparing their SME scores quantifies what familiar's v0.2
-pipeline contributes** to retrieval quality on top of the underlying
-daemon.
+is a retrieval pipeline that wraps palace-daemon with reranking,
+temporal decay, extractive compression, and grounding directives.
+`[jphein](https://github.com/jphein)` built it; `sme/adapters/familiar.py`
+lets SME measure its full end-to-end contribution on top of the raw
+daemon. The sibling `mempalace-daemon` adapter measures palace alone —
+running both on the same corpus shows what the pipeline layer adds.
 
 **Wired endpoints:**
 
