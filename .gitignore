@@ -72,6 +72,9 @@ cross_validation_*.json
 # Local corpora caches
 sme/corpora/*/.cache/
 
+# External benchmark data (downloaded, not checked in)
+data/
+
 # Private corpora (authored against personal content — build your own
 # via sme/corpora/standard_v0_1/AUTHORING.md)
 sme/corpora/climate_research_v01/
