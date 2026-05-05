@@ -129,30 +129,152 @@ From `docs/ckg_benchmark_experiment.md`:
   Ingestion-integrity result *is* in: zero phantom edges, zero
   duplicate ConceptIDs, zero orphans across all 5 domains.
   Hand-authored DAGs are integrity-clean by construction.
-- **No LLM-judge scoring.** A final F1 layer with a real model
-  reading the context and answering would convert "label appears in
-  context" into "model gives the right answer." That is the natural
-  next layer.
+## LLM-judge layer
+
+LongMemEval-style two-stage methodology added 2026-05-05: gpt-4o-mini
+reads context and answers each query in 1–2 sentences; gpt-4o-2024-08-06
+grades the reader's answer against ground_truth as
+CORRECT / PARTIAL / INCORRECT. 877 × 3 = 2631 reader+judge calls,
+0 ERROR rows after one retry pass with longer backoff. Accuracy =
+(CORRECT + 0.5 × PARTIAL) / n.
+
+| Domain | A | B | C | winner |
+|---|---|---|---|---|
+| calculus | 0.539 | 0.558 | **0.592** | C |
+| us-geography | 0.619 | **0.622** | 0.594 | B |
+| moss | 0.585 | 0.548 | **0.599** | C |
+| glp1-obesity | 0.571 | 0.553 | **0.588** | C |
+| theory-of-knowledge | 0.569 | 0.654 | **0.686** | C |
+
+**Substring-recall headline does not survive.** Under LLM judge:
+
+- **C beats B in 4 of 5 domains overall.** Reader models extract
+  answers better from prose-with-deps than from typed-triple notation
+  even when the retrieval is identical.
+- **B beats A meaningfully only in theory-of-knowledge** (+8.5 pp).
+  Elsewhere B is within ±2 pp of A overall, and on glp1-obesity B
+  *hurts* at hop 3 (−33 pp) and hop 5 (−30 pp) — pulling in the wrong
+  cluster of dependencies and giving the reader something confident
+  but wrong to extract.
+- **theory-of-knowledge does show the predicted scaling**: B−A is
+  +8.9 pp at hop 0, +41.7 pp at hop 2, +37.5 pp at hop 3. Dense
+  cross-linked abstract domains are where structured retrieval most
+  reliably earns its tokens.
+
+### Predictions revisited under LLM judge
+
+Re-checking the five pre-registered predictions with reader+judge in
+hand:
+
+1. *B beats A on hop_depth ≥ 1.*
+   ⚠️ **Half-confirmed.** True for theory-of-knowledge consistently;
+   true at hop=2 in moss / us-geography; mostly false elsewhere.
+   The original substring-recall confirmation was the methodology
+   over-crediting structure.
+2. *B will not beat A on hop_depth = 0.*
+   ✅ **Confirmed** (B−A at hop 0: 0.0 / −4.8 / −7.1 / +0.9 / +8.9).
+3. *B−C will be positive but smaller than B−A.*
+   ❌ **Falsified more strongly.** B−C is negative overall in 4 of
+   5 domains.
+4. *Cat 1 entropy will be high.*
+   ✅ **Confirmed** (0.91–0.98 across all 5 domains).
+5. *Cat 7 will reproduce Yarmoluk's 11× direction.*
+   ❌ **Inverted in our setup** (B uses 3.7–13× more tokens than A
+   due to baseline-design choice; not a refutation of his published
+   claim).
+
+Score: **2 confirmed, 1 half-confirmed, 2 falsified.** Falsifying our
+own hypotheses is the framework working — substring-recall would have
+let prediction #1 and #3 ship with the wrong sign.
+
+## Structural diagnostics (Cat 1, 2, 7, 8)
+
+Independent of A/B/C, ran SME's structural probes against each loaded
+CKG (script at `scripts/run_ckg_diagnostics.py`, summary at
+`results/ckg_benchmark/_diagnostics.md`).
+
+**Cat 1 — monoculture.** Tax entropy 0.91–0.98 (norm), 12–17
+taxonomies per domain. Hand-authored DAGs are taxonomically diverse
+by intent. **Edge-type entropy is 0 by construction** — the schema
+declares one edge type. Confirms prediction #4.
+
+**Cat 2 — ingestion integrity.** All 5 domains: 0 phantom edges,
+0 duplicate IDs, 0 orphan concepts, 0 ingest errors. First datapoint
+for the *expert DAGs are integrity-clean* baseline.
+
+**Cat 7 — Abacus (tokens-per-correct-answer, lower = better).**
+
+| Domain | A | B | C |
+|---|---|---|---|
+| calculus | 160 | 584 | 410 |
+| us-geography | 114 | 1433 | 993 |
+| moss | 152 | 1302 | 812 |
+| glp1-obesity | 272 | 2030 | 1394 |
+| theory-of-knowledge | 148 | 1236 | 743 |
+
+A is the cheapest in all 5 domains; C beats B in all 5; B is the most
+expensive across the board. Combined with the LLM-judge accuracy
+table this means **C is at-or-near the best accuracy AND cheaper than
+B**. The token bill on B is real.
+
+**Cat 8 — schema vs shape.** The CSV header declares one edge type
+(Dependencies → DEPENDS_ON). Counting distinct (child_taxonomy,
+parent_taxonomy) pairs in the actual graph reveals the schema's
+under-specification:
+
+| Domain | Declared edges | Observed (tax, tax) pairs | Multi-parent share | Max parents |
+|---|---|---|---|---|
+| calculus | 1 | **65** | 39% | 3 |
+| us-geography | 1 | **62** | 76% | 3 |
+| moss | 1 | **75** | 66% | 5 |
+| glp1-obesity | 1 | **49** | 66% | 4 |
+| theory-of-knowledge | 1 | **72** | 72% | 3 |
+
+`moss` collapses 75 distinct relation kinds under one label. A typed-edge
+upgrade (`<X> --[INSTANCE_OF]--> <Y>` vs `<X> --[BUILT_FROM]--> <Y>`)
+would carry richer signal at the same token cost. This is the kind of
+schema observation extraction-built graphs would benefit from too.
 
 ## What to bring to Yarmoluk
 
-A short, direct opener:
+A short, direct opener (revised after LLM-judge layer landed):
 
-> Ran your 47-domain benchmark through SME's A/B/C isolation
-> framework on 5 of your domains (877 queries). Three findings:
+> Ran 5 of your 47 domains through SME's A/B/C isolation framework
+> (877 queries total). Two scoring layers: substring recall and a
+> LongMemEval-style reader+judge (gpt-4o-mini reader,
+> gpt-4o-2024-08-06 judge). Four findings:
 >
-> 1. B beats A in all 5 domains, advantage scales with hop_depth —
->    matches your directional claim.
-> 2. **At hop ≥ 3, prose-with-inline-deps (B's same node set, no
->    typed triples) beats B by 10–25 pp.** Consistent across 4 of
->    5 domains, n = ~80 queries at high hops. The implication is
->    that traversal budget should adapt to query hop_depth — the
->    fixed-budget version leaves recall on the table when prose
->    references compensate for unreached hops.
-> 3. Your CKG CSVs come back zero-error on Cat 2 ingestion-
->    integrity (no phantom edges, no orphans, no duplicate IDs)
->    across all 5 domains. Useful as a "gold" baseline against which
->    extraction-built graphs can be compared.
+> 1. **theory-of-knowledge is the cleanest win for CKG.** B beats
+>    A by +37.5 pp at hop 3 and +41.7 pp at hop 2 under LLM judge,
+>    with the predicted scale-with-depth pattern. Dense cross-linked
+>    abstract domains are where structured retrieval most reliably
+>    earns its tokens.
 >
-> Numbers, code, and methodology in the linked PR. Happy to extend
-> to the other 42 domains if any of this is useful.
+> 2. **The "structure beats flat everywhere" result does not survive
+>    a real LLM reader.** Substring recall said B beat A in all 5
+>    domains; LLM judge says B and A are within ±2 pp in 3 of 5
+>    domains, and B *hurts* on glp1-obesity at hop 3 and 5 (−33 / −30
+>    pp). Methodology choice changes the headline — substring recall
+>    was over-crediting "label is in context."
+>
+> 3. **Prose-with-inline-deps (Condition C, same node set as B but
+>    no typed triples) is the strongest condition overall in 4 of 5
+>    domains.** Reader models extract answers better from prose than
+>    from typed-triple notation. Suggests typed-triple format may be
+>    over-formalized for LLM consumption — worth A/B-ing in your own
+>    setup.
+>
+> 4. **Your CSVs come back integrity-clean.** 0 phantom edges, 0
+>    orphans, 0 duplicate IDs across all 5 domains. The schema-vs-
+>    shape probe also found that the single Dependencies column
+>    collapses 49–75 distinct (child_taxonomy, parent_taxonomy)
+>    pairs — a typed-edge vocabulary upgrade could carry richer
+>    signal at the same token cost.
+>
+> Code, methodology, per-domain detail at <pr-link>. Happy to
+> extend to the other 42 domains.
+
+Leading with the substring-recall headline would have been an
+over-claim; the LLM-judge result is more conservative, more defensible,
+and more useful as a contribution back. The framework's job was to
+make that distinction visible. It did.
