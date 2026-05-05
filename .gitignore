@@ -45,12 +45,29 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Secrets / credentials (defense-in-depth — keys live in the system
+# keyring, never the repo, but guard against accidental drops)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+id_rsa
+id_ed25519
+id_*.pub
+credentials.json
+service-account*.json
+*.kdbx
+
 # SME eval outputs
 report/
 results/
 *.parquet
 *.ldb/
 *.duckdb
+*.sqlite3
+cross_validation_*.json
 
 # Local corpora caches
 sme/corpora/*/.cache/
