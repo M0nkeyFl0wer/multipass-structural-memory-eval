@@ -982,15 +982,45 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
     smoke-testing the pipeline without spending API credits).
     """
     from sme.conditions.wiki_compiler import compile_vault
+    from sme.eval.llm_clients import (
+        ANTHROPIC_DEFAULT_MODEL,
+        OPENAI_DEFAULT_MODEL,
+        OPENROUTER_DEFAULT_JUDGE_MODEL,
+        AnthropicLLMClient,
+        OpenAILLMClient,
+        OpenRouterLLMClient,
+        StubLLMClient,
+    )
 
-    if args.llm_provider == "stub":
-        client = _StubLLMClient()
-    elif args.llm_provider == "openai":
-        client = _OpenAILLMClient(model=args.llm_model)
+    # Per-provider default model mapping. CLI's --llm-model default is
+    # gpt-4o-mini for back-compat with the previous openai-only behavior;
+    # the anthropic / openrouter defaults below kick in only if the user
+    # leaves --llm-model at that default while picking a non-openai provider.
+    _provider_default_model = {
+        "stub": None,
+        "openai": OPENAI_DEFAULT_MODEL,
+        "anthropic": ANTHROPIC_DEFAULT_MODEL,
+        "openrouter": OPENROUTER_DEFAULT_JUDGE_MODEL,
+    }
+
+    provider = args.llm_provider
+    requested_model = args.llm_model
+    # If the user didn't override --llm-model, swap in the provider default.
+    if requested_model == "gpt-4o-mini" and provider != "openai":
+        requested_model = _provider_default_model.get(provider) or "gpt-4o-mini"
+
+    if provider == "stub":
+        client = StubLLMClient()
+    elif provider == "openai":
+        client = OpenAILLMClient(model=requested_model)
+    elif provider == "anthropic":
+        client = AnthropicLLMClient(model=requested_model)
+    elif provider == "openrouter":
+        client = OpenRouterLLMClient(model=requested_model)
     else:
         raise SystemExit(
-            f"unknown --llm-provider {args.llm_provider!r}; "
-            "supported: stub, openai"
+            f"unknown --llm-provider {provider!r}; "
+            "supported: stub, openai, anthropic, openrouter"
         )
 
     report = compile_vault(
@@ -1018,64 +1048,6 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
     print(f"  wiki total chars:{report.wiki_total_chars:,}")
     print(f"  index chars:     {report.index_chars:,}")
     return 0 if report.n_failed == 0 else 1
-
-
-class _StubLLMClient:
-    """Deterministic LLM stub — useful for `compile-wiki --llm-provider stub`.
-
-    Produces a reproducible summary per note so the compile pipeline can
-    be exercised end-to-end without burning real LLM credits, and so
-    cross-validation runs that don't need true LLM compilation can still
-    use Condition D2 as a sanity baseline.
-    """
-
-    def complete(self, prompt: str, **kwargs) -> str:
-        if "Source path:" in prompt:
-            for line in prompt.splitlines():
-                if line.startswith("Source path: "):
-                    rel = line.split(": ", 1)[1].strip()
-                    # Pull the body so the stub at least reflects content.
-                    body_marker = "Source content:\n---\n"
-                    end_marker = "\n---"
-                    body = ""
-                    if body_marker in prompt:
-                        body = prompt.split(body_marker, 1)[1]
-                        if end_marker in body:
-                            body = body.split(end_marker, 1)[0]
-                    head = body.strip().split("\n", 1)[0][:160]
-                    return (
-                        f"# Stub summary of {rel}\n\n"
-                        f"First line of source: {head}\n"
-                    )
-        # Index prompt
-        return "# Index\n\n(stub-generated)\n"
-
-
-class _OpenAILLMClient:
-    """Thin OpenAI-API client — only used by `compile-wiki --llm-provider openai`.
-
-    Imports openai lazily so the rest of SME doesn't depend on it.
-    """
-
-    def __init__(self, *, model: str = "gpt-4o-mini") -> None:
-        try:
-            from openai import OpenAI
-        except ImportError as exc:  # pragma: no cover — runtime install
-            raise SystemExit(
-                "openai package not installed; run `pip install openai` "
-                "or use --llm-provider stub for a no-API-key compile."
-            ) from exc
-
-        self._client = OpenAI()
-        self.model = model
-
-    def complete(self, prompt: str, **kwargs) -> str:
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        return response.choices[0].message.content or ""
 
 
 def cmd_retrieve(args: argparse.Namespace) -> int:
@@ -1744,16 +1716,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     cw.add_argument(
         "--llm-provider",
-        choices=["stub", "openai"],
+        choices=["stub", "openai", "anthropic", "openrouter"],
         default="stub",
         help="stub = deterministic no-LLM summaries (useful for smoke "
-        "tests and sanity baselines); openai = real LLM calls (requires "
-        "OPENAI_API_KEY).",
+        "tests and sanity baselines); openai / anthropic / openrouter = "
+        "real LLM calls. Keys are read from the system keyring "
+        "(service=openai / anthropic / openrouter) without echoing; "
+        "openai falls back to OPENAI_API_KEY env var.",
     )
     cw.add_argument(
         "--llm-model",
         default="gpt-4o-mini",
-        help="(openai) model name. Default gpt-4o-mini.",
+        help="model name. Default gpt-4o-mini for --llm-provider openai. "
+        "When --llm-provider is anthropic or openrouter and --llm-model "
+        "is left at the default, the provider's default kicks in "
+        "(claude-sonnet-4-6 for anthropic, openai/gpt-4o-2024-08-06 for "
+        "openrouter).",
     )
     cw.add_argument(
         "--summary-words",

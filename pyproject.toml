@@ -47,6 +47,17 @@ ladybugdb = [
 neo4j = [
     "neo4j>=5.0",
 ]
+anthropic = [
+    "anthropic>=0.40",
+]
+openai = [
+    "openai>=1.40",
+]
+# [all] keeps the *infra* extras only — topology, viz, graph-db
+# bindings. LLM-provider SDKs (anthropic, openai) stay opt-in: most
+# users running SME against their own graph never need them, and
+# they pull in a non-trivial dependency tree. Install explicitly via
+# `pip install sme-eval[anthropic,openai]` when you need them.
 all = [
     "sme-eval[topology,viz,ladybugdb,neo4j]",
 ]

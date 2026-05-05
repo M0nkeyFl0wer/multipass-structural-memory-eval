@@ -74,10 +74,15 @@ def test_grade_answer_correct_label():
     assert out["rationale"].startswith("matches gold")
     assert out["usage"]["prompt_tokens"] == 10
     assert out["usage"]["total_tokens"] == 15
-    # Sanity: prompt contained the IE rubric.
+    # Methodology lock: OpenAI path sends a single user message
+    # matching upstream LongMemEval evaluate_qa.py exactly.
+    assert len(client.calls[0]["messages"]) == 1
+    assert client.calls[0]["messages"][0]["role"] == "user"
     sent = client.calls[0]["messages"][0]["content"]
-    assert "Information Extraction" in sent
-    assert "A kayak" in sent
+    assert "Information Extraction" in sent  # rubric inline
+    assert "A kayak" in sent  # body inline
+    # Default openai + gpt-4o-2024-08-06 is paper-faithful.
+    assert out["methodology_faithful"] is True
 
 
 def test_grade_answer_incorrect_label():
@@ -145,9 +150,12 @@ def test_grade_answer_temporal_uses_temporal_rubric():
 # --- API key handling -------------------------------------------------------
 
 def test_grade_answer_no_api_key_returns_error_label(monkeypatch):
-    """When client is None and no key is present, return ERROR with a
-    clear rationale rather than raising."""
-    monkeypatch.delenv("OPENAI_API_KEY", raising=False)
+    """When client is None and no key is present in keyring or env, return
+    ERROR with a clear rationale rather than raising."""
+    # Force the keyring + env fallback to find nothing.
+    monkeypatch.setattr(
+        "sme.eval.longmemeval_judge._default_client", lambda provider: None
+    )
     out = grade_answer(
         question_type="single-session-user",
         question="q",
@@ -156,7 +164,8 @@ def test_grade_answer_no_api_key_returns_error_label(monkeypatch):
         client=None,
     )
     assert out["autoeval_label"] == "ERROR"
-    assert "OPENAI_API_KEY" in out["rationale"]
+    assert "no API key in keyring" in out["rationale"]
+    assert "openai" in out["rationale"]
 
 
 # --- retries / transient errors --------------------------------------------
@@ -282,3 +291,135 @@ def test_grade_answer_unknown_question_type_still_calls_judge():
     assert out["autoeval_label"] == "CORRECT"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Generic" in sent  # falls back to generic rubric
+
+
+# --- multi-provider --------------------------------------------------------
+
+
+class _FakeAnthropicClient:
+    """Minimal stand-in for anthropic.Anthropic()."""
+
+    def __init__(self, content: str,
+                 *,
+                 input_tokens: int = 12,
+                 output_tokens: int = 4,
+                 cache_read: int = 9,
+                 cache_creation: int = 3) -> None:
+        self.calls: list[dict] = []
+        outer = self
+
+        class _Messages:
+            def create(self, *, model, max_tokens, system, messages):
+                outer.calls.append({
+                    "model": model,
+                    "max_tokens": max_tokens,
+                    "system": system,
+                    "messages": messages,
+                })
+                return SimpleNamespace(
+                    content=[SimpleNamespace(type="text", text=content)],
+                    usage=SimpleNamespace(
+                        input_tokens=input_tokens,
+                        output_tokens=output_tokens,
+                        cache_read_input_tokens=cache_read,
+                        cache_creation_input_tokens=cache_creation,
+                    ),
+                )
+
+        self.messages = _Messages()
+
+
+def test_grade_answer_anthropic_caches_rubric_in_system_block():
+    client = _FakeAnthropicClient(
+        '{"label": "CORRECT", "rationale": "match"}'
+    )
+    out = grade_answer(
+        question_type="single-session-user",
+        question="What did I buy?",
+        gold_answer="A kayak",
+        hypothesis="A kayak.",
+        provider="anthropic",
+        client=client,
+    )
+    assert out["autoeval_label"] == "CORRECT"
+    assert out["provider"] == "anthropic"
+    # Default model resolves to claude-sonnet-4-6 via PROVIDER_DEFAULT_MODEL
+    assert out["judge_model"].startswith("claude-")
+    # The system block carries cache_control on the rubric.
+    sys_block = client.calls[0]["system"][0]
+    assert sys_block["cache_control"] == {"type": "ephemeral"}
+    assert "Information Extraction" in sys_block["text"]
+    # Body goes in the user message and contains the gold/hypothesis.
+    user_msg = client.calls[0]["messages"][0]
+    assert user_msg["role"] == "user"
+    assert "A kayak" in user_msg["content"]
+    # Cache hit metrics propagate into usage.
+    assert out["usage"]["cache_read_input_tokens"] == 9
+    assert out["usage"]["cache_creation_input_tokens"] == 3
+
+
+def test_grade_answer_openrouter_uses_default_namespaced_model():
+    client = _FakeClient(_fake_response(
+        '{"label": "CORRECT", "rationale": "ok"}'
+    ))
+    out = grade_answer(
+        question_type="single-session-user",
+        question="q", gold_answer="g", hypothesis="h",
+        provider="openrouter",
+        client=client,
+    )
+    assert out["autoeval_label"] == "CORRECT"
+    assert out["provider"] == "openrouter"
+    # OpenRouter expects namespaced model IDs.
+    assert client.calls[0]["model"] == "openai/gpt-4o-2024-08-06"
+    # Same single-user-message methodology as direct OpenAI.
+    assert len(client.calls[0]["messages"]) == 1
+    assert client.calls[0]["messages"][0]["role"] == "user"
+    # Routing through OpenRouter to the paper's model is paper-faithful.
+    assert out["methodology_faithful"] is True
+
+
+def test_grade_answer_anthropic_judge_is_not_paper_faithful():
+    """The Anthropic path uses prompt caching (system+user split) and
+    a Claude judge — useful for SME-internal cross-validation but not
+    numerically comparable to the LongMemEval paper baselines. The
+    methodology_faithful flag should reflect that."""
+    client = _FakeAnthropicClient(
+        '{"label": "CORRECT", "rationale": "ok"}'
+    )
+    out = grade_answer(
+        question_type="single-session-user",
+        question="q", gold_answer="g", hypothesis="h",
+        provider="anthropic",
+        client=client,
+    )
+    assert out["autoeval_label"] == "CORRECT"
+    assert out["methodology_faithful"] is False
+
+
+def test_grade_answer_openai_with_non_paper_model_is_not_paper_faithful():
+    """Even via the OpenAI provider, picking gpt-4o-mini (or any other
+    model) breaks paper-faithfulness — only gpt-4o-2024-08-06 matches
+    the LongMemEval methodology."""
+    client = _FakeClient(_fake_response(
+        '{"label": "CORRECT", "rationale": "ok"}'
+    ))
+    out = grade_answer(
+        question_type="single-session-user",
+        question="q", gold_answer="g", hypothesis="h",
+        provider="openai",
+        judge_model="gpt-4o-mini",
+        client=client,
+    )
+    assert out["methodology_faithful"] is False
+
+
+def test_grade_answer_unknown_provider_returns_error():
+    out = grade_answer(
+        question_type="single-session-user",
+        question="q", gold_answer="g", hypothesis="h",
+        provider="bogus",
+        client=None,
+    )
+    assert out["autoeval_label"] == "ERROR"
+    assert "unknown provider" in out["rationale"]
