@@ -36,8 +36,8 @@ _REPO_ROOT = Path(__file__).resolve().parent.parent
 if str(_REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT))
 
-from sme.adapters.ckg import CKGAdapter
-from sme.categories.multi_hop import score_cat2c
+from sme.adapters.ckg import CKGAdapter  # noqa: E402
+from sme.categories.multi_hop import score_cat2c  # noqa: E402
 
 DOMAINS = [
     "calculus",
@@ -141,15 +141,14 @@ def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
     res_b = adapter.query(question)
 
     # Condition C uses the SAME node set B retrieved, prose-only.
-    # Falls back to empty context when B failed (NO_MATCH).
+    # Empty context when B failed (NO_MATCH).
     c_context = ""
     if res_b.error is None:
         c_context = adapter.condition_c_serialization(res_b.retrieved_entities)
-    res_c_context = c_context
 
     a_recall, a_hit = score_recall(res_a.context_string, gt)
     b_recall, b_hit = score_recall(res_b.context_string, gt)
-    c_recall, c_hit = score_recall(res_c_context, gt)
+    c_recall, c_hit = score_recall(c_context, gt)
 
     def cond_row(cond: str, ctx: str, rec: float, hit: bool, err: str | None) -> dict:
         return {
@@ -171,7 +170,7 @@ def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
         "ground_truth": gt,
         "A": cond_row("A", res_a.context_string, a_recall, a_hit, res_a.error),
         "B": cond_row("B", res_b.context_string, b_recall, b_hit, res_b.error),
-        "C": cond_row("C", res_c_context, c_recall, c_hit, res_b.error),
+        "C": cond_row("C", c_context, c_recall, c_hit, res_b.error),
     }
 
 

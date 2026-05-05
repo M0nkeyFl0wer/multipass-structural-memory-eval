@@ -168,7 +168,6 @@ def chat_complete(client, model: str, prompt: str, *, retries: int = 6) -> str:
             return r.choices[0].message.content or ""
         except Exception as e:  # pragma: no cover — network
             last_err = e
-            msg = str(e)
             base = min(60, 2 ** (attempt + 1))
             # full jitter to spread thundering-herd retries
             time.sleep(base * (0.5 + random.random()))
@@ -294,19 +293,10 @@ def judge_condition(
         full = runs_by_id.get(q["id"])
         if full is None:
             return i, {"llm_label": "ERROR", "llm_error": "no run row"}
-        # condition_X.json doesn't carry context_string — pull from runs.jsonl
-        ctx = full.get(cond, {}).get("context_string", "") or full.get(
-            "context_string_" + cond, ""
-        )
-        ref = full.get("ground_truth", [])
-        # Fallback: re-run lookup via ground_truth in q
-        if not ref:
-            ref = q.get("ground_truth", [])
-        question_text = full.get("query") or q.get("query") or ""
-        if not question_text:
-            # the runner's per-condition rows don't carry query text either
-            # — pull from the trace
-            question_text = full.get("query", "")
+        # context_string is rehydrated onto the trace by reattach_context_strings()
+        ctx = full.get(cond, {}).get("context_string", "")
+        ref = full.get("ground_truth") or q.get("ground_truth", [])
+        question_text = full.get("query") or q.get("query", "")
         result = run_one(
             client,
             question=question_text,
@@ -471,7 +461,7 @@ def main() -> int:
         print(f"\n=== {domain} ===")
         runs = load_runs_jsonl(domain)
         if not runs:
-            print(f"  no runs.jsonl — run scripts/run_ckg_experiment.py first")
+            print("  no runs.jsonl — run scripts/run_ckg_experiment.py first")
             continue
         # rehydrate context_strings (cheap)
         reattach_context_strings(domain, runs)
