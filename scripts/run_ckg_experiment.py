@@ -93,12 +93,12 @@ class DomainRun:
     n_queries: int = 0
     rows: list[dict] = field(default_factory=list)  # combined trace
     by_condition: dict[str, list[dict]] = field(
-        default_factory=lambda: {"A": [], "B": [], "C": []}
+        default_factory=lambda: {"A": [], "B": [], "C": [], "B2": []}
     )
     no_match_count: int = 0
 
 
-def run_domain(domain: str, *, max_queries: int | None = None) -> DomainRun:
+def run_domain(domain: str, *, max_queries: int | None = None, include_b2: bool = False) -> DomainRun:
     csv_path = DATA_ROOT / "domains" / domain / "learning-graph.csv"
     queries_path = DATA_ROOT / "queries" / f"queries_{domain}.jsonl"
     if not csv_path.exists() or not queries_path.exists():
@@ -120,17 +120,19 @@ def run_domain(domain: str, *, max_queries: int | None = None) -> DomainRun:
             if max_queries is not None and i >= max_queries:
                 break
             q = json.loads(line)
-            row = run_one(adapter, q)
+            row = run_one(adapter, q, include_b2=include_b2)
             out.rows.append(row)
             for cond in ("A", "B", "C"):
                 out.by_condition[cond].append(row[cond])
+            if include_b2 and "B2" in row:
+                out.by_condition["B2"].append(row["B2"])
             out.n_queries += 1
             if row["B"]["error"] == "NO_MATCH":
                 out.no_match_count += 1
     return out
 
 
-def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
+def run_one(adapter: CKGAdapter, q: dict, include_b2: bool = False) -> dict[str, Any]:
     question = q["query"]
     gt = list(q.get("ground_truth", []))
     hop = int(q.get("hop_depth", 0))
@@ -140,8 +142,10 @@ def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
     res_a = adapter.get_flat_retrieval(question)
     res_b = adapter.query(question)
 
-    # Condition C uses the SAME node set B retrieved, prose-only.
-    # Empty context when B failed (NO_MATCH).
+    res_b2 = None
+    if include_b2:
+        res_b2 = adapter.query_hierarchical(question)
+
     c_context = ""
     if res_b.error is None:
         c_context = adapter.condition_c_serialization(res_b.retrieved_entities)
@@ -163,7 +167,7 @@ def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
             "error": err,
         }
 
-    return {
+    result = {
         "id": qid,
         "type": qtype,
         "hop_depth": hop,
@@ -172,6 +176,12 @@ def run_one(adapter: CKGAdapter, q: dict) -> dict[str, Any]:
         "B": cond_row("B", res_b.context_string, b_recall, b_hit, res_b.error),
         "C": cond_row("C", c_context, c_recall, c_hit, res_b.error),
     }
+
+    if res_b2 is not None:
+        b2_recall, b2_hit = score_recall(res_b2.context_string, gt)
+        result["B2"] = cond_row("B2", res_b2.context_string, b2_recall, b2_hit, res_b2.error)
+
+    return result
 
 
 # --- output writers -----------------------------------------------
@@ -182,7 +192,8 @@ def write_outputs(run: DomainRun) -> dict[str, Path]:
     out_dir.mkdir(parents=True, exist_ok=True)
     paths = {}
 
-    for cond in ("A", "B", "C"):
+    conds = list(run.by_condition.keys())
+    for cond in conds:
         path = out_dir / f"condition_{cond}.json"
         path.write_text(
             json.dumps(
@@ -222,6 +233,44 @@ def write_summary(run: DomainRun, paths: dict[str, Path]) -> Path:
     B = report.conditions["B"]
     C = report.conditions.get("C")
 
+    has_b2 = "B2" in paths and "B2" in run.by_condition
+
+    def _load_questions(json_path: Path) -> list[dict]:
+        with open(json_path) as f:
+            return json.load(f)["questions"]
+
+    def _cond_stats(questions: list[dict], label: str):
+        n = len(questions)
+        recalls = [q["recall"] for q in questions]
+        tokens_list = [q["tokens"] for q in questions]
+        hits = sum(1 for q in questions if q.get("hit"))
+        correct_tokens = [q["tokens"] for q in questions if q.get("hit")]
+        return type("Cond", (), {
+            "label": label,
+            "mean_recall": sum(recalls) / n if n else 0,
+            "full_recall": hits,
+            "total_questions": n,
+            "mean_tokens": sum(tokens_list) / n if n else 0,
+            "tokens_per_correct": sum(correct_tokens) / len(correct_tokens) if correct_tokens else None,
+            "by_hop": _by_hop(questions),
+        })()
+
+    def _by_hop(questions: list[dict]) -> dict:
+        h: dict[int, dict] = {}
+        for q in questions:
+            h_val = int(q.get("hop_depth", 0))
+            if h_val not in h:
+                h[h_val] = {"n": 0, "recalls": [], "tokens": []}
+            h[h_val]["n"] += 1
+            h[h_val]["recalls"].append(q["recall"])
+            h[h_val]["tokens"].append(q["tokens"])
+        for k, v in h.items():
+            v["mean_recall"] = sum(v["recalls"]) / len(v["recalls"])
+            v["mean_tokens"] = sum(v["tokens"]) / len(v["tokens"])
+        return h
+
+    B2_stats = _cond_stats(_load_questions(paths["B2"]), "B2: hierarchical") if has_b2 else None
+
     lines: list[str] = []
     lines.append(f"# CKG-benchmark — {run.domain}")
     lines.append("")
@@ -233,7 +282,7 @@ def write_summary(run: DomainRun, paths: dict[str, Path]) -> Path:
     lines.append("")
     lines.append("| Cond | label | mean recall | full-recall | mean tokens | tokens/correct |")
     lines.append("|------|-------|-------------|-------------|-------------|----------------|")
-    for cond_name, cond in [("A", A), ("B", B), ("C", C)]:
+    for cond_name, cond in [("A", A), ("B", B), ("C", C), ("B2", B2_stats)]:
         if cond is None:
             continue
         tpc = "—" if cond.tokens_per_correct is None else f"{cond.tokens_per_correct:.0f}"
@@ -280,6 +329,37 @@ def write_summary(run: DomainRun, paths: dict[str, Path]) -> Path:
             )
         lines.append("")
 
+    if B2_stats is not None and B is not None:
+        lines.append("## B − B2 by hop_depth (format: triples vs hierarchical)")
+        lines.append("")
+        lines.append("| hop | n | B2 recall | B recall | Δrecall (pp) | B2 tokens | B tokens | Δtokens |")
+        lines.append("|-----|---|-----------|----------|--------------|-----------|----------|---------|")
+        all_hops = sorted(set(list(B2_stats.by_hop.keys()) + list(B.by_hop.keys())))
+        for h in all_hops:
+            b2h = B2_stats.by_hop.get(h)
+            bh = B.by_hop.get(h)
+            if b2h is None or bh is None:
+                continue
+            recall_delta = (b2h["mean_recall"] - bh.mean_recall) * 100
+            token_delta = b2h["mean_tokens"] - bh.mean_tokens
+            lines.append(
+                f"| {h} | {bh.n} | "
+                f"{b2h['mean_recall']:.3f} | {bh.mean_recall:.3f} | "
+                f"{recall_delta:+.1f} | "
+                f"{b2h['mean_tokens']:.0f} | {bh.mean_tokens:.0f} | "
+                f"{token_delta:+.0f} |"
+            )
+        lines.append("")
+        recall_delta_total = (B2_stats.mean_recall - B.mean_recall) * 100
+        token_delta_total = B2_stats.mean_tokens - B.mean_tokens
+        lines.append(
+            f"**B vs B2:** recall {B.mean_recall:.3f} vs {B2_stats.mean_recall:.3f} "
+            f"({'+' if recall_delta_total >= 0 else ''}{recall_delta_total:.1f}pp), "
+            f"tokens {B.mean_tokens:.0f} vs {B2_stats.mean_tokens:.0f} "
+            f"({'fewer' if token_delta_total < 0 else 'more'} by {abs(token_delta_total) / max(B.mean_tokens, 1) * 100:.0f}%)"
+        )
+        lines.append("")
+
     lines.append(f"**Verdict:** {report.verdict}")
     if report.verdict_details:
         lines.append("")
@@ -289,7 +369,6 @@ def write_summary(run: DomainRun, paths: dict[str, Path]) -> Path:
 
     summary_path.write_text("\n".join(lines))
 
-    # also dump raw report json for downstream tooling
     (out_dir / "cat2c_report.json").write_text(
         json.dumps(report.to_dict(), indent=2)
     )
@@ -314,17 +393,23 @@ def main() -> int:
         default=None,
         help="Cap queries per domain (smoke test)",
     )
+    ap.add_argument(
+        "--b2",
+        action="store_true",
+        help="Also run Condition B2 (hierarchical format) alongside A/B/C",
+    )
     args = ap.parse_args()
 
     RESULTS_ROOT.mkdir(parents=True, exist_ok=True)
     overall: list[tuple[str, DomainRun, Path]] = []
 
     for d in args.domains:
-        print(f"\n=== {d} ===")
-        run = run_domain(d, max_queries=args.max_queries)
+        print(f"\n=== {d} ===" + (" [B2]" if args.b2 else ""))
+        run = run_domain(d, max_queries=args.max_queries, include_b2=args.b2)
         paths = write_outputs(run)
         summary = write_summary(run, paths)
         print(f"  ran {run.n_queries} queries (no-match={run.no_match_count})")
+        print(f"  conditions: {list(run.by_condition.keys())}")
         print(f"  summary: {summary.relative_to(_REPO_ROOT)}")
         overall.append((d, run, summary))
 

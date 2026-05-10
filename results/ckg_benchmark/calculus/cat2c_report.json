@@ -1,0 +1,246 @@
+{
+  "conditions": {
+    "A": {
+      "label": "A: flat token-overlap",
+      "total": 180,
+      "full_recall": 141,
+      "partial_hits": 175,
+      "mean_recall": 0.8458027011229453,
+      "mean_tokens": 125.21111111111111,
+      "tokens_per_correct": 159.84397163120568,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 67,
+          "mean_recall": 0.782256012967117,
+          "hit_rate": 0.9850746268656716,
+          "mean_tokens": 120.23880597014926,
+          "correct_count": 48
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 0.9659090909090909,
+          "hit_rate": 0.9659090909090909,
+          "mean_tokens": 127.57954545454545,
+          "correct_count": 85
+        },
+        "3": {
+          "hops": 3,
+          "n": 7,
+          "mean_recall": 0.7857142857142857,
+          "hit_rate": 1.0,
+          "mean_tokens": 127.57142857142857,
+          "correct_count": 4
+        },
+        "5": {
+          "hops": 5,
+          "n": 7,
+          "mean_recall": 0.4761904761904762,
+          "hit_rate": 1.0,
+          "mean_tokens": 125.42857142857143,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 9,
+          "mean_recall": 0.4444444444444444,
+          "hit_rate": 0.8888888888888888,
+          "mean_tokens": 134.88888888888889,
+          "correct_count": 2
+        },
+        "2": {
+          "hops": 2,
+          "n": 2,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 135.0,
+          "correct_count": 2
+        }
+      }
+    },
+    "B": {
+      "label": "B: 2-hop structured",
+      "total": 180,
+      "full_recall": 144,
+      "partial_hits": 174,
+      "mean_recall": 0.875335053487944,
+      "mean_tokens": 466.97777777777776,
+      "tokens_per_correct": 583.7222222222222,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 67,
+          "mean_recall": 0.7732882034004465,
+          "hit_rate": 0.9104477611940298,
+          "mean_tokens": 552.2388059701492,
+          "correct_count": 50
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 453.2613636363636,
+          "correct_count": 88
+        },
+        "3": {
+          "hops": 3,
+          "n": 7,
+          "mean_recall": 0.8928571428571429,
+          "hit_rate": 1.0,
+          "mean_tokens": 315.85714285714283,
+          "correct_count": 4
+        },
+        "5": {
+          "hops": 5,
+          "n": 7,
+          "mean_recall": 0.5,
+          "hit_rate": 1.0,
+          "mean_tokens": 249.57142857142858,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 9,
+          "mean_recall": 0.6666666666666665,
+          "hit_rate": 1.0,
+          "mean_tokens": 252.0,
+          "correct_count": 0
+        },
+        "2": {
+          "hops": 2,
+          "n": 2,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 471.5,
+          "correct_count": 2
+        }
+      }
+    },
+    "C": {
+      "label": "C: same-nodes prose",
+      "total": 180,
+      "full_recall": 154,
+      "partial_hits": 174,
+      "mean_recall": 0.9016776460805365,
+      "mean_tokens": 351.1611111111111,
+      "tokens_per_correct": 410.44805194805195,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 67,
+          "mean_recall": 0.7766464123556702,
+          "hit_rate": 0.9104477611940298,
+          "mean_tokens": 406.2089552238806,
+          "correct_count": 50
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 344.29545454545456,
+          "correct_count": 88
+        },
+        "3": {
+          "hops": 3,
+          "n": 7,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 252.57142857142858,
+          "correct_count": 7
+        },
+        "5": {
+          "hops": 5,
+          "n": 7,
+          "mean_recall": 0.6666666666666666,
+          "hit_rate": 1.0,
+          "mean_tokens": 198.71428571428572,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 9,
+          "mean_recall": 0.9555555555555555,
+          "hit_rate": 1.0,
+          "mean_tokens": 204.11111111111111,
+          "correct_count": 7
+        },
+        "2": {
+          "hops": 2,
+          "n": 2,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 349.5,
+          "correct_count": 2
+        }
+      }
+    }
+  },
+  "delta_B_minus_A": {
+    "0": {
+      "recall_delta_pp": -0.8967809566670537,
+      "tokens_delta": 431.99999999999994
+    },
+    "1": {
+      "recall_delta_pp": 3.409090909090906,
+      "tokens_delta": 325.6818181818182
+    },
+    "2": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 336.5
+    },
+    "3": {
+      "recall_delta_pp": 10.71428571428572,
+      "tokens_delta": 188.28571428571428
+    },
+    "4": {
+      "recall_delta_pp": 22.22222222222221,
+      "tokens_delta": 117.11111111111111
+    },
+    "5": {
+      "recall_delta_pp": 2.380952380952378,
+      "tokens_delta": 124.14285714285715
+    }
+  },
+  "delta_B_minus_C": {
+    "0": {
+      "recall_delta_pp": -0.33582089552237626,
+      "tokens_delta": 146.0298507462686
+    },
+    "1": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 108.96590909090907
+    },
+    "2": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 122.0
+    },
+    "3": {
+      "recall_delta_pp": -10.71428571428571,
+      "tokens_delta": 63.28571428571425
+    },
+    "4": {
+      "recall_delta_pp": -28.888888888888896,
+      "tokens_delta": 47.888888888888886
+    },
+    "5": {
+      "recall_delta_pp": -16.666666666666664,
+      "tokens_delta": 50.85714285714286
+    }
+  },
+  "ratio_B_over_A": {
+    "0": 0.9885359659523033,
+    "1": 1.0352941176470587,
+    "2": 1.0,
+    "3": 1.1363636363636365,
+    "4": 1.4999999999999998,
+    "5": 1.05
+  },
+  "verdict": "structure adds value at uniform scale",
+  "verdict_details": [
+    "B - C is negative at hops 3,4,5 \u2014 structural routing is actively harmful",
+    "B beats flat but the advantage does not grow with depth \u2014 traversal may not be active, benefits may come from re-ranking"
+  ]
+}

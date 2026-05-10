@@ -169,6 +169,88 @@ def test_condition_c_omits_typed_triple_format(tiny_csv: Path):
     assert "Composite" in c_text  # but the labels survive
 
 
+# --- query_hierarchical (Condition B2) --------------------------------
+
+
+def test_query_hierarchical_returns_nested_prerequisite_tree(tiny_csv: Path):
+    """Condition B2 renders the same neighborhood as B but as nested text."""
+    adapter = CKGAdapter(tiny_csv)
+    adapter.ingest_corpus([])
+    result = adapter.query_hierarchical("Composite")
+    assert result.error is None
+    assert "## CKG: Composite" in result.context_string
+    assert "### Prerequisites" in result.context_string
+    assert "### Builds toward" in result.context_string
+    assert "Logarithm" in result.context_string
+
+
+def test_query_hierarchical_vs_query_triples_same_nodes(tiny_csv: Path):
+    """B and B2 retrieve identical node sets; only the format differs."""
+    adapter = CKGAdapter(tiny_csv, hop_budget=1)
+    adapter.ingest_corpus([])
+    res_b = adapter.query("Composite")
+    res_b2 = adapter.query_hierarchical("Composite")
+    b_ids = {e.id for e in res_b.retrieved_entities}
+    b2_ids = {e.id for e in res_b2.retrieved_entities}
+    assert b_ids == b2_ids
+
+
+def test_query_hierarchical_includes_parent_chain(tiny_csv: Path):
+    """B2's prerequisite subtree shows the transitive dependency chain."""
+    adapter = CKGAdapter(tiny_csv, hop_budget=2)
+    adapter.ingest_corpus([])
+    result = adapter.query_hierarchical("Logarithm")
+    assert "Function" in result.context_string  # Logarithm -> Composite -> Function
+    assert "Notation" in result.context_string  # Composite -> Notation
+
+
+def test_query_hierarchical_omits_graph_edge_syntax(tiny_csv: Path):
+    """B2 uses nested-text syntax, not DEPENDS_ON triple syntax."""
+    adapter = CKGAdapter(tiny_csv)
+    adapter.ingest_corpus([])
+    result = adapter.query_hierarchical("Composite")
+    assert "DEPENDS_ON" not in result.context_string
+    assert "-->" not in result.context_string
+
+
+def test_query_hierarchical_context_string_different_from_b(tiny_csv: Path):
+    """B and B2 produce different context_string values from the same query."""
+    adapter = CKGAdapter(tiny_csv, hop_budget=1)
+    adapter.ingest_corpus([])
+    res_b = adapter.query("Composite")
+    res_b2 = adapter.query_hierarchical("Composite")
+    assert res_b.context_string != res_b2.context_string
+
+
+# --- format comparison ------------------------------------------------
+
+
+def test_b_b2_token_ratio_on_deep_dag(tmp_path: Path):
+    """B2 hierarchical format is structurally more compact than B triples
+    on a deep DAG (more indentation, less repetition of edge labels).
+
+    This test creates a 5-hop linear chain (no branching) and verifies
+    that B2 produces fewer total tokens than B for the same retrieved
+    node set — the hierarchical format avoids repeating the DEPENDS_ON
+    predicate for every edge.
+    """
+    csv = tmp_path / "linear.csv"
+    rows = ["ConceptID,ConceptLabel,Dependencies,TaxonomyID"]
+    for i in range(6):
+        parent = str(i) if i > 0 else ""
+        rows.append(f"{i+1},Node{i+1},{parent},FOUND")
+    csv.write_text("\n".join(rows))
+
+    adapter = CKGAdapter(csv, hop_budget=5)
+    adapter.ingest_corpus([])
+    res_b = adapter.query("Node6")
+    res_b2 = adapter.query_hierarchical("Node6")
+
+    b_tokens = len(res_b.context_string.split())
+    b2_tokens = len(res_b2.context_string.split())
+    assert b2_tokens < b_tokens, f"B2 ({b2_tokens}) should be fewer than B ({b_tokens})"
+
+
 # --- get_ontology_source ---------------------------------------------
 
 

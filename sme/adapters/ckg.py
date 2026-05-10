@@ -351,3 +351,98 @@ class CKGAdapter(SMEAdapter):
             tgt = self._by_id[e.target_id].name
             lines.append(f"<{src}> --[{e.edge_type}]--> <{tgt}>")
         return "\n".join(lines)
+
+    def query_hierarchical(self, question: str) -> QueryResult:
+        """Condition B2: same k-hop neighborhood as query(), but rendered
+        as nested hierarchical structured text (prerequisites/dependents
+        trees) instead of typed triples.
+
+        This matches the output format of Yarmoluk's ckg-mcp server, which
+        returns pre-compiled dependency paths as nested trees rather than
+        graph edges. The B-B2 comparison isolates whether the *format*
+        of the retrieved structure affects answer quality, independent of
+        which nodes were retrieved.
+        """
+        target = self._match_target(question)
+        if target is None:
+            return QueryResult(
+                answer="",
+                context_string="",
+                error="NO_MATCH",
+            )
+        node_ids = self._neighborhood(target.id, self.hop_budget)
+        retrieved_entities = [self._by_id[i] for i in node_ids]
+        retrieved_edges = self._edges_in_subgraph(node_ids)
+        context_string = self._format_hierarchical(
+            target, retrieved_entities, retrieved_edges
+        )
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=retrieved_entities,
+            retrieved_edges=retrieved_edges,
+            retrieval_path=[target.id, *(i for i in node_ids if i != target.id)],
+        )
+
+    def _format_hierarchical(
+        self,
+        target: Entity,
+        entities: list[Entity],
+        edges: list[Edge],
+    ) -> str:
+        """Render the neighborhood as nested prerequisite/dependent trees.
+
+        Mirrors the ckg-mcp output format: Concept name + taxonomy, then
+        indented subtrees for prerequisites (parents) and dependents
+        (children), recursively. Each subtree is depth-capped to avoid
+        runaway nesting on deep DAGs.
+        """
+        lines: list[str] = []
+        tax = target.entity_type or "unknown"
+        lines.append(f"## CKG: {target.name} ({tax})")
+        lines.append("")
+        lines.append("### Prerequisites (what you need to know first)")
+        parent_children: dict[str, set[str]] = {
+            p: set() for p in self._parents.get(target.id, set())
+        }
+        for e in edges:
+            if e.target_id in parent_children and e.source_id != target.id:
+                parent_children[e.target_id].add(e.source_id)
+        shown = {target.id}
+        for parent_id in self._parents.get(target.id, set()):
+            subtree = self._render_subtree(parent_id, shown, depth=1, max_depth=3)
+            lines.append(subtree)
+        if not self._parents.get(target.id):
+            lines.append("  (no dependencies; root concept.)")
+        lines.append("")
+        lines.append("### Builds toward")
+        for child_id in self._children.get(target.id, set()):
+            child = self._by_id.get(child_id)
+            if child:
+                lines.append(f"  - {child.name} ({child.entity_type or 'unknown'})")
+        if not self._children.get(target.id):
+            lines.append("  (no dependents; leaf concept.)")
+        return "\n".join(lines)
+
+    def _render_subtree(
+        self, node_id: str, shown: set[str], depth: int, max_depth: int
+    ) -> str:
+        """Render one node and its ancestors as an indented subtree."""
+        node = self._by_id.get(node_id)
+        if not node:
+            return "  " * depth + f"[unknown: {node_id}]"
+        if depth > max_depth:
+            return "  " * depth + f"{node.name} ({node.entity_type or 'unknown'})"
+        shown.add(node_id)
+        tax = node.entity_type or "unknown"
+        prefix = "  " * depth + f"- {node.name} ({tax})"
+        parents = self._parents.get(node_id, set())
+        if not parents:
+            return prefix
+        lines_out = [prefix]
+        for parent_id in parents:
+            if parent_id in shown:
+                continue
+            child_subtree = self._render_subtree(parent_id, shown, depth + 1, max_depth)
+            lines_out.append(child_subtree)
+        return "\n".join(lines_out)

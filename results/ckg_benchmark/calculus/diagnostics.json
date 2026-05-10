@@ -1,0 +1,108 @@
+{
+  "domain": "calculus",
+  "n_concepts": 380,
+  "n_edges": 538,
+  "cat1_ontology_coherence": {
+    "n_taxonomies": 17,
+    "tax_distribution": {
+      "APPL": 39,
+      "ANAL": 34,
+      "LIMIT": 30,
+      "DERIV": 30,
+      "DRULE": 29,
+      "INTEG": 28,
+      "IMPL": 24,
+      "FTC": 23,
+      "OPT": 21,
+      "FOUND": 20,
+      "CONT": 20,
+      "CHAIN": 16,
+      "HIGH": 15,
+      "ASYM": 14,
+      "CURV": 14,
+      "RIEM": 12,
+      "TECH": 11
+    },
+    "tax_entropy_bits": 3.9948959904445394,
+    "tax_entropy_norm": 0.9773534697681842,
+    "tax_dominant_share": 0.10263157894736842,
+    "n_edge_types": 1,
+    "edge_type_distribution": {
+      "DEPENDS_ON": 538
+    },
+    "edge_type_entropy_bits": -0.0
+  },
+  "cat2_ingestion_integrity": {
+    "phantom_edge_errors": [],
+    "duplicate_id_warnings": [],
+    "orphan_concepts": 0,
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "cat7_abacus": {
+    "A": {
+      "n": 180,
+      "mean_tokens": 125.21111111111111,
+      "full_recall": 141,
+      "tokens_per_correct": 159.84397163120568,
+      "mean_recall": 0.8458027011229453
+    },
+    "B": {
+      "n": 180,
+      "mean_tokens": 466.97777777777776,
+      "full_recall": 144,
+      "tokens_per_correct": 583.7222222222222,
+      "mean_recall": 0.875335053487944
+    },
+    "C": {
+      "n": 180,
+      "mean_tokens": 351.1611111111111,
+      "full_recall": 154,
+      "tokens_per_correct": 410.44805194805195,
+      "mean_recall": 0.9016776460805365
+    },
+    "available": true
+  },
+  "cat8_schema_vs_shape": {
+    "declared_fields": [
+      "ConceptID",
+      "ConceptLabel",
+      "Dependencies",
+      "TaxonomyID"
+    ],
+    "declared_edge_types": [
+      "DEPENDS_ON"
+    ],
+    "observed_distinct_taxonomy_pairs": 65,
+    "top_pairs": [
+      {
+        "child_tax": "APPL",
+        "parent_tax": "APPL",
+        "count": 41
+      },
+      {
+        "child_tax": "DRULE",
+        "parent_tax": "DRULE",
+        "count": 36
+      },
+      {
+        "child_tax": "ANAL",
+        "parent_tax": "ANAL",
+        "count": 36
+      },
+      {
+        "child_tax": "DERIV",
+        "parent_tax": "DERIV",
+        "count": 35
+      },
+      {
+        "child_tax": "LIMIT",
+        "parent_tax": "LIMIT",
+        "count": 33
+      }
+    ],
+    "max_parents_per_child": 3,
+    "max_children_per_parent": 17,
+    "multi_parent_share": 0.3868421052631579
+  }
+}
