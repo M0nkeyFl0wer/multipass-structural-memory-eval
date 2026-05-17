@@ -69,6 +69,7 @@ class LadybugDBAdapter(SMEAdapter):
         api_url: Optional[str] = None,
         default_query_mode: str = "hybrid",
         api_timeout: float = 120.0,
+        vault_path: Optional[str | Path] = None,
     ):
         """Open a LadybugDB file and/or wire up an HTTP-backed search API.
 
@@ -84,9 +85,8 @@ class LadybugDBAdapter(SMEAdapter):
           file to be unlocked.
 
         Either or both can be set. If only ``db_path`` is given,
-        ``query()`` raises NotImplementedError. If only ``api_url`` is
-        given, ``get_graph_snapshot()`` returns an empty snapshot with
-        a warning. Set both for a fully functional adapter.
+        ``query()`` uses direct Cypher file access. Set both for full
+        Condition B support with content retrieval.
 
         Args:
             db_path: path to the .ldb file (optional in API mode).
@@ -112,9 +112,15 @@ class LadybugDBAdapter(SMEAdapter):
                 default for a Condition B measurement — and "semantic"
                 for Condition C (structure disabled).
             api_timeout: per-request HTTP timeout in seconds.
+            vault_path: path to a vault of markdown notes. When provided,
+                the adapter builds a ``note_id -> (relative_path, content)``
+                index at init time and uses it to retrieve full note content
+                during file-mode queries, enabling Condition B without a
+                running HTTP API.
         """
         self.db_path = str(db_path) if db_path is not None else None
         self.api_url = api_url.rstrip("/") if api_url else None
+        self.vault_path = str(vault_path) if vault_path is not None else None
         self.default_query_mode = default_query_mode
         self.api_timeout = api_timeout
         self.skip_infrastructure = skip_infrastructure
@@ -128,6 +134,12 @@ class LadybugDBAdapter(SMEAdapter):
         self._explicit_edge_tables = (
             tuple(include_edge_tables) if include_edge_tables else None
         )
+
+        # --- Vault content index (optional, for file-mode Condition B) ---
+        # note_id -> (relative_path, content) built at init from frontmatter
+        self._vault_index: dict[str, tuple[str, str]] = {}
+        if self.vault_path is not None:
+            self._build_vault_index()
 
         if self.db_path is None and self.api_url is None:
             raise ValueError(
@@ -168,9 +180,12 @@ class LadybugDBAdapter(SMEAdapter):
                 self._rel_connections[table] = self._rel_connection(table)
 
         # Decide which tables to actually include
-        self.include_node_tables = tuple(
-            self._resolve_node_selection(include_node_tables, auto_discover)
-        )
+        resolved_nodes = list(self._resolve_node_selection(include_node_tables, auto_discover))
+        # Prioritize Entity table for better semantic matching
+        if 'Entity' in resolved_nodes:
+            resolved_nodes.remove('Entity')
+            resolved_nodes.insert(0, 'Entity')
+        self.include_node_tables = tuple(resolved_nodes)
         self.include_edge_tables = tuple(
             self._resolve_edge_selection(include_edge_tables, auto_discover)
         )
@@ -221,15 +236,17 @@ class LadybugDBAdapter(SMEAdapter):
         contribution across adapters.
         """
         if self.api_url is None:
-            return QueryResult(
-                answer="",
-                context_string="",
-                error=(
-                    "NO_API_URL: LadybugDBAdapter was constructed without "
-                    "an api_url. Pass api_url=... (e.g. "
-                    "http://localhost:7720) to enable query()."
-                ),
-            )
+            if self._conn is None:
+                return QueryResult(
+                    answer="",
+                    context_string="",
+                    error=(
+                        "NO_API_URL: LadybugDBAdapter was constructed without "
+                        "an api_url, and db_path was not provided or could not "
+                        "be opened."
+                    ),
+                )
+            return self._file_query(question, n_results=n_results, mode=mode, route=route)
 
         import json as _json
         import urllib.error
@@ -280,7 +297,6 @@ class LadybugDBAdapter(SMEAdapter):
             )
 
         if not isinstance(hits, list):
-            # Some servers wrap errors in a dict rather than failing the request
             err = (
                 hits.get("detail")
                 if isinstance(hits, dict)
@@ -301,9 +317,6 @@ class LadybugDBAdapter(SMEAdapter):
                 retrieval_path=[f"mode={chosen_mode}"],
             )
 
-        # Build context_string in the same format as the other adapters
-        # (FlatBaselineAdapter, MemPalaceAdapter) so tiktoken counts are
-        # comparable across conditions.
         context_parts: list[str] = []
         retrieved: list[Entity] = []
         for i, hit in enumerate(hits):
@@ -335,6 +348,472 @@ class LadybugDBAdapter(SMEAdapter):
             context_string=context_string,
             retrieved_entities=retrieved,
             retrieval_path=[f"mode={chosen_mode}"],
+        )
+
+    def _file_query(
+        self,
+        question: str,
+        *,
+        n_results: int = 10,
+        mode: Optional[str] = None,
+        route: bool = True,
+    ) -> QueryResult:
+        """Query the graph via direct Cypher against the open .ldb file.
+
+        Modes:
+        - semantic: full-text search on node names + text properties,
+          no graph traversal. Mirrors Condition C for typed-graph systems.
+        - hybrid: FTS + graph-proximity (first hop from FTS-matched nodes).
+          Condition B for this adapter.
+        - graph: graph-traversal-only, no FTS. Uses the graph structure
+          to find relevant nodes.
+        - path: path-based ranking from query terms as starting points.
+        """
+        chosen_mode = (
+            "semantic" if not route else (mode or self.default_query_mode)
+        )
+
+        if chosen_mode == "semantic":
+            return self._file_query_semantic(question, n_results)
+        elif chosen_mode == "hybrid":
+            return self._file_query_hybrid(question, n_results)
+        elif chosen_mode == "graph":
+            return self._file_query_graph(question, n_results)
+        elif chosen_mode == "path":
+            return self._file_query_path(question, n_results)
+        else:
+            return QueryResult(
+                answer="",
+                context_string="",
+                error=f"UNKNOWN_MODE: {chosen_mode}",
+                retrieval_path=[f"mode={chosen_mode}"],
+            )
+
+    def _cypher_contains(self, col: str, term: str) -> str:
+        escaped = term.replace('"', '\\"')
+        return f'toLower({col}) CONTAINS toLower("{escaped}")'
+
+    def _build_vault_index(self) -> None:
+        """Build note_id -> (relative_path, content) index from vault markdown files."""
+        import glob as _glob
+        import os as _os
+
+        vault_base = self.vault_path
+        count = 0
+        for md_file in _glob.glob(_os.path.join(vault_base, "**/*.md"), recursive=True):
+            try:
+                with open(md_file, encoding="utf-8") as f:
+                    raw = f.read()
+            except Exception:
+                continue
+            if not raw.lstrip().startswith("---"):
+                continue
+            try:
+                end = raw.index("---", 3)
+                frontmatter = raw[3:end]
+                note_id = None
+                for line in frontmatter.split("\n"):
+                    if line.startswith("note_id:"):
+                        note_id = line.split(":", 1)[1].strip()
+                        break
+                if not note_id:
+                    continue
+                # Compute relative path for display
+                rel = _os.path.relpath(md_file, vault_base)
+                # Strip frontmatter + blank line to get actual content
+                body = raw[end + 3:].strip()
+                self._vault_index[note_id] = (rel, body)
+                count += 1
+            except Exception:
+                continue
+        log.info("vault index built: %d notes from %s", count, vault_base)
+
+    def _vault_content(self, note_id: str) -> Optional[str]:
+        """Return vault content string for a note_id, or None if not found."""
+        entry = self._vault_index.get(note_id)
+        if entry is None:
+            return None
+        return entry[1]
+
+    def _file_query_semantic(
+        self, question: str, n_results: int
+    ) -> QueryResult:
+        """Semantic-only: FTS on node name and description, no graph traversal."""
+        search_terms = [t for t in question.split() if len(t) > 2][:5]
+        if not search_terms:
+            search_terms = question.split()[:3]
+
+        # Collect ALL matches first, then rank
+        all_matches: list[tuple[str, Entity, int]] = []
+        node_ids_seen: set[str] = set()
+
+        for table in self.include_node_tables:
+            cols = self._node_columns.get(table, [])
+            name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
+            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
+            if not name_col:
+                continue
+
+            try:
+                where_parts = []
+                for t in search_terms:
+                    if desc_col:
+                        where_parts.append(
+                            f'({self._cypher_contains(f"n.{name_col}", t)} OR {self._cypher_contains(f"n.{desc_col}", t)})'
+                        )
+                    else:
+                        where_parts.append(self._cypher_contains(f"n.{name_col}", t))
+                where_clause = " OR ".join(where_parts)
+
+                query = (
+                    f"MATCH (n:{table}) "
+                    f"WHERE n.{name_col} IS NOT NULL "
+                    f"  AND ({where_clause}) "
+                    f"RETURN n LIMIT 200"
+                )
+                rows = list(self._conn.execute(query).rows_as_dict())
+                for row in rows:
+                    node = row.get("n", row)
+                    if not isinstance(node, dict):
+                        continue
+                    raw_id = str(node.get("id", ""))
+                    if raw_id in node_ids_seen:
+                        continue
+                    node_ids_seen.add(raw_id)
+                    node_name = node.get(name_col, raw_id)
+                    text_col = next((c[0] for c in cols if c[0] in ("text", "content", "body", "description")), None)
+                    text = str(node.get(text_col, node_name)) if text_col else node_name
+                    context = f"[{table}/{raw_id}] {node_name}\n{text[:300]}"
+                    score = sum(1 for t in search_terms if t.lower() in context.lower())
+                    entity = Entity(
+                        id=f"{table}:{raw_id}",
+                        name=str(node_name),
+                        entity_type=table,
+                        properties=node,
+                    )
+                    all_matches.append((context, entity, score))
+            except Exception as e:
+                log.warning("semantic query failed for table %s: %s", table, e)
+
+        if not all_matches:
+            return QueryResult(
+                answer="",
+                context_string="",
+                error="NO_RESULTS",
+                retrieval_path=["mode=semantic"],
+            )
+
+        # Rank by score, take top n_results
+        all_matches.sort(key=lambda x: x[2], reverse=True)
+        top_matches = all_matches[:n_results]
+        context_parts = [m[0] for m in top_matches]
+        retrieved = [m[1] for m in top_matches]
+
+        context_string = "\n\n".join(context_parts)
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=retrieved,
+            retrieval_path=["mode=semantic"],
+        )
+
+    def _file_query_hybrid(
+        self, question: str, n_results: int
+    ) -> QueryResult:
+        """Hybrid: FTS seed + one-hop graph traversal from FTS matches.
+
+        Condition B for the LadybugDB adapter — the full structured pipeline.
+        """
+        search_terms = [t for t in question.split() if len(t) > 2][:5]
+        if not search_terms:
+            search_terms = question.split()[:3]
+
+        # Phase 1: FTS seed
+        seed_ids: set[str] = set()
+        for table in self.include_node_tables:
+            cols = self._node_columns.get(table, [])
+            name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
+            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
+            if not name_col:
+                continue
+            try:
+                query = (
+                    f"MATCH (n:{table}) "
+                    f"WHERE n.{name_col} IS NOT NULL AND ("
+                    + " OR ".join(self._cypher_contains(f"n.{name_col}", t) for t in search_terms)
+                    + f") RETURN n.id, n.{name_col} LIMIT {n_results}"
+                )
+                rows = self._conn.execute(query).rows_as_dict()
+                for row in rows:
+                    n = row.get("n", row)
+                    if isinstance(n, dict):
+                        seed_ids.add(str(n.get("id", "")))
+            except Exception as e:
+                log.warning("hybrid seed query failed for table %s: %s", table, e)
+
+        if not seed_ids:
+            return self._file_query_semantic(question, n_results)
+
+        # Phase 2: one-hop graph traversal from seeds
+        context_parts: list[str] = []
+        retrieved: list[Entity] = []
+        seen_ids: set[str] = set(seed_ids)
+
+        for rel_table in self.include_edge_tables:
+            try:
+                src_col = self._rel_columns.get(rel_table, [])
+                edge_type_col = next(
+                    (c[0] for c in src_col if c[0] == EDGE_TYPE_DISCRIMINATOR),
+                    None,
+                )
+                if edge_type_col:
+                    cypher = (
+                        f"MATCH (a)-[r:{rel_table}]->(b) "
+                        f"WHERE a.id IN {list(seed_ids)} "
+                        f"RETURN a.id, b.id, r.{edge_type_col} LIMIT {n_results}"
+                    )
+                else:
+                    cypher = (
+                        f"MATCH (a)-[r:{rel_table}]->(b) "
+                        f"WHERE a.id IN {list(seed_ids)} "
+                        f"RETURN a.id, b.id LIMIT {n_results}"
+                    )
+                rows = list(self._conn.execute(cypher).rows_as_dict())
+                for row in rows:
+                    src = str(row.get("a", {}).get("id", ""))
+                    tgt = str(row.get("b", {}).get("id", ""))
+                    etype = str(row.get("r", {}).get(edge_type_col, rel_table)) if edge_type_col else rel_table
+                    other = tgt if src in seed_ids else src
+                    if other in seen_ids:
+                        continue
+                    seen_ids.add(other)
+                    # Fetch node content (prefer vault content over node metadata)
+                    for ntable in self.include_node_tables:
+                        try:
+                            nrows = self._conn.execute(
+                                f"MATCH (n:{ntable}) WHERE n.id = '{other}' RETURN n"
+                            ).rows_as_dict()
+                            if nrows:
+                                node = nrows[0].get("n", nrows[0])
+                                if isinstance(node, dict):
+                                    name_col = next((c[0] for c in self._node_columns.get(ntable, []) if c[0] in NAME_COLUMN_CANDIDATES), "id")
+                                    node_name = str(node.get(name_col, other))
+                                    note_id = node.get("note_id")
+                                    if note_id and self._vault_index:
+                                        vault_text = self._vault_content(note_id)
+                                        if vault_text:
+                                            text = vault_text
+                                        else:
+                                            text_col = next((c[0] for c in self._node_columns.get(ntable, []) if c[0] in ("text", "content", "body")), None)
+                                            text = str(node.get(text_col, node_name)) if text_col else node_name
+                                    else:
+                                        text_col = next((c[0] for c in self._node_columns.get(ntable, []) if c[0] in ("text", "content", "body")), None)
+                                        text = str(node.get(text_col, node_name)) if text_col else node_name
+                                    context_parts.append(f"[{ntable}/{other}] {node_name}\n{text[:300]}")
+                                    retrieved.append(Entity(
+                                        id=f"{ntable}:{other}",
+                                        name=node_name,
+                                        entity_type=ntable,
+                                        properties={"_via_edge_type": etype, "note_id": note_id},
+                                    ))
+                                    break
+                        except Exception:
+                            pass
+            except Exception as e:
+                log.warning("hybrid traverse failed for rel %s: %s", rel_table, e)
+
+        # Phase 3: also include seed nodes
+        for seed_id in seed_ids:
+            for ntable in self.include_node_tables:
+                try:
+                    nrows = self._conn.execute(
+                        f"MATCH (n:{ntable}) WHERE n.id = '{seed_id}' RETURN n"
+                    ).rows_as_dict()
+                    if nrows:
+                        node = nrows[0].get("n", nrows[0])
+                        if isinstance(node, dict) and f"{ntable}:{seed_id}" not in seen_ids:
+                            name_col = next((c[0] for c in self._node_columns.get(ntable, []) if c[0] in NAME_COLUMN_CANDIDATES), "id")
+                            node_name = str(node.get(name_col, seed_id))
+                            note_id = node.get("note_id")
+                            if note_id and self._vault_index:
+                                vault_text = self._vault_content(note_id)
+                                if vault_text:
+                                    text = vault_text
+                                else:
+                                    text = str(node)[:300]
+                            else:
+                                text = str(node)[:300]
+                            context_parts.append(f"[{ntable}/{seed_id}] {node_name}\n{text[:300]}")
+                            seen_ids.add(f"{ntable}:{seed_id}")
+                except Exception:
+                    pass
+
+        if not context_parts:
+            return self._file_query_semantic(question, n_results)
+
+        context_string = "\n\n".join(context_parts[:n_results])
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=retrieved[:n_results],
+            retrieval_path=["mode=hybrid"],
+        )
+
+    def _file_query_graph(
+        self, question: str, n_results: int
+    ) -> QueryResult:
+        """Graph-only: graph traversal from named starting nodes."""
+        search_terms = [t for t in question.split() if len(t) > 2][:3]
+        visited: set[str] = set()
+        queue: list[tuple[str, int]] = []
+
+        # Seed queue with FTS-matched nodes
+        for table in self.include_node_tables:
+            cols = self._node_columns.get(table, [])
+            name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
+            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
+            if not name_col:
+                continue
+            try:
+                query = (
+                    f"MATCH (n:{table}) WHERE "
+                    + " OR ".join(self._cypher_contains(f"n.{name_col}", t) for t in search_terms)
+                    + f" RETURN n.id LIMIT {n_results}"
+                )
+                rows = list(self._conn.execute(query).rows_as_dict())
+                for row in rows:
+                    if "n" in row:
+                        n = row["n"]
+                        nid = str(n.get("id", "")) if isinstance(n, dict) else ""
+                    elif "n.id" in row:
+                        nid = str(row["n.id"])
+                    else:
+                        nid = ""
+                    if nid and nid not in visited:
+                        queue.append((nid, 0))
+                        visited.add(nid)
+            except Exception:
+                pass
+
+        # BFS traversal up to depth 3
+        context_parts: list[str] = []
+        retrieved: list[Entity] = []
+        while queue and len(visited) < n_results * 3:
+            node_id, depth = queue.pop(0)
+            if depth >= 3:
+                continue
+            for rel_table in self.include_edge_tables:
+                try:
+                    cypher = (
+                        f"MATCH (a:Entity)-[r:{rel_table}]->(b) "
+                        f"WHERE a.id = '{node_id}' "
+                        f"RETURN b.id LIMIT {n_results}"
+                    )
+                    rows = self._conn.execute(cypher).rows_as_dict()
+                    for row in rows:
+                        if "b" in row:
+                            b = row["b"]
+                            nid = str(b.get("id", "")) if isinstance(b, dict) else ""
+                        elif "b.id" in row:
+                            nid = str(row["b.id"])
+                        else:
+                            nid = ""
+                        if nid and nid not in visited:
+                            queue.append((nid, depth + 1))
+                            visited.add(nid)
+                except Exception:
+                    pass
+
+        # Fetch content for visited nodes
+        for nid in list(visited)[:n_results]:
+            for ntable in self.include_node_tables:
+                try:
+                    nrows_result = self._conn.execute(
+                        f"MATCH (n:{ntable}) WHERE n.id = '{nid}' RETURN n"
+                    )
+                    nrows = list(nrows_result.rows_as_dict())
+                    if nrows:
+                        node = nrows[0].get("n", nrows[0])
+                        if isinstance(node, dict):
+                            name_col = next((c[0] for c in self._node_columns.get(ntable, []) if c[0] in NAME_COLUMN_CANDIDATES), "id")
+                            node_name = str(node.get(name_col, nid))
+                            context_parts.append(f"[{ntable}/{nid}] {node_name}\n{str(node)[:300]}")
+                            retrieved.append(Entity(
+                                id=f"{ntable}:{nid}",
+                                name=node_name,
+                                entity_type=ntable,
+                            ))
+                            break
+                except Exception:
+                    pass
+
+        if not context_parts:
+            return QueryResult(
+                answer="",
+                context_string="",
+                error="NO_RESULTS",
+                retrieval_path=["mode=graph"],
+            )
+
+        context_string = "\n\n".join(context_parts[:n_results])
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=retrieved[:n_results],
+            retrieval_path=["mode=graph"],
+        )
+
+    def _file_query_path(
+        self, question: str, n_results: int
+    ) -> QueryResult:
+        """Path-based: find all paths between FTS-matched term pairs."""
+        search_terms = [t for t in question.split() if len(t) > 2]
+        if len(search_terms) < 2:
+            return self._file_query_semantic(question, n_results)
+
+        term_a, term_b = search_terms[0], search_terms[1]
+        found_a, found_b = [], []
+
+        for table in self.include_node_tables:
+            cols = self._node_columns.get(table, [])
+            name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
+            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
+            if not name_col:
+                continue
+            try:
+                for term, out_list in [(term_a, found_a), (term_b, found_b)]:
+                    rows = list(self._conn.execute(
+                        f"MATCH (n:{table}) WHERE " + self._cypher_contains(f"n.{name_col}", term) + " RETURN n.id LIMIT 5"
+                    ).rows_as_dict())
+                    for row in rows:
+                        n = row.get("n", row)
+                        if isinstance(n, dict):
+                            out_list.append(str(n.get("id", "")))
+            except Exception:
+                pass
+
+        context_parts = []
+        for src in found_a[:3]:
+            for rel_table in self.include_edge_tables:
+                try:
+                    rows = self._conn.execute(
+                        f"MATCH path=(a){{id: '{src}'}}-[]->(b){{id: '{found_b[0]}'}} RETURN path LIMIT 3"
+                    ).rows_as_dict()
+                    for row in rows:
+                        path_str = str(row.get("path", ""))
+                        context_parts.append(f"path: {path_str[:300]}")
+                except Exception:
+                    pass
+
+        if not context_parts:
+            return self._file_query_hybrid(question, n_results)
+
+        context_string = "\n\n".join(context_parts[:n_results])
+        return QueryResult(
+            answer=context_string,
+            context_string=context_string,
+            retrieved_entities=[],
+            retrieval_path=["mode=path"],
         )
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
