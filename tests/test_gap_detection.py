@@ -142,6 +142,37 @@ def test_homology_gracefully_skipped_when_disabled(gap_graph):
     assert report.h1_skipped is False  # we opted out, not "skipped by policy"
 
 
+# --- flat_rarity_mode flagging ----------------------------------------
+
+
+def test_flat_rarity_mode_flagged_when_two_sized_components(gap_graph):
+    """The synthetic_gap_graph fixture has exactly two sized clusters
+    once the isolate is filtered out. The rarity-weighting fallback
+    fires (every shared type weighted 1.0), and the report should
+    flag it so JSON consumers can see why scores are inflated."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    assert report.flat_rarity_mode is True
+
+
+def test_flat_rarity_mode_off_for_no_candidate_pairs():
+    """When there aren't enough sized components to form a pair,
+    flat_rarity_mode stays False — there's nothing to fall back on."""
+    report = score_gap_detection([], [], run_homology=False)
+    assert report.flat_rarity_mode is False
+
+
+def test_flat_rarity_mode_text_in_format_report(gap_graph):
+    """format_report must surface the flag so a maintainer reading the
+    rendered card sees the warning, not just the JSON consumer."""
+    from sme.categories.gap_detection import format_report
+
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    rendered = format_report(report)
+    assert "flat-rarity mode" in rendered
+
+
 # --- Empty-graph guardrail -------------------------------------------
 
 
@@ -154,3 +185,4 @@ def test_empty_graph_is_all_zeros():
     assert report.isolated_nodes == 0
     assert report.bridges == []
     assert report.candidate_gaps == []
+    assert report.flat_rarity_mode is False
