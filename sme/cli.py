@@ -9,10 +9,13 @@ come later when the category scoring is implemented.
 from __future__ import annotations
 
 import argparse
+import importlib
+import inspect
 import json
 import logging
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -22,145 +25,105 @@ from sme.topology import TopologyAnalyzer
 log = logging.getLogger("sme")
 
 
+# ---------------------------------------------------------------------------
+# Adapter registry — allowlist pattern (replaces per-adapter drop lists).
+#
+# Each entry declares its import path, aliases, and kwarg renames.  The
+# actual set of accepted kwargs is discovered via inspect.signature() at
+# construction time, so the allowlist never drifts from the constructor.
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class _AdapterSpec:
+    module: str
+    cls_name: str
+    aliases: tuple[str, ...]
+    rename: dict[str, str] = field(default_factory=dict)
+
+
+_ADAPTER_SPECS: tuple[_AdapterSpec, ...] = (
+    _AdapterSpec(
+        module="sme.adapters.ladybugdb",
+        cls_name="LadybugDBAdapter",
+        aliases=("ladybugdb", "ladybug"),
+    ),
+    _AdapterSpec(
+        module="sme.adapters.mempalace_daemon",
+        cls_name="MemPalaceDaemonAdapter",
+        aliases=("mempalace-daemon", "mempalace_daemon"),
+    ),
+    _AdapterSpec(
+        module="sme.adapters.familiar",
+        cls_name="FamiliarAdapter",
+        aliases=("familiar",),
+        rename={"api_url": "base_url"},
+    ),
+    _AdapterSpec(
+        module="sme.adapters.mempalace",
+        cls_name="MemPalaceAdapter",
+        aliases=("mempalace",),
+    ),
+    _AdapterSpec(
+        module="sme.adapters.flat_baseline",
+        cls_name="FlatBaselineAdapter",
+        aliases=("flat", "flat_baseline"),
+    ),
+    _AdapterSpec(
+        module="sme.conditions.full_context",
+        cls_name="FullContextAdapter",
+        aliases=("full-context", "full_context"),
+        rename={"db_path": "vault_dir"},
+    ),
+    _AdapterSpec(
+        module="sme.conditions.karpathy_compiled",
+        cls_name="KarpathyCompiledAdapter",
+        aliases=("karpathy-compiled", "karpathy_compiled"),
+        rename={"db_path": "compiled_dir"},
+    ),
+)
+
+_REGISTRY: dict[str, _AdapterSpec] = {}
+for _spec in _ADAPTER_SPECS:
+    for _alias in _spec.aliases:
+        _REGISTRY[_alias] = _spec
+
+
+def _accepted_params(cls: type) -> tuple[set[str], bool]:
+    """Return (named params, has_var_keyword) from cls.__init__."""
+    sig = inspect.signature(cls.__init__)
+    names: set[str] = set()
+    has_var_keyword = False
+    for pname, param in sig.parameters.items():
+        if pname == "self":
+            continue
+        if param.kind == inspect.Parameter.VAR_KEYWORD:
+            has_var_keyword = True
+        elif param.kind != inspect.Parameter.VAR_POSITIONAL:
+            names.add(pname)
+    return names, has_var_keyword
+
+
 def _load_adapter(name: str, **kwargs) -> SMEAdapter:
     name = name.lower()
-    # Drop Nones so adapter defaults kick in
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
 
-    if name == "ladybugdb" or name == "ladybug":
-        from sme.adapters.ladybugdb import LadybugDBAdapter
+    spec = _REGISTRY.get(name)
+    if spec is None:
+        raise SystemExit(f"unknown adapter: {name}")
 
-        return LadybugDBAdapter(**kwargs)
+    for old_key, new_key in spec.rename.items():
+        if old_key in kwargs:
+            kwargs[new_key] = kwargs.pop(old_key)
 
-    if name in ("mempalace-daemon", "mempalace_daemon"):
-        from sme.adapters.mempalace_daemon import MemPalaceDaemonAdapter
+    mod = importlib.import_module(spec.module)
+    cls = getattr(mod, spec.cls_name)
 
-        # Drop kwargs the daemon adapter doesn't understand
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "collection_name",
-            "default_query_mode",
-            "db_path",
-            "buffer_pool_size",
-        ):
-            kwargs.pop(k, None)
-        return MemPalaceDaemonAdapter(**kwargs)
+    accepted, has_var_kw = _accepted_params(cls)
+    if not has_var_kw:
+        kwargs = {k: v for k, v in kwargs.items() if k in accepted}
 
-    if name == "familiar":
-        from sme.adapters.familiar import FamiliarAdapter
-
-        # Drop kwargs the familiar adapter doesn't understand
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "collection_name",
-            "default_query_mode",
-            "db_path",
-            "buffer_pool_size",
-            "api_key",
-            "kind",
-            "read_only",
-        ):
-            kwargs.pop(k, None)
-        # CLI uses --api-url; familiar adapter constructor uses base_url.
-        if "api_url" in kwargs:
-            kwargs["base_url"] = kwargs.pop("api_url")
-        return FamiliarAdapter(**kwargs)
-
-    if name == "mempalace":
-        from sme.adapters.mempalace import MemPalaceAdapter
-
-        # LadybugDB-specific kwargs are silently ignored for other adapters
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "api_url",
-            "api_key",
-            "kind",
-            "default_query_mode",
-        ):
-            kwargs.pop(k, None)
-        return MemPalaceAdapter(**kwargs)
-
-    if name == "flat" or name == "flat_baseline":
-        from sme.adapters.flat_baseline import FlatBaselineAdapter
-
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "default_query_mode",
-        ):
-            kwargs.pop(k, None)
-        return FlatBaselineAdapter(**kwargs)
-
-    if name in ("full-context", "full_context"):
-        # Karpathy-baseline Condition D1 — see
-        # docs/cross_validation_2026.md § (4) and
-        # sme/conditions/full_context.py. Treats `--db` as the vault
-        # path; loads every .md file under it as the prompt context.
-        from sme.conditions.full_context import FullContextAdapter
-
-        # Drop kwargs other adapters use that don't apply to D1.
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "collection_name",
-            "default_query_mode",
-            "mock_inference",
-            "timeout_s",
-            "buffer_pool_size",
-        ):
-            kwargs.pop(k, None)
-        # FullContextAdapter takes vault_dir, not db_path.
-        if "db_path" in kwargs:
-            kwargs["vault_dir"] = kwargs.pop("db_path")
-        return FullContextAdapter(**kwargs)
-
-    if name in ("karpathy-compiled", "karpathy_compiled"):
-        # Karpathy-baseline Condition D2 — see
-        # docs/cross_validation_2026.md § (4) and
-        # sme/conditions/karpathy_compiled.py. Reads a pre-compiled
-        # wiki + index produced by `sme-eval compile-wiki`. Treats
-        # `--db` as the path to the compiled output directory.
-        from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
-
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "collection_name",
-            "default_query_mode",
-            "mock_inference",
-            "timeout_s",
-            "buffer_pool_size",
-            "read_only",  # accepted for CLI parity; not a constructor arg
-        ):
-            kwargs.pop(k, None)
-        if "db_path" in kwargs:
-            kwargs["compiled_dir"] = kwargs.pop("db_path")
-        return KarpathyCompiledAdapter(**kwargs)
-
-    raise SystemExit(f"unknown adapter: {name}")
+    return cls(**kwargs)
 
 
 def _fmt_int(n: int) -> str:
