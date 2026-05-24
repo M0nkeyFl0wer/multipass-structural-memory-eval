@@ -39,6 +39,58 @@ from sme.adapters.base import Edge, Entity, QueryResult, SMEAdapter
 _DEFAULT_DAEMON_TIMEOUT = 10.0
 _DEFAULT_LIMIT = 5
 
+_CLOUD_CHAT_CONFIG_CANDIDATES = [
+    os.path.expanduser("~/.config/cloud-chat-assistant/config.json"),
+    os.path.expanduser("~/.cloud-chat-assistant.json"),
+]
+
+
+def _resolve_default_backend(bk: dict) -> tuple[str, dict]:
+    """Pick a backend + defaults when none was explicitly passed.
+
+    Priority order:
+      1. RLM_BASE_URL / RLM_MODEL env vars — point the openai backend
+         at any OpenAI-compat endpoint (familiar's own /v1, katana's
+         llama.cpp, vLLM, etc.). Most explicit; wins.
+      2. Cloud-chat-assistant config file (JP's home env) — Azure
+         OpenAI endpoint with key. Reads as `azure_openai`.
+      3. Standard env vars (AZURE_OPENAI / OPENAI / ANTHROPIC / PORTKEY).
+      4. Fall through to openai default (will fail without a key).
+    """
+    if os.environ.get("RLM_BASE_URL"):
+        bk.setdefault("base_url", os.environ["RLM_BASE_URL"])
+        bk.setdefault("model_name", os.environ.get("RLM_MODEL", "qwen2.5-7b"))
+        bk.setdefault("api_key", os.environ.get("RLM_API_KEY", "no-auth-needed"))
+        return "openai", bk
+
+    for path in _CLOUD_CHAT_CONFIG_CANDIDATES:
+        try:
+            with open(path) as f:
+                cfg = json.load(f)
+        except (OSError, ValueError):
+            continue
+        endpoint = cfg.get("endpoint") or cfg.get("azure_endpoint")
+        api_key = cfg.get("api_key")
+        deployment = cfg.get("deployment")
+        if endpoint and api_key:
+            bk.setdefault("azure_endpoint", endpoint)
+            bk.setdefault("api_key", api_key)
+            if deployment:
+                bk.setdefault("azure_deployment", deployment)
+                bk.setdefault("model_name", deployment)
+            bk.setdefault("api_version", cfg.get("api_version", "2024-08-01-preview"))
+            return "azure_openai", bk
+
+    if os.environ.get("AZURE_OPENAI_API_KEY") and os.environ.get("AZURE_OPENAI_ENDPOINT"):
+        return "azure_openai", bk
+    if os.environ.get("OPENAI_API_KEY"):
+        return "openai", bk
+    if os.environ.get("ANTHROPIC_API_KEY"):
+        return "anthropic", bk
+    if os.environ.get("PORTKEY_API_KEY"):
+        return "portkey", bk
+    return "openai", bk
+
 
 class RlmAdapter(SMEAdapter):
     """RLM-orchestrated palace consumer.
@@ -59,16 +111,33 @@ class RlmAdapter(SMEAdapter):
         *,
         api_url: Optional[str] = None,
         api_key: Optional[str] = None,
-        backend: str = "openai",
+        backend: Optional[str] = None,
         backend_kwargs: Optional[dict[str, Any]] = None,
         environment: str = "local",
         verbose: bool = False,
         kind: str = "content",
         timeout_s: float = _DEFAULT_DAEMON_TIMEOUT,
+        invocation_mode: Optional[str] = None,
         **_unused: Any,
     ) -> None:
+        """invocation_mode controls system-prompt augmentation for the
+        SME #3 Step 2 discriminating experiment:
+          - None (default): vanilla RLM system prompt; LLM decides when
+            to invoke mempalace_search based on training. Matches Step 1
+            baseline behavior.
+          - "forced": prepend a directive requiring at least one
+            mempalace_search call before FINAL. Tests whether the
+            invocation-rate ceiling (gemma4: 60% zero-call) is the
+            dominant Cat 9a lever on substring-shaped corpora.
+          - "grounded": prepend a directive requiring the answer to
+            quote at least one retrieved source filename. Tests whether
+            the substring-scorer-vs-LLM-synthesis gap is the lever on
+            file-shaped corpora (n=200 git-derived probes, etc.).
+        """
+        self.invocation_mode = invocation_mode
         # Lazy-import RLM so multipass doesn't require it for non-rlm runs.
         from rlm import RLM
+        from rlm.utils.prompts import RLM_SYSTEM_PROMPT
 
         self.api_url = (api_url or os.environ.get("PALACE_DAEMON_URL", "http://disks.jphe.in:8085")).rstrip("/")
         self.api_key = api_key or os.environ.get("PALACE_API_KEY", "")
@@ -77,17 +146,30 @@ class RlmAdapter(SMEAdapter):
         self.verbose = verbose
 
         # Per-query capture buffer — populated by _mempalace_search and
-        # drained at the end of each query() call.
+        # drained at the end of each query() call. _capture grows by one
+        # entry per drawer returned (across all tool invocations);
+        # _tool_call_count tracks actual invocations of _mempalace_search
+        # so 9a-shaped invocation-rate reads aren't conflated with
+        # per-call drawer counts.
         self._capture: list[dict] = []
+        self._tool_call_count: int = 0
 
+        # Backend resolution. JP's home environment ships a multi-provider
+        # config in ~/.config/cloud-chat-assistant/config.json. If no
+        # explicit backend was passed, prefer that file's Azure OpenAI
+        # entry (which is what cloud-chat-assistant uses by default).
         bk = dict(backend_kwargs or {})
-        # Default to a sensible model when none is given.
+        if backend is None:
+            backend, bk = _resolve_default_backend(bk)
+        # Per-backend defaults for model + key.
         if "model_name" not in bk:
             if backend == "portkey":
                 bk["model_name"] = "@openai/gpt-5-nano"
             elif backend == "openai":
                 bk["model_name"] = "gpt-5-nano"
-        # Resolve env var fallbacks for keys.
+            elif backend == "azure_openai":
+                # Filled in by _resolve_default_backend if the file is present.
+                bk.setdefault("model_name", "gpt-4o")
         if "api_key" not in bk:
             if backend == "portkey":
                 bk["api_key"] = os.environ.get("PORTKEY_API_KEY", "")
@@ -95,8 +177,41 @@ class RlmAdapter(SMEAdapter):
                 bk["api_key"] = os.environ.get("OPENAI_API_KEY", "")
             elif backend == "anthropic":
                 bk["api_key"] = os.environ.get("ANTHROPIC_API_KEY", "")
+            elif backend == "azure_openai":
+                bk["api_key"] = os.environ.get("AZURE_OPENAI_API_KEY", "")
 
-        self._rlm = RLM(
+        # Build the system prompt. By default, use RLM's own. In
+        # invocation_mode="forced"/"grounded", prepend an extra
+        # paragraph of constraints BEFORE the standard RLM prompt
+        # (which still owns the {custom_tools_section} format
+        # placeholder that RLM fills at completion time).
+        custom_system_prompt: Optional[str] = None
+        if invocation_mode == "forced":
+            custom_system_prompt = (
+                "MANDATORY RETRIEVAL CONSTRAINT (test condition, do not ignore):\n"
+                "Before you provide FINAL(...) or FINAL_VAR(...), you MUST call\n"
+                "`mempalace_search(...)` at least once with a query relevant to the\n"
+                "user's question. Even if you believe you can answer from training\n"
+                "data, you MUST first invoke the search tool. Never produce FINAL\n"
+                "without at least one mempalace_search call in your history.\n"
+                "\n"
+                + RLM_SYSTEM_PROMPT
+            )
+        elif invocation_mode == "grounded":
+            custom_system_prompt = (
+                "MANDATORY GROUNDING CONSTRAINT (test condition, do not ignore):\n"
+                "Before you provide FINAL(...) or FINAL_VAR(...), you MUST (1) call\n"
+                "`mempalace_search(...)` at least once with a query relevant to the\n"
+                "user's question, AND (2) include in your final answer at least one\n"
+                "source filename or drawer_id from the retrieved results. Quote the\n"
+                "source verbatim from the mempalace_search return value. If no\n"
+                "retrieved drawer is relevant, say so explicitly in FINAL and quote\n"
+                "the search query you used.\n"
+                "\n"
+                + RLM_SYSTEM_PROMPT
+            )
+
+        rlm_kwargs: dict[str, Any] = dict(
             backend=backend,
             backend_kwargs=bk,
             environment=environment,
@@ -105,7 +220,7 @@ class RlmAdapter(SMEAdapter):
                     "tool": self._mempalace_search,
                     "description": (
                         "Search JP's palace for drawers semantically related to a query. "
-                        "Returns a list of dicts with text, wing, room, similarity. "
+                        "Returns a list of dicts with text, wing, room, source_file, similarity. "
                         "Default limit is 5. Use this to ground factual claims about JP, "
                         "his projects, his realm, and any past events."
                     ),
@@ -113,6 +228,9 @@ class RlmAdapter(SMEAdapter):
             },
             verbose=verbose,
         )
+        if custom_system_prompt is not None:
+            rlm_kwargs["custom_system_prompt"] = custom_system_prompt
+        self._rlm = RLM(**rlm_kwargs)
 
     # ------------------------------------------------------------------
     # mempalace_search — exposed to RLM's REPL via custom_tools.
@@ -120,6 +238,7 @@ class RlmAdapter(SMEAdapter):
 
     def _mempalace_search(self, query: str, limit: int = _DEFAULT_LIMIT) -> list[dict]:
         """HTTP call to palace-daemon /search; capture results for SME scoring."""
+        self._tool_call_count += 1
         params = {"q": query, "limit": str(limit), "kind": self.kind}
         url = f"{self.api_url}/search?" + "&".join(f"{k}={_urlrequest.quote(v)}" for k, v in params.items())
         req = _urlrequest.Request(url)
@@ -134,6 +253,11 @@ class RlmAdapter(SMEAdapter):
         results = payload.get("results", []) or []
         # Trim what we return to RLM (it has limited context); keep the same
         # shape stable so the model's prompt isn't re-tokenized by surprise.
+        # NOTE: source_file is load-bearing — SME's substring scorer matches
+        # against expected_sources which are filenames; dropping source_file
+        # from the trimmed entry meant the LLM couldn't quote it AND the
+        # context_string used by the scorer didn't contain it, so retrieval
+        # that landed the right drawer would still score 0. Fixed 2026-05-16.
         trimmed: list[dict] = []
         for r in results[:limit]:
             entry = {
@@ -141,6 +265,7 @@ class RlmAdapter(SMEAdapter):
                 "text": (r.get("text") or "")[:500],
                 "wing": r.get("wing"),
                 "room": r.get("room"),
+                "source_file": r.get("source_file"),
                 "similarity": r.get("similarity"),
             }
             trimmed.append(entry)
@@ -153,8 +278,20 @@ class RlmAdapter(SMEAdapter):
 
     def ingest_corpus(self, corpus: list[dict]) -> dict:
         """No-op stub. RLM consumes a palace it didn't author; ingestion
-        happens upstream via `mempalace mine` / familiar reflect."""
-        return {"entities_created": 0, "edges_created": 0, "skipped": True}
+        happens upstream via `mempalace mine` / familiar reflect.
+
+        Returns the full SMEAdapter contract dict (with errors/warnings
+        empty lists) so downstream harness code reading those keys
+        doesn't KeyError. Prior to 2026-05-16 this returned an
+        incomplete dict missing both required keys.
+        """
+        return {
+            "entities_created": 0,
+            "edges_created": 0,
+            "errors": [],
+            "warnings": [],
+            "skipped": True,
+        }
 
     def get_graph_snapshot(self) -> tuple[list[Entity], list[Edge]]:
         """RLM doesn't maintain a graph view. Return empty lists — Cat 8
@@ -164,6 +301,7 @@ class RlmAdapter(SMEAdapter):
 
     def query(self, question: str) -> QueryResult:
         self._capture = []
+        self._tool_call_count = 0
         t0 = time.time()
         try:
             result = self._rlm.completion(question)
@@ -175,20 +313,31 @@ class RlmAdapter(SMEAdapter):
                 error=f"{type(e).__name__}: {e}",
             )
 
-        # Build context_string from the captured search results in call order.
-        # Mirrors familiar's "── Palace context (N drawers) ──" format so
-        # the substring scorer behaves consistently across adapters.
+        # Build context_string from BOTH the captured search results AND
+        # the synthesized answer. RLM's "context" is split between what
+        # the LM pulled via tool calls (the search captures) and what it
+        # produced via training-data synthesis (the answer). Familiar's
+        # equivalent — the system prompt — is purely retrieval. To give
+        # the substring scorer a fair shake at RLM's full output, we
+        # include both sides.
         ctx_lines = [f"── RLM-orchestrated retrieval ({len(self._capture)} drawers) ──"]
         for r in self._capture:
             tags = []
-            if r.get("drawer_id"): tags.append(f"drawer_id={r['drawer_id']}")
-            if r.get("wing"): tags.append(f"wing={r['wing']}")
-            if r.get("room"): tags.append(f"room={r['room']}")
+            if r.get("drawer_id"):
+                tags.append(f"drawer_id={r['drawer_id']}")
+            if r.get("source_file"):
+                tags.append(f"source_file={r['source_file']}")
+            if r.get("wing"):
+                tags.append(f"wing={r['wing']}")
+            if r.get("room"):
+                tags.append(f"room={r['room']}")
             if isinstance(r.get("similarity"), (int, float)):
                 tags.append(f"similarity={r['similarity']:.3f}")
             ctx_lines.append("[" + " · ".join(tags) + "]")
             ctx_lines.append(r.get("text", ""))
             ctx_lines.append("")
+        ctx_lines.append("── RLM answer ──")
+        ctx_lines.append(answer)
         context_string = "\n".join(ctx_lines)
 
         # SME entities — one per captured drawer.
@@ -215,9 +364,9 @@ class RlmAdapter(SMEAdapter):
             context_string=context_string,
             retrieved_entities=entities,
             retrieved_edges=[],
+            # Strings, not dicts — cli's `'; '.join(path)` expects strings.
             retrieval_path=[
-                {"step": "rlm_completion", "elapsed_ms": elapsed_ms,
-                 "tool_calls": len(self._capture)},
+                f"rlm_completion ({elapsed_ms}ms, {self._tool_call_count} tool calls, {len(self._capture)} drawers)",
             ],
             error=None,
         )

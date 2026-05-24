@@ -311,19 +311,23 @@ def score_gap_detection(
         }
 
         recalled = 0
-        considered = 0
+        seeded_applicable = 0  # Renamed from `considered` to avoid shadowing
+        # the candidate-pair count from _candidate_gaps() above — that
+        # value is load-bearing for the report's `candidate_gaps_considered`
+        # field (pre-filter total over component pairs), distinct from
+        # the seeded-edge denominator used here for gap_recall.
         for u, v in seeded_missing_edges:
             cu = node_to_comp.get(u)
             cv = node_to_comp.get(v)
             if cu is None or cv is None:
                 continue
-            considered += 1
+            seeded_applicable += 1
             if cu == cv:
                 continue  # Endpoints already in same component — not a cross-cluster gap
             if frozenset({cu, cv}) in reported_pairs:
                 recalled += 1
 
-        gap_recall = (recalled / considered) if considered else 0.0
+        gap_recall = (recalled / seeded_applicable) if seeded_applicable else 0.0
         gap_precision = (
             (recalled / len(reported_pairs)) if reported_pairs else 0.0
         )

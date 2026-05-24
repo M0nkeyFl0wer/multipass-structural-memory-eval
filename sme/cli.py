@@ -829,21 +829,7 @@ def cmd_cat5(args: argparse.Namespace) -> int:
         raw = doc.get("missing_edges") or doc.get("seeded_missing_edges") or []
         seeded = [(pair[0], pair[1]) for pair in raw if len(pair) == 2]
 
-    adapter_kwargs: dict[str, Any] = {
-        "db_path": args.db,
-        "read_only": True,
-        "auto_discover": args.auto_discover,
-    }
-    if args.node_tables:
-        adapter_kwargs["include_node_tables"] = args.node_tables
-    if args.edge_tables:
-        adapter_kwargs["include_edge_tables"] = args.edge_tables
-    if args.kg_path:
-        adapter_kwargs["kg_path"] = args.kg_path
-    if args.collection_name:
-        adapter_kwargs["collection_name"] = args.collection_name
-
-    adapter = _load_adapter(args.adapter, **adapter_kwargs)
+    adapter = _load_adapter_from_args(args)
     entities, edges = adapter.get_graph_snapshot()
     log.info("snapshot: %d entities, %d edges", len(entities), len(edges))
 

@@ -99,6 +99,24 @@ def test_karpathy_compiled_renames_db_path_to_compiled_dir(stub_loader):
     assert out.captured_kwargs == {"compiled_dir": "/tmp/wiki"}
 
 
+def test_rlm_keeps_kind_and_api_url(stub_loader):
+    """`rlm` accepts `kind` — it forwards into mempalace_search /search."""
+    stub_loader("rlm")
+    out = _load_adapter(
+        "rlm",
+        api_url="http://disks:8085",
+        api_key="abc",
+        kind="content",
+        include_node_tables=["X"],
+        db_path="/tmp/db",
+    )
+    assert out.captured_kwargs == {
+        "api_url": "http://disks:8085",
+        "api_key": "abc",
+        "kind": "content",
+    }
+
+
 def test_unknown_kwargs_silently_dropped(stub_loader):
     """The PR #7 class of regression: a new CLI flag must not blow up
     an old adapter just by being present in the kwargs bag."""

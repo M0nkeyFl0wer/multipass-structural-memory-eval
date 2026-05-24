@@ -85,6 +85,43 @@ def test_seeded_gap_recall_is_one(gap_graph):
     assert report.gap_precision == pytest.approx(1.0)
 
 
+def test_seeded_gap_does_not_corrupt_candidate_gaps_considered(gap_graph):
+    """Regression for the variable-shadowing bug at gap_detection.py:314.
+
+    Before the fix, providing seeded_missing_edges silently rebound the
+    `considered` local from "component pairs examined" to "seeded edges
+    examined" — so `candidate_gaps_considered` in the returned report
+    carried the wrong number when graded-fixture runs were used.
+
+    The two values must remain distinct.
+    """
+    entities, edges, truth = gap_graph
+
+    # Reading WITHOUT seeded edges — captures the true component-pair count.
+    plain = score_gap_detection(entities, edges, run_homology=False)
+    plain_considered = plain.candidate_gaps_considered
+
+    # Reading WITH seeded edges — candidate_gaps_considered must stay
+    # the same (it's a property of the structural pass, not of the
+    # seeded scoring overlay).
+    graded = score_gap_detection(
+        entities,
+        edges,
+        seeded_missing_edges=truth["seeded_missing_edges"],
+        run_homology=False,
+    )
+    assert graded.candidate_gaps_considered == plain_considered, (
+        f"candidate_gaps_considered changed when seeded edges were "
+        f"supplied: plain={plain_considered}, graded="
+        f"{graded.candidate_gaps_considered}. The seeded-edge "
+        f"counter should be a separate local, not shadow the "
+        f"component-pair counter."
+    )
+    # Sanity: gap_recall is still computed correctly (the variable
+    # rename should be invisible to consumers reading this field).
+    assert graded.gap_recall == pytest.approx(1.0)
+
+
 def test_candidate_gap_has_score_and_examples(gap_graph):
     entities, edges, _ = gap_graph
     report = score_gap_detection(entities, edges, run_homology=False)
