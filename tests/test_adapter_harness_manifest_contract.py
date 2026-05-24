@@ -15,13 +15,9 @@ import inspect
 from sme.adapters.base import SMEAdapter
 from sme.adapters.familiar import FamiliarAdapter
 from sme.adapters.flat_baseline import FlatBaselineAdapter
-from sme.adapters.hindsight import HindsightAdapter
 from sme.adapters.ladybugdb import LadybugDBAdapter
-from sme.adapters.mem0 import Mem0Adapter
 from sme.adapters.mempalace import MemPalaceAdapter
 from sme.adapters.mempalace_daemon import MemPalaceDaemonAdapter
-from sme.adapters.omega import OmegaAdapter
-from sme.adapters.rlm_adapter import RlmAdapter
 from sme.conditions.full_context import FullContextAdapter
 from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
 
@@ -29,14 +25,10 @@ ADAPTER_CLASSES = [
     FamiliarAdapter,
     FlatBaselineAdapter,
     FullContextAdapter,
-    HindsightAdapter,
     KarpathyCompiledAdapter,
     LadybugDBAdapter,
-    Mem0Adapter,
     MemPalaceAdapter,
     MemPalaceDaemonAdapter,
-    OmegaAdapter,
-    RlmAdapter,
 ]
 
 
