@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from sme.categories.gap_detection import score_gap_detection
+from sme.categories.gap_detection import format_report, score_gap_detection
 
 ripser = pytest.importorskip  # alias for readability below
 
@@ -154,3 +154,21 @@ def test_empty_graph_is_all_zeros():
     assert report.isolated_nodes == 0
     assert report.bridges == []
     assert report.candidate_gaps == []
+
+
+# --- Isolated-by-type (#14) -------------------------------------------
+
+
+def test_isolated_by_type(gap_graph):
+    """Issue #14 — isolates broken out by entity_type."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    assert report.isolated_by_type == {"tag": 1}
+
+
+def test_format_report_shows_isolate_types(gap_graph):
+    """Issue #14 — format_report includes type breakdown for isolates."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    rendered = format_report(report)
+    assert "tag: 1" in rendered
