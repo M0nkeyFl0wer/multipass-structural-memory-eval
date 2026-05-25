@@ -5,9 +5,13 @@ upstream (`src/evaluation/evaluate_qa.py` in xiaowu0162/LongMemEval, MIT)
 in a form that's callable from SME's cross-validation harness without
 spawning an upstream subprocess.
 
-Public surface is the single function `grade_answer(question_type, ...)`
-which returns a dict with `autoeval_label` in
-{CORRECT, PARTIAL, INCORRECT, ABSTAIN, ERROR}.
+Public surface:
+
+- `grade_answer(question_type, ...)` — single judge call; returns a dict
+  with `autoeval_label` in {CORRECT, PARTIAL, INCORRECT, ABSTAIN, ERROR}.
+- `grade_answer_replicated(question_type, ..., replicates=K)` — K-replicate
+  judge calls with majority-vote aggregation, used to characterize
+  intra-rater stochasticity (see upstream issue #22).
 
 Design notes:
 
@@ -33,6 +37,7 @@ import json
 import logging
 import os
 import time
+from collections import Counter
 from typing import Any, Optional
 
 log = logging.getLogger(__name__)
@@ -187,6 +192,7 @@ def _call_openai(
     model: str,
     prompt: str,
     max_retries: int = 3,
+    temperature: float = 0.0,
 ) -> dict:
     """Call the OpenAI Chat Completions endpoint with simple backoff.
 
@@ -200,7 +206,7 @@ def _call_openai(
             resp = client.chat.completions.create(
                 model=model,
                 messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
+                temperature=temperature,
             )
             choice = resp.choices[0]
             content = getattr(choice.message, "content", "") or ""
@@ -253,6 +259,7 @@ def grade_answer(
     *,
     judge_model: str = DEFAULT_JUDGE_MODEL,
     client: Optional[Any] = None,
+    temperature: float = 0.0,
 ) -> dict:
     """Grade a system answer against the gold answer using a GPT-4o judge.
 
@@ -267,6 +274,10 @@ def grade_answer(
             ``client.chat.completions.create(model, messages, ...)``).
             When None, one is constructed from ``OPENAI_API_KEY``.
             Tests pass a fake.
+        temperature: Sampling temperature for the judge call. Defaults to
+            0.0 (deterministic, the LongMemEval paper setting). Use a
+            higher value via ``grade_answer_replicated`` to characterize
+            intra-rater variance.
 
     Returns:
         {
@@ -297,7 +308,10 @@ def grade_answer(
         question_type, question, gold_answer, hypothesis
     )
     try:
-        called = _call_openai(client=client, model=judge_model, prompt=prompt)
+        called = _call_openai(
+            client=client, model=judge_model, prompt=prompt,
+            temperature=temperature,
+        )
     except Exception as e:  # noqa: BLE001 — judge errors are diagnostic
         base_result["rationale"] = f"judge call failed after retries: {e}"
         return base_result
@@ -308,4 +322,116 @@ def grade_answer(
         "judge_model": judge_model,
         "rationale": rationale,
         "usage": called["usage"],
+    }
+
+
+def grade_answer_replicated(
+    question_type: str,
+    question: str,
+    gold_answer: str,
+    hypothesis: str,
+    *,
+    replicates: int = 1,
+    judge_model: str = DEFAULT_JUDGE_MODEL,
+    client: Optional[Any] = None,
+    temperature: Optional[float] = None,
+) -> dict:
+    """Grade with K replicates to characterize judge variance.
+
+    When ``replicates <= 1``, delegates directly to :func:`grade_answer`
+    with ``temperature=0.0`` by default (backward compatible — single
+    deterministic call matches the LongMemEval paper setting).
+
+    When ``replicates > 1``, runs K independent judge calls at
+    ``temperature=0.3`` by default (override via the ``temperature``
+    argument) and aggregates via majority vote, excluding ``ERROR``
+    replicates from the vote.
+
+    Args:
+        question_type: One of LME_QUESTION_TYPES or 'abstention'.
+        question: The natural-language question text.
+        gold_answer: The reference answer string.
+        hypothesis: The system's generated answer.
+        replicates: Number of independent judge calls (K).
+        judge_model: OpenAI model id to use.
+        client: An OpenAI-SDK-shaped client (see :func:`grade_answer`).
+        temperature: Sampling temperature override. Defaults to 0.0 for
+            K=1 and 0.3 for K>1.
+
+    Returns:
+        For K=1, exactly what :func:`grade_answer` returns.
+
+        For K>1, the single-call shape plus replicate diagnostics:
+          {
+            'autoeval_label': str,        # majority label
+            'judge_model': str,
+            'rationale': str,             # rationale from the majority
+            'usage': {...},               # summed across all replicates
+            'replicates': list[dict],     # individual replicate results
+            'label_counts': dict,         # label -> count (non-ERROR)
+            'agreement_rate': float,      # fraction matching majority
+            'flip_rate': float,           # 1 - agreement_rate
+          }
+
+        When every replicate returns ``ERROR``, the first replicate is
+        returned with ``replicates`` attached so the caller can inspect
+        the failures.
+    """
+    if replicates <= 1:
+        temp = temperature if temperature is not None else 0.0
+        return grade_answer(
+            question_type, question, gold_answer, hypothesis,
+            judge_model=judge_model, client=client, temperature=temp,
+        )
+
+    temp = temperature if temperature is not None else 0.3
+    results: list[dict] = []
+    for _ in range(replicates):
+        r = grade_answer(
+            question_type, question, gold_answer, hypothesis,
+            judge_model=judge_model, client=client, temperature=temp,
+        )
+        results.append(r)
+
+    # Sum usage across all replicates regardless of outcome.
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for r in results:
+        u = r.get("usage", {})
+        for key in total_usage:
+            total_usage[key] += u.get(key, 0)
+
+    # Majority vote excludes ERROR replicates — those are call failures,
+    # not verdicts.
+    labels = [r["autoeval_label"] for r in results
+              if r["autoeval_label"] != "ERROR"]
+    if not labels:
+        # All replicates errored — surface the first result, but attach
+        # the full replicate trace and the summed usage so cost accounting
+        # still reflects K calls.
+        first = dict(results[0])
+        first["usage"] = total_usage
+        first["replicates"] = results
+        return first
+
+    counter = Counter(labels)
+    label_counts = dict(counter.most_common())
+    majority_label = counter.most_common(1)[0][0]
+    agreement_count = label_counts[majority_label]
+    agreement_rate = agreement_count / len(labels)
+
+    # Use the rationale from the first replicate that voted with the
+    # majority — keeps the output explainable.
+    majority_result = next(
+        r for r in results if r["autoeval_label"] == majority_label
+    )
+
+    return {
+        "autoeval_label": majority_label,
+        "judge_model": judge_model,
+        "rationale": majority_result["rationale"],
+        "usage": total_usage,
+        "replicates": results,
+        "label_counts": label_counts,
+        "agreement_rate": agreement_rate,
+        "flip_rate": 1.0 - agreement_rate,
     }
