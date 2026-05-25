@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from sme.categories.ingestion_integrity import (
     default_canonical_key,
+    format_report,
     score_ingestion_integrity,
 )
 
@@ -142,3 +143,40 @@ def test_empty_graph_is_all_zeros():
     assert report.required_field_coverage == 1.0
     assert report.edge_type_counts == {}
     assert report.dominant_edge_type is None
+
+
+def test_collision_group_id_degrees_populated(duplicates_graph):
+    """Issue #13 — each collision group surfaces per-ID degree so the
+    operator can tell which ID is the canonical one when deduplicating."""
+    entities, edges, truth = duplicates_graph
+    report = score_ingestion_integrity(entities, edges)
+    tool_docker = [
+        g
+        for g in report.collision_groups
+        if g.entity_type == "tool"
+        and default_canonical_key("Docker", "tool") == g.canonical_key
+    ]
+    assert len(tool_docker) == 1
+    group = tool_docker[0]
+    assert group.id_degrees == truth["collision_id_degrees"]
+
+
+def test_format_report_shows_collision_degree_and_keeper(duplicates_graph):
+    """Issue #13 — the collision-group section should print per-ID degree
+    and mark the highest-degree ID with the '← keep' hint."""
+    entities, edges, _ = duplicates_graph
+    report = score_ingestion_integrity(entities, edges)
+    rendered = format_report(report)
+    # e1 is the only Docker variant with edges (degree 4); the others
+    # are degree 0 stragglers.
+    assert "e1  (deg=4)" in rendered
+    assert "e2  (deg=0)" in rendered
+    assert "← keep" in rendered
+    # The keep marker should be on the e1 line, not on e2/e3/e4.
+    e1_line = next(line for line in rendered.splitlines() if "e1  (deg=4)" in line)
+    assert "← keep" in e1_line
+    for losing_id in ("e2", "e3", "e4"):
+        losing_line = next(
+            line for line in rendered.splitlines() if f"{losing_id}  (deg=0)" in line
+        )
+        assert "← keep" not in losing_line

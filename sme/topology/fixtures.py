@@ -72,6 +72,9 @@ def synthetic_duplicates_graph() -> tuple[list[Entity], list[Edge], dict]:
         "edge_type_counts": {"RELATED": 6, "MENTIONS": 1, "LINKS_TO": 1},
         "dominant_edge_type": "RELATED",
         "dominant_edge_type_fraction": 6 / 8,
+        # Per-ID degree (in + out) for the Docker collision group. e1
+        # has 4 edges, the rest are unconnected — the keeper is obvious.
+        "collision_id_degrees": {"e1": 4, "e2": 0, "e3": 0, "e4": 0},
     }
 
     return entities, edges, ground_truth

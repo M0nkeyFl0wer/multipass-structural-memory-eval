@@ -111,6 +111,11 @@ class CollisionGroup:
     ids: list[str]
     names: list[str]
     entity_type: str
+    # Total degree (in + out edges) per entity ID in the group. When
+    # deduplicating, the highest-degree ID is usually the "real" one —
+    # the canonical entity that other extractions converged on, while
+    # low-degree duplicates are stragglers that missed canonicalization.
+    id_degrees: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -164,6 +169,13 @@ def score_ingestion_integrity(
 
     # --- 4a canonical-collision dedup --------------------------------
 
+    # Degree counter per entity ID — surfaced on collision groups so
+    # operators can tell which ID is the "real" one when deduplicating.
+    degree_by_id: Counter[str] = Counter()
+    for edge in edges:
+        degree_by_id[edge.source_id] += 1
+        degree_by_id[edge.target_id] += 1
+
     key_to_ids: dict[str, list[str]] = defaultdict(list)
     key_to_names: dict[str, list[str]] = defaultdict(list)
     key_to_type: dict[str, str] = {}
@@ -186,6 +198,7 @@ def score_ingestion_integrity(
                     ids=ids,
                     names=key_to_names[key],
                     entity_type=key_to_type[key],
+                    id_degrees={eid: degree_by_id.get(eid, 0) for eid in ids},
                 )
             )
     collision_groups.sort(key=lambda g: len(g.ids), reverse=True)
@@ -267,8 +280,15 @@ def format_report(report: IngestionIntegrityReport) -> str:
             names_preview += f", +{len(group.names) - 4} more"
         lines.append(
             f"    [{group.entity_type}] {names_preview} → "
-            f"{len(group.ids)} distinct IDs"
+            f"{len(group.ids)} distinct IDs:"
         )
+        if group.id_degrees:
+            max_degree = max(group.id_degrees.values())
+            for eid, deg in sorted(
+                group.id_degrees.items(), key=lambda kv: -kv[1]
+            ):
+                marker = "   ← keep" if deg == max_degree else ""
+                lines.append(f"                  {eid}  (deg={deg}){marker}")
     if len(report.collision_groups) > 5:
         lines.append(
             f"    ... +{len(report.collision_groups) - 5} more collision groups"
