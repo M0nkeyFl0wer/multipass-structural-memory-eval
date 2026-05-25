@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import pytest
 
-from sme.categories.gap_detection import score_gap_detection
+from sme.categories.gap_detection import format_report, score_gap_detection
 
 ripser = pytest.importorskip  # alias for readability below
 
@@ -154,3 +154,25 @@ def test_empty_graph_is_all_zeros():
     assert report.isolated_nodes == 0
     assert report.bridges == []
     assert report.candidate_gaps == []
+
+
+# --- Representative cycles (#16) -------------------------------------
+
+
+def test_representative_cycles(gap_graph):
+    """Issue #16 — representative cycles from largest component."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    assert len(report.representative_cycles) >= 1
+    cycle_nodes = [set(c) for c in report.representative_cycles]
+    five_cycle_nodes = {"A", "B", "C", "D", "E"}
+    assert any(five_cycle_nodes <= nodes for nodes in cycle_nodes)
+
+
+def test_format_report_shows_cycles(gap_graph):
+    """Issue #16 — format_report includes cycle descriptions."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    rendered = format_report(report)
+    assert "Representative cycles" in rendered
+    assert "-cycle]" in rendered
