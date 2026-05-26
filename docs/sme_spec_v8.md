@@ -176,9 +176,16 @@ class SMEAdapter(ABC):
         Returns: {'type': 'declared'|'readme'|'inferred',
                   'schema': [...], 'documentation': str}"""
         return {'type': 'inferred', 'schema': [], 'documentation': ''}
+
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Return invocation surfaces this memory system exposes.
+        Used by Category 9 (Harness Integration). Adapters that don't
+        expose a harness surface (pure library APIs) return [] — Cat 9b
+        reports empty_manifest=True rather than crashing."""
+        return []
 ```
 
-Three required methods. That's the minimum viable adapter. `get_flat_retrieval` and `get_ontology_source` have defaults — SME fills in its own flat baseline and infers ontology from the graph if the adapter doesn't provide them.
+Three required methods. That's the minimum viable adapter. `get_flat_retrieval`, `get_ontology_source`, and `get_harness_manifest` have defaults — SME fills in its own flat baseline, infers ontology from the graph, and treats an empty harness manifest as "Cat 9 not applicable" when the adapter doesn't provide them.
 
 ### Default Adapters
 
