@@ -57,6 +57,12 @@ def load_pricing_table(version: str = "2026_05") -> PricingTable:
             f"Available: {[p.stem for p in PRICING_DIR.glob('pricing_*.yaml')]}"
         )
     raw = yaml.safe_load(path.read_text())
+    declared_version = raw.get("version")
+    if declared_version is not None and declared_version != version:
+        raise ValueError(
+            f"pricing table version mismatch: requested {version!r} "
+            f"but {path.name} declares {declared_version!r}"
+        )
     models = {}
     for model_id, rates in raw.get("models", {}).items():
         models[model_id] = ModelPricing(
@@ -64,7 +70,7 @@ def load_pricing_table(version: str = "2026_05") -> PricingTable:
             input_per_1m=float(rates.get("input_per_1m", 0)),
             output_per_1m=float(rates.get("output_per_1m", 0)),
         )
-    return PricingTable(version=version, models=models)
+    return PricingTable(version=declared_version or version, models=models)
 
 
 def cost_per_correct(
