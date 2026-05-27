@@ -18,7 +18,7 @@ class BootstrapCIResult:
     ci_upper: float
     n_bootstrap: int
     confidence_level: float
-    p_value_approx: float  # fraction of bootstrap diffs crossing zero
+    p_value_approx: float  # two-sided: 2x the fraction of bootstrap means on the opposite side of zero (capped at 1.0)
 
 
 def paired_bootstrap_ci(
@@ -41,7 +41,10 @@ def paired_bootstrap_ci(
     Returns:
         BootstrapCIResult with mean difference and CI bounds
     """
-    assert len(scores_a) == len(scores_b), "Paired scores must be same length"
+    if len(scores_a) != len(scores_b):
+        raise ValueError(
+            f"Paired scores must be same length: got {len(scores_a)} and {len(scores_b)}"
+        )
     rng = np.random.RandomState(seed)
     a = np.array(scores_a, dtype=float)
     b = np.array(scores_b, dtype=float)

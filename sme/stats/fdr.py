@@ -30,11 +30,18 @@ def benjamini_hochberg(
     Returns:
         FDRResult with adjusted p-values and rejection decisions
     """
+    if not (0.0 < alpha <= 1.0):
+        raise ValueError(f"alpha must be in (0, 1], got {alpha}")
+
     m = len(p_values)
     if m == 0:
         return FDRResult([], [], [], alpha)
 
     pv = np.array(p_values, dtype=float)
+    if np.isnan(pv).any():
+        raise ValueError("p_values must not contain NaN")
+    if ((pv < 0.0) | (pv > 1.0)).any():
+        raise ValueError("p_values must all be in [0, 1]")
     sorted_idx = np.argsort(pv)
     sorted_pv = pv[sorted_idx]
 
