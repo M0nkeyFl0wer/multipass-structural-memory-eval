@@ -8,6 +8,7 @@ produced for that field is the suspect, not the fixture.
 from __future__ import annotations
 
 from sme.categories.ingestion_integrity import (
+    COLLISION_GROUP_ID_RENDER_LIMIT,
     default_canonical_key,
     format_report,
     score_ingestion_integrity,
@@ -180,3 +181,66 @@ def test_format_report_shows_collision_degree_and_keeper(duplicates_graph):
             line for line in rendered.splitlines() if f"{losing_id}  (deg=0)" in line
         )
         assert "← keep" not in losing_line
+
+
+def test_format_report_truncates_large_collision_group():
+    """A collision group with more than COLLISION_GROUP_ID_RENDER_LIMIT IDs
+    renders the top-N by degree and footer-summarizes the rest."""
+    from sme.adapters.base import Edge, Entity
+
+    n_ids = COLLISION_GROUP_ID_RENDER_LIMIT + 7
+    # All IDs canonicalize to the same key (same name + type).
+    entities = [
+        Entity(id=f"d{i:02d}", name="Docker", entity_type="tool")
+        for i in range(n_ids)
+    ]
+    # Give each ID a distinct degree so ranking is unambiguous: d00 highest.
+    edges = []
+    for i in range(n_ids):
+        for _ in range(n_ids - i):
+            edges.append(
+                Edge(source_id=f"d{i:02d}", target_id="sink", edge_type="uses")
+            )
+
+    report = score_ingestion_integrity(entities, edges)
+    rendered = format_report(report)
+
+    # Exactly the top-N IDs are rendered; the footer accounts for the rest.
+    assert "... and 7 more" in rendered
+    rendered_id_lines = [
+        line for line in rendered.splitlines() if "(deg=" in line
+    ]
+    assert len(rendered_id_lines) == COLLISION_GROUP_ID_RENDER_LIMIT
+    # Highest-degree ID is rendered and kept; a low-rank ID is truncated.
+    assert "d00  (deg=" in rendered
+    assert "d16  (deg=" not in rendered
+
+
+def test_format_report_keeper_is_deterministic_on_tie():
+    """When several IDs tie at the max degree, exactly one is marked the
+    keeper, tie-broken lexicographically on ID for stability across runs."""
+    from sme.adapters.base import Edge, Entity
+
+    # Three IDs canonicalize together; two tie at the max degree.
+    entities = [
+        Entity(id="zeta", name="Docker", entity_type="tool"),
+        Entity(id="alpha", name="Docker", entity_type="tool"),
+        Entity(id="mid", name="Docker", entity_type="tool"),
+    ]
+    # zeta and alpha both have degree 2 (tie at max); mid has degree 1.
+    edges = [
+        Edge(source_id="zeta", target_id="x", edge_type="uses"),
+        Edge(source_id="zeta", target_id="y", edge_type="uses"),
+        Edge(source_id="alpha", target_id="x", edge_type="uses"),
+        Edge(source_id="alpha", target_id="y", edge_type="uses"),
+        Edge(source_id="mid", target_id="x", edge_type="uses"),
+    ]
+
+    report = score_ingestion_integrity(entities, edges)
+    rendered = format_report(report)
+
+    keep_lines = [line for line in rendered.splitlines() if "← keep" in line]
+    assert len(keep_lines) == 1
+    # 'alpha' < 'zeta' lexicographically, so alpha is the deterministic keeper.
+    assert "alpha" in keep_lines[0]
+    assert "zeta" not in keep_lines[0]

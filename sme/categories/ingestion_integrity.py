@@ -53,6 +53,11 @@ from sme.topology.analyzer import TopologyAnalyzer
 
 log = logging.getLogger(__name__)
 
+# Max per-ID degree lines rendered inside a single collision group before
+# the formatter truncates with a footer. Pathological groups (10+ IDs on the
+# same canonical key) would otherwise blow up the report.
+COLLISION_GROUP_ID_RENDER_LIMIT = 10
+
 
 # --- Canonicalization -------------------------------------------------
 
@@ -284,11 +289,20 @@ def format_report(report: IngestionIntegrityReport) -> str:
         )
         if group.id_degrees:
             max_degree = max(group.id_degrees.values())
-            for eid, deg in sorted(
-                group.id_degrees.items(), key=lambda kv: -kv[1]
-            ):
-                marker = "   ← keep" if deg == max_degree else ""
+            # Deterministic keeper: among IDs tied at max degree, keep the
+            # lexicographically smallest ID so the marker is unique and
+            # stable across runs on the same graph.
+            keeper_id = min(
+                eid for eid, deg in group.id_degrees.items() if deg == max_degree
+            )
+            # Sort by descending degree, tie-broken by ID for determinism.
+            ranked = sorted(group.id_degrees.items(), key=lambda kv: (-kv[1], kv[0]))
+            for eid, deg in ranked[:COLLISION_GROUP_ID_RENDER_LIMIT]:
+                marker = "   ← keep" if eid == keeper_id else ""
                 lines.append(f"                  {eid}  (deg={deg}){marker}")
+            hidden = len(ranked) - COLLISION_GROUP_ID_RENDER_LIMIT
+            if hidden > 0:
+                lines.append(f"                  ... and {hidden} more")
     if len(report.collision_groups) > 5:
         lines.append(
             f"    ... +{len(report.collision_groups) - 5} more collision groups"
