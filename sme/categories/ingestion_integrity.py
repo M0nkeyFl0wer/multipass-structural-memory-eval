@@ -85,6 +85,11 @@ _COVERAGE_WARN = 0.95       # 95-99.5% warning
 _NORM_ENTROPY_HEALTHY = 0.80
 _NORM_ENTROPY_WARN = 0.50
 
+# Edge types with fewer than this many edges are flagged "sparse" in the
+# 4c monoculture render — their per-type component counts are too noisy
+# to read as a monoculture signal.
+_SPARSE_EDGE_THRESHOLD = 5
+
 
 def _band(value: float, healthy: float, warn: float, *, lower_is_better: bool) -> str:
     if lower_is_better:
@@ -310,18 +315,20 @@ def format_report(report: IngestionIntegrityReport) -> str:
     if report.per_edge_type_components:
         lines.append("")
         lines.append("  Per-edge-type edges + components (4c monoculture signal):")
-        sparse_threshold = 5
         combined = sorted(
             report.per_edge_type_components.items(),
-            key=lambda kv: -report.per_edge_type_edge_counts.get(kv[0], 0),
+            key=lambda kv: (
+                -report.per_edge_type_edge_counts.get(kv[0], 0),
+                kv[0],
+            ),
         )
         for etype, ncomp in combined[:10]:
             ne = report.per_edge_type_edge_counts.get(etype, 0)
             edge_word = "edge" if ne == 1 else "edges"
             comp_word = "component" if ncomp == 1 else "components"
             annotation = (
-                f"  [sparse — <{sparse_threshold} edges]"
-                if ne < sparse_threshold
+                f"  [sparse — <{_SPARSE_EDGE_THRESHOLD} edges]"
+                if ne < _SPARSE_EDGE_THRESHOLD
                 else ""
             )
             lines.append(

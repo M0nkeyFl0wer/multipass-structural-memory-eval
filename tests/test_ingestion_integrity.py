@@ -152,7 +152,7 @@ def test_format_report_sparse_annotation(duplicates_graph):
     assert "sparse" in rendered.lower()
     # RELATED has 6 edges — should NOT be annotated as sparse
     related_line = next(
-        l for l in rendered.splitlines() if "RELATED" in l and "edge" in l
+        line for line in rendered.splitlines() if "RELATED" in line and "edge" in line
     )
     assert "sparse" not in related_line.lower()
 
