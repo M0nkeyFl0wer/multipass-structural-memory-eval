@@ -611,6 +611,8 @@ calibration:
 
 `sme-eval run --dry-run` estimates judge cost across all categories × conditions × queries and aborts if it exceeds the budget. No surprise bills.
 
+**Judge variance (K-replicate readings):** to characterize judge instability, the judge may be called K times per question at temperature 0.3 and aggregated by majority vote (ERROR replicates are excluded from the vote, not counted as a label). When labels tie on count, the majority is broken deterministically by the fixed preference order **CORRECT > PARTIAL > INCORRECT > ABSTAIN** (the LongMemEval label hierarchy) — never by `Counter.most_common()`, whose tie-break is arbitrary across runs. Any framework reproducing the K-replicate methodology must use this same tie-break order so that `majority_label` and the variance statistics derived from it are reproducible without pinning `PYTHONHASHSEED`.
+
 ---
 
 ## Category 8: Ontology Coherence — The Blueprint

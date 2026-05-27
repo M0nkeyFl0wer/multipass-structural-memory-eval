@@ -61,6 +61,13 @@ JUDGE_QUESTION_TYPES = {
 # when the call itself fails, distinct from an INCORRECT verdict.
 VALID_LABELS = {"CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN", "ERROR"}
 
+# Deterministic tie-break order for the K-replicate majority vote. When two
+# or more labels are tied on count, the earlier label in this list wins. This
+# follows the LongMemEval label hierarchy (CORRECT > PARTIAL > INCORRECT >
+# ABSTAIN) so that majority_label is reproducible across runs without pinning
+# PYTHONHASHSEED — Counter.most_common() tie-breaks are otherwise arbitrary.
+TIE_BREAK_ORDER = ["CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN"]
+
 
 def _prompt_for_question_type(qtype: str, question: str, gold: str, hyp: str) -> str:
     """Build the grading prompt body for a given question type.
@@ -375,7 +382,13 @@ def grade_answer_replicated(
 
         When every replicate returns ``ERROR``, the first replicate is
         returned with ``replicates`` attached so the caller can inspect
-        the failures.
+        the failures; the diagnostic keys (``label_counts``,
+        ``agreement_rate``, ``flip_rate``) are present but empty/zero so the
+        return shape stays consistent with the success path.
+
+        Ties in the majority vote are broken deterministically by
+        :data:`TIE_BREAK_ORDER` (CORRECT > PARTIAL > INCORRECT > ABSTAIN),
+        so ``majority_label`` is reproducible without pinning PYTHONHASHSEED.
     """
     if replicates <= 1:
         temp = temperature if temperature is not None else 0.0
@@ -407,15 +420,28 @@ def grade_answer_replicated(
     if not labels:
         # All replicates errored — surface the first result, but attach
         # the full replicate trace and the summed usage so cost accounting
-        # still reflects K calls.
+        # still reflects K calls. Keep the diagnostic keys present (empty)
+        # so the return shape matches the K>1 success path.
         first = dict(results[0])
         first["usage"] = total_usage
         first["replicates"] = results
+        first["label_counts"] = {}
+        first["agreement_rate"] = 0.0
+        first["flip_rate"] = 1.0
         return first
 
     counter = Counter(labels)
     label_counts = dict(counter.most_common())
-    majority_label = counter.most_common(1)[0][0]
+    # Deterministic majority: highest count, ties broken by TIE_BREAK_ORDER.
+    # Unknown labels (shouldn't occur given VALID_LABELS) sort last.
+    majority_label = max(
+        counter,
+        key=lambda lbl: (
+            counter[lbl],
+            -(TIE_BREAK_ORDER.index(lbl) if lbl in TIE_BREAK_ORDER
+              else len(TIE_BREAK_ORDER)),
+        ),
+    )
     agreement_count = label_counts[majority_label]
     agreement_rate = agreement_count / len(labels)
 

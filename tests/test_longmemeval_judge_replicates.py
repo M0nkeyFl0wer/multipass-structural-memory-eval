@@ -116,6 +116,65 @@ def test_replicates_all_agree():
     assert result["label_counts"] == {"INCORRECT": 3}
 
 
+# --- deterministic tie-break -----------------------------------------------
+
+def test_tie_break_two_replicates_split_prefers_correct():
+    """K=2 with a 1-1 CORRECT/PARTIAL split → deterministic CORRECT.
+
+    Counter.most_common() tie-break is arbitrary (depends on PYTHONHASHSEED);
+    the pinned TIE_BREAK_ORDER (CORRECT > PARTIAL > INCORRECT > ABSTAIN) must
+    win regardless of replicate order, so two researchers get the same label.
+    """
+    # PARTIAL listed first to prove order-independence of the result.
+    client = _ScriptedClient([
+        '{"label": "PARTIAL", "rationale": "partial first"}',
+        '{"label": "CORRECT", "rationale": "correct second"}',
+    ])
+    result = grade_answer_replicated(
+        "single-session-user", "q?", "gold", "hyp",
+        replicates=2, client=client,
+    )
+    assert result["autoeval_label"] == "CORRECT"
+    assert result["label_counts"] == {"PARTIAL": 1, "CORRECT": 1}
+    assert result["agreement_rate"] == 0.5
+    assert result["flip_rate"] == 0.5
+
+
+def test_tie_break_higher_k_three_way_split_prefers_correct():
+    """K=4 with a 2-1-1 split where two labels tie at the top.
+
+    INCORRECT and CORRECT both reach 2 votes; CORRECT outranks INCORRECT in
+    TIE_BREAK_ORDER, so the deterministic majority is CORRECT.
+    """
+    client = _ScriptedClient([
+        '{"label": "INCORRECT", "rationale": "a"}',
+        '{"label": "CORRECT", "rationale": "b"}',
+        '{"label": "INCORRECT", "rationale": "c"}',
+        '{"label": "CORRECT", "rationale": "d"}',
+    ])
+    result = grade_answer_replicated(
+        "single-session-user", "q?", "gold", "hyp",
+        replicates=4, client=client,
+    )
+    assert result["autoeval_label"] == "CORRECT"
+    assert result["label_counts"]["CORRECT"] == 2
+    assert result["label_counts"]["INCORRECT"] == 2
+    assert result["agreement_rate"] == 0.5
+
+
+def test_tie_break_partial_outranks_incorrect():
+    """A PARTIAL/INCORRECT tie resolves to PARTIAL, not the lower-rank label."""
+    client = _ScriptedClient([
+        '{"label": "INCORRECT", "rationale": "a"}',
+        '{"label": "PARTIAL", "rationale": "b"}',
+    ])
+    result = grade_answer_replicated(
+        "single-session-user", "q?", "gold", "hyp",
+        replicates=2, client=client,
+    )
+    assert result["autoeval_label"] == "PARTIAL"
+
+
 # --- usage accounting -------------------------------------------------------
 
 def test_replicates_usage_summed():
@@ -162,6 +221,11 @@ def test_all_replicates_error_returns_first_with_trace():
     assert "replicates" in result
     assert len(result["replicates"]) == 3
     assert result["usage"]["total_tokens"] == 45  # 15 * 3
+    # Diagnostic keys present (empty/zero) so the shape matches the K>1
+    # success path — no AttributeError/KeyError for downstream consumers.
+    assert result["label_counts"] == {}
+    assert result["agreement_rate"] == 0.0
+    assert result["flip_rate"] == 1.0
 
 
 def test_mixed_error_and_valid_excludes_error_from_vote():
