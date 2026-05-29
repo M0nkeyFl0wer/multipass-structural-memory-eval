@@ -220,6 +220,64 @@ sme-eval retrieve --adapter mempalace-daemon     --api-url http://your-daemon:80
 The `--api-url`, `--mock`/`--no-mock`, and `--familiar-timeout` flags
 work on `cat4`, `cat5`, `check`, and `retrieve` subcommands.
 
+### `ladybugdb` — embedded graph databases
+
+`sme/adapters/ladybugdb.py` reads any
+[LadybugDB](https://ladybugdb.com) `.ldb` graph. It is **schema-
+agnostic**: at connection time it introspects the node and relationship
+tables (`SHOW_TABLES`, `TABLE_INFO`, `SHOW_CONNECTION`) and builds the
+projection queries dynamically, so it adapts to whatever ontology a
+given graph uses without per-graph configuration. It auto-detects both
+edge-table styles seen in the wild:
+
+- **Consolidated** — a few rel tables (e.g. `ENTITY_TO_ENTITY`) with an
+  `edge_type` property discriminating the semantic type.
+- **Per-type** — many rel tables, one per semantic type, where the
+  table name *is* the edge type.
+
+Two independent access paths: **file mode** (`--db path/to/graph.ldb`,
+read-only, required for `get_graph_snapshot()` and the structural
+probes) and **API mode** (`--api-url`, wires `query()` to a running
+`/search` endpoint for systems with writer-lock contention on the file).
+Because file mode takes a read-only open, point it at a **backup or
+snapshot copy** when a live writer (a daemon, an enrich pass) holds the
+graph — a direct open will otherwise block on the writer lock.
+
+```bash
+# Structural health check on a LadybugDB graph (entity↔entity slice)
+sme-eval check --adapter ladybugdb \
+    --db /path/to/graph.ldb \
+    --edge-tables ENTITY_TO_ENTITY \
+    --json reading.json
+```
+
+## In production — dogfooding on a live graph
+
+SME began as a structural-integrity probe out of a
+[MemPalace](#) community discussion (hence *Multipass* — make multiple
+passes over a memory system and compare). It has since become the
+diagnostic the author runs **nightly, via a systemd timer, against a
+live ~217K-entity LadybugDB knowledge graph** — the same `sme-eval
+check` invocation above, scheduled after the graph's backup and enrich
+ticks so the read-only open doesn't fight the writer.
+
+It earns its keep there. A representative nightly reading (2026-05-27)
+flagged, on a real extraction-built graph:
+
+- **86.4% isolates** (entities with no edges) — surfaced as a likely
+  extractor/post-processing bug producing orphan nodes, not a property
+  of the domain.
+- **49.9% canonical collisions** (duplicate IDs) — diagnosed as an
+  entity-ID function hashing raw names without case/whitespace
+  normalization.
+- **12.1% largest-component connectivity** with moderate bridge
+  fragility.
+
+These are exactly the structural defects that pure retrieval metrics
+(Recall@K) cannot see — and the kind a graph owner can act on. The
+before/after delta across dated readings is the product; the absolute
+levels are decoration.
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE).

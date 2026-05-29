@@ -41,8 +41,15 @@ viz = [
     "matplotlib>=3.8",
     "pyvis>=0.3",
 ]
+# The LadybugDB Python binding. The distribution was published as
+# `real_ladybug` (e.g. 0.15.3, the version this adapter is tested
+# against) and renamed `ladybug` in the 2026-04-25 source build. The
+# adapter imports `ladybug` first and falls back to `real_ladybug`, so
+# either resolves at runtime. We pin the legacy name here because it is
+# the one verified installable; switch to `ladybug` once that name is
+# the canonical published distribution.
 ladybugdb = [
-    "ladybugdb",
+    "real_ladybug",
 ]
 neo4j = [
     "neo4j>=5.0",

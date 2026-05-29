@@ -1,6 +1,7 @@
 """LadybugDB adapter for SME.
 
-Reads from any LadybugDB `.ldb` database via real_ladybug. Schema-agnostic:
+Reads from any LadybugDB `.ldb` database via the `ladybug` Python
+binding (or its legacy `real_ladybug` name). Schema-agnostic:
 the adapter introspects node and relationship tables at connection time
 using CALL SHOW_TABLES(), CALL TABLE_INFO(table), and
 CALL SHOW_CONNECTION(rel_table), then builds projection queries
@@ -41,6 +42,11 @@ INFRASTRUCTURE_TABLES = {
     "SessionCache",
     "EnrichmentPattern",
     "LifecycleEvent",
+    # Topology bookkeeping table: no `id` column, not part of the
+    # knowledge layer. Skipping it here avoids a spurious
+    # "table NodeTopologyMeta has no id column — skipping" warning on
+    # every run against vault-rag-shaped graphs.
+    "NodeTopologyMeta",
 }
 
 # Preferred column names when building a node projection. The first
@@ -76,9 +82,9 @@ class LadybugDBAdapter(SMEAdapter):
         Two independent access paths:
 
         * **File mode** (``db_path`` set): opens the .ldb directly via
-          real_ladybug. Required for ``get_graph_snapshot()``. Blocked by
-          writer locks — use a backup copy when the target has a live
-          daemon or API server attached.
+          the ``ladybug`` binding. Required for ``get_graph_snapshot()``.
+          Blocked by writer locks — use a backup/snapshot copy when the
+          target has a live daemon, enrich pass, or API server attached.
         * **API mode** (``api_url`` set): wires ``query()`` to a running
           HTTP search server (POSTs to ``{api_url}/search``). Required
           for the retrieval benchmark on a live graph. Does not need the
@@ -158,7 +164,14 @@ class LadybugDBAdapter(SMEAdapter):
         self._rel_connections: dict[str, tuple[str, str]] = {}
 
         if self.db_path is not None:
-            import real_ladybug as lb  # local import so sme loads without lb
+            # Package was renamed `real_ladybug` → `ladybug` in the
+            # 2026-04-25 source build; older installs still ship
+            # `real_ladybug`. Try the current name first, fall back to
+            # the legacy one. Local import so `sme` loads without lb.
+            try:
+                import ladybug as lb
+            except ImportError:
+                import real_ladybug as lb
 
             self._lb = lb
             db_kwargs = {"read_only": read_only}
@@ -500,7 +513,7 @@ class LadybugDBAdapter(SMEAdapter):
                 answer="",
                 context_string="",
                 error="NO_RESULTS",
-                retrieval_path=["mode=semantic"],
+                retrieval_path=["mode=hybrid"],
             )
 
         # Rank by score, take top n_results
@@ -514,7 +527,7 @@ class LadybugDBAdapter(SMEAdapter):
             answer=context_string,
             context_string=context_string,
             retrieved_entities=retrieved,
-            retrieval_path=["mode=semantic"],
+            retrieval_path=["mode=hybrid"],
         )
 
     def _file_query_hybrid(
