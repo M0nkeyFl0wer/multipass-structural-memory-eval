@@ -7,9 +7,8 @@ personal knowledge bases, conversational memory — that tests what the
 system knows about its own structure, not just whether it can retrieve
 memories.
 
-> *"Multipass!"* — Leeloo, *The Fifth Element*. The name is a nod to a
-> joke from an earlier MemPalace issue thread (visual reference above),
-> and also to what the framework actually does: **multiple passes**
+> *"Multipass!"* — Leeloo, *The Fifth Element*. The name is a nod to
+> this projects roots in a MemPalace issue thread https://github.com/MemPalace/mempalace/issues/101 (much respect to https://github.com/milla-jovovich). The name also captures what the framework actually does: **multiple passes**
 > over every memory system under test, across multiple corpus shapes
 > and multiple retrieval conditions (A / B / C), so brittle default
 > behaviours that hide on any single pass become visible when the
