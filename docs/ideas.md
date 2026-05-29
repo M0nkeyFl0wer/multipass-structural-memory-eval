@@ -46,12 +46,12 @@ etc.) and a `Cat N` identifier you'll see in the code.
 | 1 | The Lookup | Factual retrieval (known answer in known source) | Covered by `retrieve` |
 | 2 | The Crossing / Registry / Stairway | Cross-domain discovery, canonicalization, multi-hop by depth | 2c implemented (`cat2c`) |
 | 3 | The Dissonance | Contradiction detection | Spec'd |
-| 4 | The Threshold | Ingestion integrity — introspection + external | Spec'd |
-| 5 | The Missing Room | Gap detection (persistent homology) | Partial via `analyze --betti` |
+| 4 | The Threshold | Ingestion integrity — introspection + external | Partial (`cat4`, `check`) |
+| 5 | The Missing Room | Gap detection (persistent homology) | Partial (`cat5`, `check`, `analyze --betti`) |
 | 6 | The Archive | Temporal reasoning + provenance | Spec'd |
 | 7 | The Abacus | Token efficiency (graph vs flat, pairwise) | Partial via `retrieve` |
 | 8 | The Blueprint | Ontology coherence (declared vs actual graph) | Implemented (`cat8`) |
-| 9 | The Handshake | Harness integration (tool call, MCP, hook, per-model, per-harness) | Spec'd — **highest-priority next build** |
+| 9 | The Handshake | Harness integration (tool call, MCP, hook, per-model, per-harness) | Partial — 9b (call-through) via `cat9`; 9a/9c+ spec'd |
 
 **Use-case profiles** — run these if you're building:
 

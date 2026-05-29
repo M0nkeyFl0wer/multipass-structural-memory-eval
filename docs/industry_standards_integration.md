@@ -46,7 +46,7 @@ integration fits the constitutional principle.
 | Corpus-side validators | `validate.py` + `verify.py` (~400 LOC each) | Great Expectations + Pandera | ⚠️ **discuss** — pattern-borrowing only, full GE is heavy |
 | LongMemEval cross-validation judge | `sme/eval/longmemeval_judge.py` (≈300 LOC, mocked-by-default) | RAGAS / TruLens / DeepEval / Phoenix | ❌ **flag** — full RAG-eval frameworks add huge dep trees; SME's 300-LOC wrapper around the OpenAI SDK is the lightweight version |
 | Substring matcher | hand-rolled per-question | (every RAG eval framework has one) | ✅ already lightweight |
-| Cat 9 — harness integration | spec'd; partial 9b implementation | MCP-Bench (`Execution Success Rate`); MCPAgentBench | ✅ adopt naming, not infrastructure |
+| Cat 9 — harness integration | 9b built (`cat9` probe runner + tests); 9a needs real model API | MCP-Bench (`Execution Success Rate`); MCPAgentBench | ✅ adopt naming, not infrastructure |
 
 ## Three tiers of integration
 
