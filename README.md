@@ -223,7 +223,7 @@ work on `cat4`, `cat5`, `check`, and `retrieve` subcommands.
 ### `ladybugdb` — embedded graph databases
 
 `sme/adapters/ladybugdb.py` reads any
-[LadybugDB](https://ladybugdb.com) `.ldb` graph. It is **schema-
+[LadybugDB](https://github.com/LadybugDB) `.ldb` graph. It is **schema-
 agnostic**: at connection time it introspects the node and relationship
 tables (`SHOW_TABLES`, `TABLE_INFO`, `SHOW_CONNECTION`) and builds the
 projection queries dynamically, so it adapts to whatever ontology a
