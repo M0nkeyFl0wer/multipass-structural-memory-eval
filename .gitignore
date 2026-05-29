@@ -80,3 +80,12 @@ data/
 sme/corpora/climate_research_v01/
 sme/corpora/personal_kg_pkm_v01/
 sme/corpora/canadian_politics_v01/
+
+# Local working artifacts — kept local, not for the public repo:
+#  - HANDOFF.md: per-session durable status / next-steps notes
+#  - .archive/: retired/archival session handoffs
+#  - docs/related_work/wip/: drafts with unverified (training-data)
+#    citations; must be primary-source-verified before publishing
+HANDOFF.md
+.archive/
+docs/related_work/wip/
