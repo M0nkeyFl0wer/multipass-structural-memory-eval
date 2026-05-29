@@ -251,32 +251,56 @@ sme-eval check --adapter ladybugdb \
     --json reading.json
 ```
 
-## In production — dogfooding on a live graph
+## In production — built with it, maintained by it
 
 SME began as a structural-integrity probe out of a
 [MemPalace](#) community discussion (hence *Multipass* — make multiple
-passes over a memory system and compare). It has since become the
-diagnostic the author runs **nightly, via a systemd timer, against a
-live ~217K-entity LadybugDB knowledge graph** — the same `sme-eval
-check` invocation above, scheduled after the graph's backup and enrich
-ticks so the read-only open doesn't fight the writer.
+passes over a memory system and compare). It became the instrument the
+author **built a live LadybugDB knowledge graph with** — and, to be
+candid, that graph is an active testbed for a **mix of ingestion
+methodologies** for unstructured data: different extractors and
+enrichment passes, run as bake-offs to find which leaves the graph
+structurally healthier. SME is the measurement layer for that
+experiment. It is not a post-hoc audit of a finished graph; it is the
+readout that shows, run after run, what each methodology costs
+structurally and what still needs doing.
 
-It earns its keep there. A representative nightly reading (2026-05-27)
-flagged, on a real extraction-built graph:
+It runs **nightly via a systemd timer**, reading a snapshot copy so it
+never contends with the graph's writers. The before/after delta across
+dated readings is the product — and the trend is the point:
 
-- **86.4% isolates** (entities with no edges) — surfaced as a likely
-  extractor/post-processing bug producing orphan nodes, not a property
-  of the domain.
-- **49.9% canonical collisions** (duplicate IDs) — diagnosed as an
-  entity-ID function hashing raw names without case/whitespace
-  normalization.
-- **12.1% largest-component connectivity** with moderate bridge
-  fragility.
+| Reading | Entities | In largest component | Isolates |
+|---|---|---|---|
+| 2026-05-11 | 161,312 | 4.9% | 94.8% |
+| 2026-05-16 | 176,854 | 5.6% | 94.2% |
+| 2026-05-24 | 188,535 | 7.0% | 92.7% |
+| 2026-05-28 | 217,399 | 12.1% | 86.4% |
 
-These are exactly the structural defects that pure retrieval metrics
-(Recall@K) cannot see — and the kind a graph owner can act on. The
-before/after delta across dated readings is the product; the absolute
-levels are decoration.
+Connectivity more than doubled and the isolate fraction fell ~8 points
+**while the graph grew by a third** — structure improving faster than
+the graph accretes, as the ingestion methodology gets tuned against
+SME's readings. The absolute levels are still high: a graph mixing
+extraction methods carries orphans until the methodology settles. That
+is the honest state, and the trend is the signal.
+
+Its job has shifted from construction toward upkeep — three roles,
+every night:
+
+- **Hold the pattern** — confirm the ontology and edge discipline
+  haven't quietly regressed as new content and new extractors land.
+- **Find knowledge gaps to fill** — Cat 5 surfaces candidate "missing
+  rooms": pairs of populated regions that share a rare entity type but
+  have no edge between them — a connection the graph *should* have and
+  doesn't.
+- **Prevent drift** — a metric moving the wrong way is an early warning,
+  long before retrieval quality visibly degrades.
+
+(One signal still being worked: ~50% canonical ID collisions —
+duplicate IDs from un-normalized name hashing — newly instrumented this
+week, so no trend line yet; the next methodology iteration targets it.)
+
+These are structural signals that pure retrieval metrics (Recall@K)
+cannot see — and the kind a graph owner can act on.
 
 ## License
 
