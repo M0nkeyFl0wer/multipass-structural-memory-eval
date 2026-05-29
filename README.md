@@ -60,8 +60,9 @@ discussion.
 
 ## In production
 
-**Built with it, maintained by it.** SME started in a [MemPalace](#)
-community discussion (hence *Multipass* — make multiple passes over a
+**Built with it, maintained by it.** SME started in the [MemPalace
+issue thread](https://github.com/MemPalace/mempalace/issues/101) that
+proposed it (hence *Multipass* — make multiple passes over a
 memory system and compare), and it's the instrument the author **built
 a live LadybugDB knowledge graph with**. That graph is a working
 testbed for a **mix of ingestion methodologies** on unstructured data —
