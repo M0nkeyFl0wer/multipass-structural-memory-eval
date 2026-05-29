@@ -221,8 +221,10 @@ tool — are:
    it primary-source.
 6. **Per-category cross-validation discipline** — never aggregate
    across categories that map to semantically-different external
-   primitives. Documented in
-   [`feedback_per_category_cross_validation.md`](../../.claude/projects/-home-m0nk-Projects-multipass-structural-memory-eval/memory/feedback_per_category_cross_validation.md).
+   primitives. Cross-validation is always reported per-category, never
+   as a combined correlation, because a category like Cat 3 maps to an
+   external primitive only partially (and sometimes inversely), so an
+   aggregate would mask the mismatch.
 7. **The category vocabulary as synthesis** — SME's 9-category
    taxonomy with the spatial-metaphor names is a synthesis-with-
    distinct-axes positioning, not a reinvention of any one tool.
