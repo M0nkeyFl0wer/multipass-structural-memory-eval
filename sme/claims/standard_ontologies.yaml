@@ -1,0 +1,86 @@
+# Standard-ontology reference table — Cat 8 sub-check 8f (external fit).
+#
+# Phase 1 slice: PROV-O + OWL-Time ONLY. See
+# docs/issue-drafts/2026-05-30-ontoclean-shacl-brokerage/
+#   04-cat8-external-standard-fit-and-audit.md
+#
+# Each mapping aligns a corpus term (edge type, entity type, or a tracked
+# edge/entity field) to a published standard term, with a curator
+# confidence and an optional conformance constraint the audit checks
+# against the built graph. No RDF, no SHACL engine — the audit reuses
+# SME's property-graph checks, re-expressed in sh:ValidationReport shape.
+#
+# !! VERIFY BEFORE UPSTREAM PR !!  The CURIEs / namespaces below are
+# curator-entered from memory. Per draft 04's watch-out (cite-primary-
+# source discipline), re-check each against the W3C PROV-O and OWL-Time
+# Recommendations before this table ships in a public issue/PR.
+
+version: "standard-ontologies-v0.1-phase1"
+reference_set: ["prov", "time"]
+
+namespaces:
+  prov: "http://www.w3.org/ns/prov#"
+  time: "http://www.w3.org/2006/time#"
+  xsd: "http://www.w3.org/2001/XMLSchema#"
+
+mappings:
+
+  # --- PROV-O: provenance -------------------------------------------
+
+  - corpus_term: authored_by
+    corpus_kind: edge_type
+    standard_term: "prov:wasAttributedTo"
+    confidence: 0.93
+    constraint:
+      kind: target_entity_type_in
+      allowed: ["person", "organization"]   # prov:Agent
+      component: "sh:ClassConstraintComponent"
+      message: "prov:wasAttributedTo expects a prov:Agent target (person/organization)"
+
+  - corpus_term: supersedes
+    corpus_kind: edge_type
+    standard_term: "prov:wasRevisionOf"
+    confidence: 0.78
+    constraint:
+      kind: endpoints_same_entity_type
+      component: "sh:NodeConstraintComponent"
+      message: "prov:wasRevisionOf relates two entities of the same kind (e.g. publication -> publication)"
+
+  - corpus_term: cites
+    corpus_kind: edge_type
+    standard_term: "prov:wasInformedBy"
+    confidence: 0.55   # weaker analogy -> informational only, never a hard violation
+
+  - corpus_term: _created_by
+    corpus_kind: edge_field
+    standard_term: "prov:wasAttributedTo"
+    confidence: 0.90
+    constraint:
+      kind: edge_field_coverage
+      field: "_created_by"
+      min_coverage: 0.5
+      component: "sh:MinCountConstraintComponent"
+      message: "provenance attribution (_created_by) present on >=50% of edges"
+
+  # --- OWL-Time: temporal -------------------------------------------
+
+  - corpus_term: _created_at
+    corpus_kind: edge_field
+    standard_term: "time:inXSDDateTime"
+    confidence: 0.90
+    constraint:
+      kind: edge_field_iso8601
+      field: "_created_at"
+      component: "sh:DatatypeConstraintComponent"
+      message: "_created_at values must be xsd:dateTime (ISO 8601)"
+
+  - corpus_term: timestamp
+    corpus_kind: entity_field
+    standard_term: "time:inXSDDateTime"
+    confidence: 0.85
+    constraint:
+      kind: entity_field_iso8601
+      field: "timestamp"
+      applies_to_entity_type: "event"
+      component: "sh:DatatypeConstraintComponent"
+      message: "event.timestamp must be xsd:dateTime (ISO 8601)"

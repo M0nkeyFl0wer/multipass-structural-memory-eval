@@ -130,6 +130,9 @@ class Cat8Report:
     introspection_available: list[str] = field(default_factory=list)
     introspection_score: float = 0.0
 
+    # 8f: external-standard fit + auto-generated audit (see external_fit.py)
+    external_fit: Optional[dict] = None
+
     def to_dict(self) -> dict:
         return {
             "8a_type_coverage": {
@@ -176,6 +179,7 @@ class Cat8Report:
                     for c in self.claims
                 ],
             },
+            "8f_external_fit": self.external_fit,
             "introspection": {
                 "available": self.introspection_available,
                 "score": self.introspection_score,
@@ -558,6 +562,20 @@ def score_cat8(
     report.claims_pass_rate = (
         len(passed) / len(tested) if tested else 0.0
     )
+
+    # --- 8f: external-standard fit + auto-generated audit ------
+
+    # Additive: align the declared ontology against a published-standard
+    # reference set (Phase 1: PROV-O + OWL-Time) and emit a confidence-
+    # gated, SHACL-shaped conformance audit. Failure here must never break
+    # the rest of Cat 8, so it is best-effort.
+    try:
+        from sme.categories.external_fit import score_external_fit
+
+        report.external_fit = score_external_fit(implied, entities, edges)
+    except Exception as e:  # pragma: no cover - defensive
+        log.warning("external_fit (8f) skipped: %s", e)
+        report.external_fit = None
 
     # --- Introspection --------------------------------------
 

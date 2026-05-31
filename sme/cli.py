@@ -174,6 +174,7 @@ def _print_report(
     ontology: dict,
     elapsed: dict[str, float],
     betti: Any = None,
+    brokerage: Any = None,
 ) -> None:
     print()
     print("=" * 70)
@@ -237,7 +238,7 @@ def _print_report(
             )
             print(
                 f"  Betti-1:              {betti.betti_1}"
-                "   (structural loops / holes)"
+                "   (topological holes / H1 cycles)"
             )
             if betti.h1_bars:
                 print(f"  max H1 persistence:   {betti.max_h1_persistence:.2f} hops")
@@ -248,6 +249,53 @@ def _print_report(
                     )
             else:
                 print("  no H1 features found — graph is acyclic / tree-like")
+
+    if brokerage is not None:
+        print("\nBrokerage  (Burt structural holes — cross-community)")
+        if brokerage.skipped:
+            print(f"  SKIPPED: {brokerage.skip_reason}")
+        else:
+            print(
+                f"  scope:                {brokerage.component_scope} component "
+                f"({_fmt_int(brokerage.component_nodes)} nodes, "
+                f"{_fmt_int(brokerage.n_communities)} communities)"
+            )
+            print(
+                f"  cross-community nodes:{_fmt_int(brokerage.n_cross_community_brokers)}"
+                "   (frontier scored; rim of every inter-community span, "
+                "ranked apex is the broker)"
+            )
+            if brokerage.n_cross_community_brokers == 0:
+                print(
+                    "  no cross-community brokerage to assess — the component is a "
+                    "single community (fully interwoven, or only one topic)."
+                )
+            else:
+                # top-1 share of k even brokers is 1/k, so a genuinely dominant
+                # single broker sits well above the 2-broker midpoint (0.5).
+                band = (
+                    "concentrated" if brokerage.concentration >= 0.66
+                    else "moderate" if brokerage.concentration >= 0.4
+                    else "distributed"
+                )
+                print(
+                    f"  concentration:        {brokerage.concentration*100:.1f}% "
+                    f"top-1 share  [{band}]  (Gini {brokerage.gini:.2f})"
+                )
+                if band == "concentrated":
+                    print(
+                        "                        one broker carries the graph's "
+                        "cross-domain reasoning — single point of structural failure."
+                    )
+                print("  top brokers (low constraint = more brokerage):")
+                for b in brokerage.top_brokers[:5]:
+                    spans = ", ".join(b.spans_labels) or "+".join(
+                        str(c) for c in b.spans_communities
+                    )
+                    print(
+                        f"    {b.name[:30]:30s} {b.entity_type:12s} "
+                        f"constraint={b.constraint:.3f}  bridges {{{spans}}}"
+                    )
 
     if ontology.get("schema") or ontology.get("documentation"):
         print(f"\nDeclared ontology (source: {ontology.get('type', '?')})")
@@ -341,11 +389,20 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             log.warning("ripser not installed — skipping Betti numbers")
             elapsed["betti_numbers"] = time.time() - t0
 
+    brokerage = None
+    if args.brokerage:
+        t0 = time.time()
+        brokerage = topo.brokerage(max_nodes=args.brokerage_max_nodes)
+        elapsed["brokerage"] = time.time() - t0
+
     t0 = time.time()
     ontology = adapter.get_ontology_source()
     elapsed["ontology_source"] = time.time() - t0
 
-    _print_report(health, community, etc, ontology, elapsed, betti=betti)
+    _print_report(
+        health, community, etc, ontology, elapsed,
+        betti=betti, brokerage=brokerage,
+    )
 
     if args.json:
         out = {
@@ -368,6 +425,31 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                 "betti_1": betti.betti_1,
                 "max_h1_persistence": betti.max_h1_persistence,
                 "h1_bars": betti.h1_bars[:50],
+            }
+        if brokerage is not None:
+            out["brokerage"] = {
+                "component_scope": brokerage.component_scope,
+                "component_nodes": brokerage.component_nodes,
+                "n_nodes_scored": brokerage.n_nodes_scored,
+                "n_communities": brokerage.n_communities,
+                "n_cross_community_brokers": brokerage.n_cross_community_brokers,
+                "concentration": brokerage.concentration,
+                "gini": brokerage.gini,
+                "skipped": brokerage.skipped,
+                "skip_reason": brokerage.skip_reason,
+                "top_brokers": [
+                    {
+                        "node": b.node,
+                        "name": b.name,
+                        "entity_type": b.entity_type,
+                        "constraint": b.constraint,
+                        "effective_size": b.effective_size,
+                        "spans_communities": b.spans_communities,
+                        "spans_labels": b.spans_labels,
+                        "degree": b.degree,
+                    }
+                    for b in brokerage.top_brokers
+                ],
             }
         Path(args.json).write_text(json.dumps(out, indent=2, default=str))
         print(f"JSON report written to {args.json}")
@@ -515,7 +597,48 @@ def cmd_cat8(args: argparse.Namespace) -> int:
             print(f"        data:  {short_metrics}")
         print()
 
-    print("Introspection")
+    if report.external_fit:
+        ef = report.external_fit
+        results = ef["audit"]["sh:result"]
+        violations = [r for r in results if r["sh:resultSeverity"] == "sh:Violation"]
+        infos = [r for r in results if r["sh:resultSeverity"] != "sh:Violation"]
+        print("\n8f External-standard fit (auto-generated audit)")
+        print(f"   reference set:    {', '.join(ef['reference_set'])}")
+        print(
+            f"   aligned coverage: {ef['aligned_coverage']:.1%}  "
+            f"({ef['mappable_count']} cleanly mappable of "
+            f"{ef['considered_terms']} declared)"
+        )
+        under = sorted(
+            {
+                a["corpus_term"]
+                for a in ef["alignments"]
+                if a["outcome"] == "under-specified"
+            }
+        )
+        if under:
+            print(
+                f"   under-specified:  {', '.join(under)}  "
+                "(one term → several standard terms)"
+            )
+        if ef["unaligned_types"]:
+            shown = ef["unaligned_types"][:10]
+            more = "..." if len(ef["unaligned_types"]) > 10 else ""
+            print(
+                f"   idiosyncratic:    {len(ef['unaligned_types'])}  "
+                f"({', '.join(shown)}{more})"
+            )
+        print(
+            f"   audit:            "
+            f"{'CONFORMS' if ef['audit']['sh:conforms'] else 'VIOLATIONS'}  "
+            f"({len(violations)} violation(s), {len(infos)} informational)"
+        )
+        for r in violations + infos:
+            tag = "✗" if r["sh:resultSeverity"] == "sh:Violation" else "·"
+            print(f"   {tag} {r['sh:resultPath']}: {r['sh:resultMessage']}")
+            print(f"       [{r['provenance']}]")
+
+    print("\nIntrospection")
     print(f"   available checks: {len(report.introspection_available)}")
     print(f"   score:            {report.introspection_score:.1%}")
     print(
@@ -1325,6 +1448,23 @@ def main(argv: list[str] | None = None) -> int:
         help="if the largest component exceeds --betti-max-nodes, take "
         "a random subsample instead of skipping. Betti numbers become "
         "approximate; use with caution.",
+    )
+    ana.add_argument(
+        "--brokerage",
+        action="store_true",
+        help="also compute Burt structural-hole brokerage (network "
+        "constraint / effective size) over the Louvain partition on the "
+        "largest component. Surfaces which entities broker across "
+        "communities and how concentrated that brokerage is.",
+    )
+    ana.add_argument(
+        "--brokerage-max-nodes",
+        type=int,
+        default=50000,
+        help="maximum component size for brokerage. constraint runs only on "
+        "the cross-community frontier (cheap); Louvain over the whole "
+        "component is the bottleneck at scale. Larger components are "
+        "skipped. Default: 50000.",
     )
     ana.add_argument(
         "--json",
