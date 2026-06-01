@@ -182,6 +182,29 @@ def test_flows_through_score_cat8_additively():
     assert "audit" in ef and "sh:result" in ef["audit"]
 
 
+def test_load_normalizes_dict_style_ontology_regression_53():
+    """#53: ImpliedOntology.load must accept both the flat-string shape and
+    the rich dict shape (good-dog ontology.yaml), reducing dicts to ids so
+    score_cat8's set() operations don't crash on unhashable dicts."""
+    from pathlib import Path
+
+    from sme.categories.ontology_coherence import score_cat8
+
+    root = Path(__file__).resolve().parent.parent
+    implied = ImpliedOntology.load(
+        root / "sme/corpora/good-dog-corpus/ontology.yaml"
+    )
+    # all normalized to plain strings, not dicts
+    assert all(isinstance(t, str) for t in implied.entity_types)
+    assert all(isinstance(t, str) for t in implied.edge_types)
+    assert "breed" in implied.entity_types
+    assert "authored_by" in implied.edge_types
+
+    # previously raised TypeError: unhashable type: 'dict'
+    report = score_cat8(implied, [], [], {})
+    assert report.to_dict()["8a_type_coverage"] is not None
+
+
 def test_shipped_table_loads_and_runs():
     """The real PROV-O/OWL-Time table loads and scores without error."""
     mappings = load_standard_mappings()

@@ -10,10 +10,12 @@
 # against the built graph. No RDF, no SHACL engine — the audit reuses
 # SME's property-graph checks, re-expressed in sh:ValidationReport shape.
 #
-# !! VERIFY BEFORE UPSTREAM PR !!  The CURIEs / namespaces below are
-# curator-entered from memory. Per draft 04's watch-out (cite-primary-
-# source discipline), re-check each against the W3C PROV-O and OWL-Time
-# Recommendations before this table ships in a public issue/PR.
+# Verified against the W3C PROV-O and OWL-Time Recommendations on
+# 2026-05-31. PROV-O terms confirmed (wasAttributedTo: Entity->Agent;
+# wasRevisionOf: Entity->Entity; wasInformedBy: Activity->Activity).
+# OWL-Time: inXSDDateTime is DEPRECATED in favour of inXSDDateTimeStamp
+# (range xsd:dateTimeStamp, mandatory timezone) — this table uses the
+# non-deprecated term.
 
 version: "standard-ontologies-v0.1-phase1"
 reference_set: ["prov", "time"]
@@ -48,8 +50,11 @@ mappings:
 
   - corpus_term: cites
     corpus_kind: edge_type
+    # Loose analogy: wasInformedBy is Activity->Activity, but `cites`
+    # relates publications (entities). CiTO cito:cites is the precise
+    # domain term (Phase 2). Low confidence keeps this informational only.
     standard_term: "prov:wasInformedBy"
-    confidence: 0.55   # weaker analogy -> informational only, never a hard violation
+    confidence: 0.55
 
   - corpus_term: _created_by
     corpus_kind: edge_field
@@ -66,21 +71,21 @@ mappings:
 
   - corpus_term: _created_at
     corpus_kind: edge_field
-    standard_term: "time:inXSDDateTime"
+    standard_term: "time:inXSDDateTimeStamp"   # inXSDDateTime is deprecated
     confidence: 0.90
     constraint:
       kind: edge_field_iso8601
       field: "_created_at"
       component: "sh:DatatypeConstraintComponent"
-      message: "_created_at values must be xsd:dateTime (ISO 8601)"
+      message: "_created_at values must be xsd:dateTimeStamp (ISO 8601)"
 
   - corpus_term: timestamp
     corpus_kind: entity_field
-    standard_term: "time:inXSDDateTime"
+    standard_term: "time:inXSDDateTimeStamp"   # inXSDDateTime is deprecated
     confidence: 0.85
     constraint:
       kind: entity_field_iso8601
       field: "timestamp"
       applies_to_entity_type: "event"
       component: "sh:DatatypeConstraintComponent"
-      message: "event.timestamp must be xsd:dateTime (ISO 8601)"
+      message: "event.timestamp must be xsd:dateTimeStamp (ISO 8601)"
