@@ -81,11 +81,11 @@ readings is the product, and the trend is the point:
 | 2026-05-11 | 161,312 | 4.9% | 94.8% |
 | 2026-05-16 | 176,854 | 5.6% | 94.2% |
 | 2026-05-24 | 188,535 | 7.0% | 92.7% |
-| 2026-05-28 | 217,399 | 12.1% | 86.4% |
+| 2026-05-28 | 206,330 | 11.6% | 87.4% |
 
-Connectivity more than doubled and the isolate fraction fell ~8 points
-**while the graph grew by a third** — structure improving faster than
-the graph accretes, as the ingestion methodology gets tuned against
+Connectivity more than doubled and the isolate fraction fell ~7 points
+**while the graph grew by more than a quarter** — structure improving
+faster than the graph accretes, as the ingestion methodology gets tuned against
 SME's readings. The absolute levels are still high: a graph mixing
 extraction methods carries orphans until the methodology settles.
 That's the honest state, and the trend is the signal.
