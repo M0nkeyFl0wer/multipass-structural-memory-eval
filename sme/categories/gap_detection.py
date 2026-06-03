@@ -10,8 +10,10 @@ Signals reported:
   - Components, isolated-node count, structural bridges (L3a): crude
     "these parts of the graph aren't connected at all" reading.
   - Betti-1 persistence on the largest component (L3b): loops that
-    survive the Vietoris-Rips filtration are stable structural holes
-    inside an otherwise connected region.
+    survive the Vietoris-Rips filtration are stable topological holes
+    (H1 cycles) inside an otherwise connected region. (Note: these are
+    topological holes in the TDA sense, not Burt structural holes /
+    brokerage gaps — see the brokerage metric in topology/analyzer.)
   - Candidate gaps (L3c): pairs of components that share an
     entity_type — i.e., they hold the same kind of thing but are
     structurally disconnected. This is a heuristic; a maintainer
@@ -547,8 +549,8 @@ def format_report(report: GapDetectionReport) -> str:
 
     if not report.h1_skipped and report.betti_1_largest > 0:
         lines.append(
-            f"  ● Structural holes: {report.betti_1_largest} persistent H1 "
-            f"feature(s) on the largest component "
+            f"  ● Topological holes (H1 cycles): {report.betti_1_largest} "
+            f"persistent H1 feature(s) on the largest component "
             f"(max persistence {report.h1_max_persistence:.2f} hops)."
         )
         lines.append(
@@ -558,12 +560,12 @@ def format_report(report: GapDetectionReport) -> str:
         )
     elif report.h1_skipped:
         lines.append(
-            "  ● Structural holes: not measured "
+            "  ● Topological holes (H1 cycles): not measured "
             f"({report.h1_skip_reason})."
         )
     else:
         lines.append(
-            "  ● Structural holes: none on the largest component."
+            "  ● Topological holes (H1 cycles): none on the largest component."
         )
         lines.append(
             "      Either your graph is genuinely tree-like, or cycles "
