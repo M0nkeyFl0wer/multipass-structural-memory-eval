@@ -1,0 +1,47 @@
+# OntoClean meta-property tags — Cat 8 sub-check 8g, for good-dog-corpus.
+#
+# See docs/issue-drafts/2026-05-30-ontoclean-shacl-brokerage/
+#   02-cat8-ontoclean-deepening.md  and the taxonomy-validation skill's
+#   references/ontoclean.md (Guarino & Welty).
+#
+# !! CURATOR-PROPOSED TAGS — REVIEW BEFORE RELYING ON A VIOLATION !!
+# OntoClean meta-properties are JUDGMENT CALLS, not facts. The rigidity /
+# identity signs below are a defensible first tagging of good-dog's eight
+# entity types, but reasonable people disagree (e.g. is `concept` an
+# anti-rigid role or a rigid category?). The 8g check reports typed_coverage
+# and untagged_types so an under- or mis-tagged ontology never reads as
+# "clean". It surfaces consequences; a human owns the tags — identical
+# posture to the taxonomy-validation skill (which forbids auto-edit).
+#
+# Rigidity:  +R rigid (essential to all instances) | ~R anti-rigid (a role) |
+#            -R semi-rigid
+# Identity:  +I sortal (carries an identity criterion) | -I non-sortal
+
+version: "ontoclean-good-dog-v0.1"
+source: "curator-proposed"
+
+entity_types:
+  breed:        { rigidity: "+R", identity: "+I" }   # a kind (registry identity)
+  person:       { rigidity: "+R", identity: "+I" }   # Type (canonical rigid sortal)
+  organization: { rigidity: "+R", identity: "+I" }   # Type
+  publication:  { rigidity: "+R", identity: "+I" }   # a study is essentially a study
+  product:      { rigidity: "+R", identity: "+I" }
+  event:        { rigidity: "+R", identity: "+I" }   # occurrence identity
+  location:     { rigidity: "+R", identity: "+I" }
+  concept:      { rigidity: "+R", identity: "-I" }   # category-like: rigid, non-sortal
+                                                     # (debatable — could be ~R role)
+
+# Which edge types are subsumption-like (taxonomic), and which ENDPOINT is the
+# parent (broader) term. "Direction is the #1 mistake" (ontoclean.md) — declare
+# it explicitly rather than guessing per edge.
+#
+# good-dog `member_of` direction in ontology.yaml is "breed -> breed OR
+# person -> organization": the SOURCE is the member (child), the TARGET is the
+# group/org it belongs to (broader / parent). So parent = target.
+#
+# NOTE: member_of is the under-specified edge flagged by 8f (it conflates
+# breed-group membership with person-org membership). Marking it taxonomic
+# lets 8g test whether either usage is an OntoClean-incoherent subsumption.
+taxonomic_edges:
+  member_of:
+    parent: target
