@@ -14,7 +14,7 @@ It exists for three reasons:
 
 2. **As a worked example of ontology-first KG design.** The schema in `ontology.yaml` ships with the design narrative (`ONTOLOGY.md`) that explains every entity-type and edge-type decision, including alternatives that were rejected. The corpus exists to materialize that ontology, so the relationship between schema decisions and downstream retrieval behavior becomes observable.
 
-3. **As a feedback loop between ingestion failures and SME readings.** The kg-ingestion pipeline has a published catalogue of failure modes (hallucinated edges, entity fragmentation, fabricated descriptions). Most of those failures, when they happen, *surface as specific SME category readings downstream* — phantom edges as Cat 10, alias collapse as Cat 4, fabricated entities as Cat 8 ontology violations. This corpus is the first one designed so that each upstream failure has a corresponding downstream test, and the connection is documented.
+3. **As a feedback loop between ingestion failures and SME readings.** The kg-ingestion pipeline has a published catalogue of failure modes (hallucinated edges, entity fragmentation, fabricated descriptions). Most of those failures, when they happen, *surface as specific SME category readings downstream* — phantom edges as Cat 4g, alias collapse as Cat 4, fabricated entities as Cat 8 ontology violations. This corpus is the first one designed so that each upstream failure has a corresponding downstream test, and the connection is documented.
 
 The corpus is **backend-agnostic.** Files are markdown plus YAML. Anyone can ingest it into LadybugDB, RyuGraph, ChromaDB, Neo4j, Postgres+pgvector, or NetworkX. The reference ingestion pipeline is documented in `INGESTION.md`, but using it is optional.
 
@@ -52,7 +52,7 @@ The corpus is **backend-agnostic.** Files are markdown plus YAML. Anyone can ing
    │  Cat 4  ingestion integrity / alias resolution  │
    │  Cat 6  temporal supersession                   │
    │  Cat 8  ontology coherence (declared-vs-built)  │
-   │  Cat 10 phantom edges (graph-vs-source)         │
+   │  Cat 4g phantom edges (graph-vs-source)         │
    └─────────────────────────────────────────────────┘
 ```
 
@@ -104,7 +104,7 @@ The ontology's `sme_category_coverage` section maps schema elements to categorie
 | **Cat 4** alias resolution | `alias_of` | Does the system collapse "GSD" / "German Shepherd" / "Alsatian"? |
 | **Cat 6** temporal | `supersedes` | Pet food recall lifecycle: announced → investigated → resolved |
 | **Cat 8** ontology coherence | the entire schema vs the built graph | Did the system build the graph it said it would? |
-| **Cat 10** phantom edges | `evidence_rule` on every edge type | Are all asserted edges grounded in source content? |
+| **Cat 4g** phantom edges | `evidence_rule` on every edge type | Are all asserted edges grounded in source content? |
 
 Each category reads a specific subset of the schema. A system that shines on Cat 1 but stalls on Cat 3 is telling you something the single-aggregate-recall benchmarks can't.
 

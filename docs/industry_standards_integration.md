@@ -3,7 +3,7 @@
 A project-wide audit of where SME is rolling its own infrastructure
 versus where battle-tested industry standards exist. Companion to —
 and broader than — [`docs/ingestigation.md`](ingestigation.md), which
-covered the Cat 4 / Cat 8b ingestigation surface specifically.
+covered the Cat 4 / Cat 4g ingestigation surface specifically.
 
 ## Constitutional principle
 
@@ -42,7 +42,7 @@ integration fits the constitutional principle.
 | Cross-validation `run_metadata` | hand-rolled JSON envelope | OpenLineage `RunEvent` JSON | ✅ adopt — emit-only is dep-free |
 | Cross-validation runner state | local JSON checkpoint | Marquez server (LF AI ref impl) | ❌ **flag** — server-backed; SME stays JSON-only |
 | **Cat 8a — declared-vs-built shape** | hand-rolled README-claim parser + graph diff | (no direct standard for natural-language claims) | ✅ already distinctive |
-| **Cat 8b — phantom edges** | per-edge-type `evidence_rule` registry + lexical check | ProVe (Semantic Web Journal) — full LLM pipeline | ❌ **flag** — ProVe is T5 + BERT + entailment classifier; SME stays lexical, ProVe optional 2nd tier |
+| **Cat 4g — phantom edges** | per-edge-type `evidence_rule` registry + lexical check | ProVe (Semantic Web Journal) — full LLM pipeline | ❌ **flag** — ProVe is T5 + BERT + entailment classifier; SME stays lexical, ProVe optional 2nd tier |
 | Corpus-side validators | `validate.py` + `verify.py` (~400 LOC each) | Great Expectations + Pandera | ⚠️ **discuss** — pattern-borrowing only, full GE is heavy |
 | LongMemEval cross-validation judge | `sme/eval/longmemeval_judge.py` (≈300 LOC, mocked-by-default) | RAGAS / TruLens / DeepEval / Phoenix | ❌ **flag** — full RAG-eval frameworks add huge dep trees; SME's 300-LOC wrapper around the OpenAI SDK is the lightweight version |
 | Substring matcher | hand-rolled per-question | (every RAG eval framework has one) | ✅ already lightweight |
@@ -132,12 +132,12 @@ the dep cost is non-trivial.
 
 These violate the lightweight constitutional principle.
 
-9. **ProVe full-pipeline integration for Cat 8b.**
+9. **ProVe full-pipeline integration for Cat 4g.**
    - Dep cost: T5 model weights (~1GB) + BERT model weights (~500MB)
      + textual-entailment classifier weights. Multi-GB before any
      SME run.
    - Trade-off: ProVe is the published reference implementation of
-     Cat 8b; integrating it means SME's phantom-edge probe matches
+     Cat 4g; integrating it means SME's phantom-edge probe matches
      the literature.
    - **Constitutional concern: this is exactly the kind of "framework
      bloat" SME is supposed to be the lightweight alternative to.**
@@ -236,7 +236,7 @@ the items below are the constitutionally-approved subset:
 
 | Priority | Item | Tier | Effort |
 |---|---|---|---|
-| 1 | Cite ProVe in #4 + spec Cat 8b as **heavy second tier**; SME's per-edge-type rule registry stays the lightweight first tier | T1 | 30 min |
+| 1 | Cite ProVe in #4 + spec Cat 4g as **heavy second tier**; SME's per-edge-type rule registry stays the lightweight first tier | T1 | 30 min |
 | 2 | `--shacl-shapes` flag for `sme-eval cat4` (`pyshacl` opt-in) | T1 | half day |
 | 3 | OpenLineage `RunEvent` emission from cross-validation harness (JSON sidecar, no Marquez) | T1 | half day |
 | 4 | PROV-O JSON shape for `_created_by` (no new dep) | T1 | 1 day |

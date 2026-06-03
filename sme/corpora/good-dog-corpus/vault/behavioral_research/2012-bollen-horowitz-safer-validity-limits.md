@@ -101,7 +101,7 @@ This note introduces a new conceptual domain — **applied shelter behavior asse
 
 - **Cat 3 (contradiction).** The `contradicts` edge from `pub_bollen_horowitz_2012_safer_validity` to `concept_behavior_assessment_limitations` is bound at the instrument-validation level. Bollen & Horowitz 2012 directly measured whether SAFER predicts what shelters need it to predict, and found it does so at near-chance levels.
 - **Cat 2c (multi-hop).** The `authored_by → affiliated_with` chain would be testable if Bollen/Horowitz institutional affiliations were directly verified (not available from search summaries). Co-author Jason Horowitz is a known animal behavior researcher; institutional affiliation was not confirmed at fetch time.
-- **Cat 10 (phantom edge).** The `contradicts` edge between the SAFER validity study and the ASPCA organizational endorsement of SAFER is flagged `needs_grounding: false` here because the contradiction is empirically demonstrated (sensitivity/specificity numbers vs. the ASPCA's promoted use of SAFER as a predictive tool), not merely asserted.
+- **Cat 4g (phantom edge).** The `contradicts` edge between the SAFER validity study and the ASPCA organizational endorsement of SAFER is flagged `needs_grounding: false` here because the contradiction is empirically demonstrated (sensitivity/specificity numbers vs. the ASPCA's promoted use of SAFER as a predictive tool), not merely asserted.
 
 ## Provenance and limitations
 

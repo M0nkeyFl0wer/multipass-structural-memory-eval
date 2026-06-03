@@ -188,7 +188,7 @@ Each question is classified by its **structural form** — the retrieval pattern
 
 ### GAP-L1/L2/L3: Gap detection probe
 
-**What it tests:** Whether the system identifies structural holes in its own knowledge.
+**What it tests:** Whether the system identifies topological holes (H1 cycles) in its own knowledge.
 
 **L1:** `What topics have no cross-references in the graph?` (explicit question)
 **L2:** `Run a health check on the graph.` (proactive, no gap explicitly named)

@@ -218,7 +218,7 @@ A single graph has multiple legitimate structural interpretations depending on w
 | 2 Cross-Domain Discovery | semantic_snapshot | Cross-domain means cross-topic in the knowledge layer, not cross-document |
 | 3 Contradiction Detection | semantic_snapshot | Contradictions are semantic claims, not mention frequencies |
 | 4 Ingestion Integrity | both — report separately | 4c monoculture runs on both (the RELATED-in-semantic case and the MENTIONS-in-full case are both real failure modes) |
-| 5 Gap Detection | semantic_snapshot | Structural holes in the knowledge layer are what Cat 5 finds; document-mention edges mask them |
+| 5 Gap Detection | semantic_snapshot | Topological holes (H1 cycles) in the knowledge layer are what Cat 5 finds; document-mention edges mask them |
 | 6 Temporal Reasoning | full_snapshot | Temporal queries can traverse any edge, including document citations |
 | 7 Token Efficiency | full_snapshot | Retrieval is run on the full graph — this is what the system actually does at query time |
 | 8 Ontology Coherence | both — report separately | Declared schema tested against both views; drift is usually visible in full, while semantic-layer vocabulary balance is visible in the semantic view |
@@ -531,7 +531,7 @@ The scorecard reports both. Without this split, the benchmark conflates "good sy
   - **Level 1 (L1):** Answers "what topics have no cross-references?" when explicitly asked.
   - **Level 2 (L2):** Proactively surfaces gaps in a health check or briefing without being asked.
 - **5-external:** Does SME's topology layer detect the seeded gaps?
-  - **Level 3 (L3):** Persistent H1 features from Ripser identify structural holes.
+  - **Level 3 (L3):** Persistent H1 features from Ripser identify topological holes (H1 cycles).
 
 **Topology integration (external):** Ripser with confidence-weighted filtration. H1 features persisting across wide filtration range = stable structural gaps. Cross-reference with Louvain communities for high-confidence gap identification. A persistent H1 feature spanning two communities with shared topic keywords is a confirmed gap.
 

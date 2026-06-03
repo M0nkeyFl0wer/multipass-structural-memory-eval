@@ -46,7 +46,7 @@ etc.) and a `Cat N` identifier you'll see in the code.
 | 1 | The Lookup | Factual retrieval (known answer in known source) | Covered by `retrieve` |
 | 2 | The Crossing / Registry / Stairway | Cross-domain discovery, canonicalization, multi-hop by depth | 2c implemented (`cat2c`) |
 | 3 | The Dissonance | Contradiction detection | Spec'd |
-| 4 | The Threshold | Ingestion integrity — introspection + external | Partial (`cat4`, `check`) |
+| 4 | The Threshold | Ingestigation — introspection + external | Partial (`cat4`, `check`) |
 | 5 | The Missing Room | Gap detection (persistent homology) | Partial (`cat5`, `check`, `analyze --betti`) |
 | 6 | The Archive | Temporal reasoning + provenance | Spec'd |
 | 7 | The Abacus | Token efficiency (graph vs flat, pairwise) | Partial via `retrieve` |
