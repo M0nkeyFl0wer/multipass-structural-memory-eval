@@ -35,7 +35,12 @@ dependencies = [
 [project.optional-dependencies]
 topology = [
     "ripser>=0.6",
-    "python-louvain>=0.16",
+    # NOTE: community detection uses networkx's native
+    # `louvain_communities` (nx>=3.2, already a core dep), NOT the
+    # `python-louvain`/`community` package. Do not re-add python-louvain:
+    # `community.best_partition` has different default resolution and
+    # tie-breaking, so a reviewer running it would get different
+    # communities than the modularity numbers SME reports.
 ]
 viz = [
     "matplotlib>=3.8",
