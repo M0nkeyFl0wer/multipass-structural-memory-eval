@@ -302,7 +302,20 @@ def score_external_fit(
         "unaligned_types": sorted(unaligned),
         "alignments": alignments,
         "audit": {
-            "@context": {"sh": "http://www.w3.org/ns/shacl#"},
+            # @id coercion on the SHACL-vocabulary terms so that
+            # "sh:Violation" / "sh:ClassConstraintComponent" parse as IRIs
+            # (not string literals) under a real JSON-LD/SHACL reader — see
+            # tests/test_cat8_shacl_conformance.py. The node-reference terms
+            # (sh:focusNode, sh:value, sh:resultPath) remain graph-local
+            # STRINGS, not IRIs: minting IRIs for property-graph nodes is the
+            # RDF-projection commitment draft 03 deliberately defers. A
+            # consumer can read conformance + severity + constraint-component;
+            # it cannot dereference the focus nodes. That tradeoff is explicit.
+            "@context": {
+                "sh": "http://www.w3.org/ns/shacl#",
+                "sh:resultSeverity": {"@type": "@id"},
+                "sh:sourceConstraintComponent": {"@type": "@id"},
+            },
             "sh:conforms": len(violations) == 0,
             "sh:result": results,
         },

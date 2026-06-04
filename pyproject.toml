@@ -77,6 +77,10 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.5",
+    # test-only: the Cat 8f SHACL ValidationReport conformance test
+    # parses the emitted report through a real JSON-LD/RDF reader. NOT a
+    # runtime dep — SME never projects to RDF or runs a SHACL engine.
+    "rdflib>=7.0",
 ]
 
 [project.scripts]
