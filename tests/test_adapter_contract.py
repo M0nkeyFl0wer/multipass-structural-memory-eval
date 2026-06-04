@@ -168,6 +168,12 @@ def test_query_returns_QueryResult(adapter: SMEAdapter) -> None:
     assert isinstance(result.answer, str)
     # ``error`` is Optional[str]; type, not presence.
     assert result.error is None or isinstance(result.error, str)
+    # Overlay fields (2026-06) — safe defaults, backward compatible
+    assert isinstance(result.latency_ms, (int, float))
+    assert result.latency_ms >= 0
+    assert isinstance(result.interaction_turns, int)
+    assert result.interaction_turns >= 1
+    assert result.cost_callback is None or callable(result.cost_callback)
 
 
 def test_query_without_n_results_kwarg(adapter: SMEAdapter) -> None:
