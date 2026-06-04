@@ -4,7 +4,7 @@ Every memory system under test implements SMEAdapter. The benchmark suite
 never touches a database directly — it talks to this thin interface.
 
 Three required methods: ingest_corpus, query, get_graph_snapshot.
-Two optional: get_flat_retrieval, get_ontology_source.
+Three optional: get_flat_retrieval, get_ontology_source, get_harness_manifest.
 """
 
 from __future__ import annotations
@@ -116,7 +116,7 @@ class QueryResult:
 class SMEAdapter(ABC):
     """Implement this for your database/memory system.
 
-    Three required methods. Two optional.
+    Three required methods. Three optional.
     """
 
     # --- Required ------------------------------------------------------

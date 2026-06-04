@@ -16,9 +16,11 @@
 
 **One question: what should a memory system know about its own structure, and how do you test whether it does?**
 
-Standard benchmarks (LongMemEval, LoCoMo, EverMemBench) test: "can you find a memory?" That's necessary but not sufficient. A filing cabinet can find a memory. The question is what the structure gives you beyond retrieval.
+SME is a **diagnostic toolkit**, not a benchmark leaderboard. Standard benchmarks (LongMemEval, LoCoMo, EverMemBench) test "can you find a memory?" — necessary but not sufficient. A filing cabinet can find a memory. The question is what the structure gives you beyond retrieval, and where *your specific build*, on *your specific corpus*, is silently breaking down.
 
-SME adds six structural categories on top of factual retrieval, plus a graph-vs-no-graph baseline and an ontology coherence layer that measures whether the system's schema matches its claims. Eight categories total. No system will score 90%+ across all eight today. The framework reveals where each architecture excels and where it doesn't.
+The framework defines nine categories of structural readings on top of factual retrieval. Pointed at a single system, it surfaces ingestion artifacts, structural gaps, ontology incoherence, and harness-integration failures that retrieval-only benchmarks don't reach. Pointed at the same system before and after a change, the deltas tell you whether the change moved what you thought it did. The framework is designed for *operators* (the people who maintain memory systems and need to know what's broken) more than for cross-system rankings.
+
+Cross-system comparison is possible but secondary: comparable readings require matched corpora, matched ontologies, and matched retrieval conditions. The framework supports such comparisons, but its core value is per-system diagnosis. See the [Scope and Limitations](#scope-and-limitations) section below for what SME deliberately doesn't try to measure.
 
 ---
 
@@ -83,6 +85,40 @@ Persistent homology is extensively applied in molecular science, protein structu
 - BenchmarkQED's AutoQ query synthesis → test query generation at scale
 - Structural quality metrics from Semantic Web Journal → ontology coherence in calibration
 - KGist's compression-based anomaly detection concept → Category 4 inspiration
+
+---
+
+## Scope and Limitations
+
+SME is opinionated about what it measures and what it deliberately leaves to other tools. Naming the boundaries explicitly is part of the diagnostic framing — readings that fall outside SME's scope are not failures of the framework, they're invitations to reach for the right complementary tool.
+
+### What SME measures
+
+- **Per-system structural integrity** across the nine category surfaces.
+- **Before/after deltas** under matched conditions — the most defensible reading shape.
+- **Within-system A/B/C ablations** — graph-on vs. graph-off, full-context vs. retrieval, etc.
+- **Cross-validation against external benchmarks** when corpora and methodologies are matched (LongMemEval cross-validation harness; standard-corpus integration in progress per [#43]).
+
+### What SME deliberately doesn't measure
+
+- **Cross-system absolute rankings.** Two systems with different ontologies, different corpora, or different retrieval conditions produce readings that are not directly comparable. The framework supports controlled cross-system runs but treats unconditioned "system X scores higher than system Y" claims as out of scope.
+- **Generalization of deltas across corpus scales.** The framework's corpora today are hand-authored at N ≤ 100. "This finding holds on a 10k-note production corpus" is not a claim the framework currently supports; standard-corpus integration ([#43]) is the path toward that surface.
+- **Ontology design quality.** Cat 4 / Cat 5 operate on top of an ontology that's exogenous to SME. A poorly-designed ontology produces readings that look like structural defects; a well-designed one can hide them. Ontology-sensitivity reading ([#45]) is the planned investigation; until it lands, cross-system readings on differently-ontologized graphs carry an unmeasured confound.
+- **Operator workflow beyond the diagnostic report.** SME tells you what's wrong; "and here's the migration to fix it" is out of scope. Diagnostic actionability ([#44]) is moving toward "fix this and re-run" guidance in the report layer; the actual remediation work lives downstream.
+- **Live agentic memory dynamics.** Read-after-write consistency, ordering invariants, and concurrent-update behaviour are JEPSEN-shaped questions that need their own category (Cat 10, [#24]) and aren't covered by Cats 1–9.
+- **Human-judgment calibration without explicit calibration runs.** Cat 6 judge scores inherit LongMemEval's prompts but not LongMemEval's >97% human-judge agreement number — SME-specific corpora need their own calibration run ([#46]).
+
+### Heavyweight integrations SME stays out of
+
+The framework's constitutional principle is **lightweight and locally runnable** — `pip install -e .` plus a clone of the repo gets you the full test surface with no service hosting, no GPU dependency, no multi-GB model weights at default install. The integrations below are flagged in [`docs/industry_standards_integration.md`](industry_standards_integration.md) as Tier 3 and stay out of the default path:
+
+- Full RAG-evaluation frameworks (DeepEval, RAGAS, TruLens, Phoenix, MLflow). SME's `sme/eval/longmemeval_judge.py` is a 300-LOC wrapper around the OpenAI SDK on purpose.
+- LangChain / LlamaIndex adapter inheritance. SME ships a thin compat wrapper as an opt-in extra; the core ABC stays bespoke.
+- ProVe full-pipeline integration for Cat 8b. ProVe is cited in the spec as the heavy semantic tier; SME's per-edge-type `evidence_rule` registry stays the lightweight first-tier.
+
+### Stage of the framework
+
+This is a **pre-1.0 diagnostic framework actively evolving in public**. Categories 1, 2c, 4, 5, 6, 7, 8, 9b have working implementations; 2, 2b, 3, 9a, 9c-9g have spec text and partial implementations. The validation-evidence appendix at the bottom of this spec is the running record of what each category has been demonstrated to catch on real corpora.
 
 ---
 
@@ -176,9 +212,16 @@ class SMEAdapter(ABC):
         Returns: {'type': 'declared'|'readme'|'inferred',
                   'schema': [...], 'documentation': str}"""
         return {'type': 'inferred', 'schema': [], 'documentation': ''}
+
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Return invocation surfaces this memory system exposes.
+        Used by Category 9 (Harness Integration). Adapters that don't
+        expose a harness surface (pure library APIs) return [] — Cat 9b
+        reports empty_manifest=True rather than crashing."""
+        return []
 ```
 
-Three required methods. That's the minimum viable adapter. `get_flat_retrieval` and `get_ontology_source` have defaults — SME fills in its own flat baseline and infers ontology from the graph if the adapter doesn't provide them.
+Three required methods. That's the minimum viable adapter. `get_flat_retrieval`, `get_ontology_source`, and `get_harness_manifest` have defaults — SME fills in its own flat baseline, infers ontology from the graph, and treats an empty harness manifest as "Cat 9 not applicable" when the adapter doesn't provide them.
 
 ### Default Adapters
 
@@ -942,3 +985,43 @@ The topology layer means structural properties invisible to queries — holes, m
 Category 7 answers: "why not just use more tokens?" Category 4 answers: "how do I know my pipeline isn't corrupting my graph?" Category 5 answers: "what's missing that I haven't thought to ask about?" Category 8 answers: "does my graph match what I think I built?" The multi-hop curve in Categories 2c and 7d answers: "at what reasoning depth does structure start earning its keep?"
 
 The prior art table makes clear: Categories 1, 3, and 6 extend existing benchmarks. Categories 4, 5, 7, and 8 are novel. Category 2's canonicalization and multi-hop sub-tests are novel. The adapter architecture, topology integration, and implied ontology extraction are novel. Everything this builds on is open source. Everything this produces will be open source.
+
+---
+
+## Validation Evidence (appendix)
+
+This is the running record of what each category has been demonstrated to catch on real corpora. The diagnostic-tool framing in the opening section depends on construct validity per category — "Cat 4 catches the kinds of canonical collisions real graphs accumulate," not just "Cat 4 catches the canonical collisions we seeded into jp-realm-v0.1."
+
+The appendix is populated incrementally as standard-corpus integration ([#43]) and case-study work ([#44]) ship. Empty cells are not category failures — they're "not yet demonstrated against a public surface" markers.
+
+| Category | Hand-authored evidence | Public-corpus evidence | Real-system case studies |
+|---|---|---|---|
+| **Cat 1 — The Lookup** | jp-realm-v0.1 (24 notes, 8 questions) | LongMemEval substrate parity (R@5 = 0.9660 byte-identical to upstream) | — |
+| **Cat 2c — The Stairway (multi-hop)** | jp-realm-v0.1 (10 multi-hop questions at hop depths 1/2/3) | HotpotQA integration pending ([#43]) | — |
+| **Cat 3 — The Dissonance** | jp-realm-v0.1 (2 contradiction pairs) | — | — |
+| **Cat 4 — The Threshold (Ingestigation)** | jp-realm-v0.1 (3 alias pairs, 5 seeded defects) | MINE integration pending ([#43]) | Content-engine baseline pass 2026-05-05 (canonical-collision bug surfaced + rebuild informed; drafts at [`docs/issue-drafts/2026-05-05-content-engine-feedback/`](issue-drafts/2026-05-05-content-engine-feedback/)) |
+| **Cat 5 — The Missing Room** | jp-realm-v0.1 (1 structural gap between auth_engineering and privacy_research) | MINE / GraphRAG-Bench integration pending ([#43]) | — |
+| **Cat 6 — The Archive** | jp-realm-v0.1 (1 temporal evolution chain) | LongMemEval cross-validation harness merged | — |
+| **Cat 7 — The Abacus** | jp-realm-v0.1 (8 token-efficiency questions) | — | — |
+| **Cat 7.b — Latency** | PR #33 (in flight) | — | — |
+| **Cat 7 — Cost-per-correct** | PR #34 (in flight) | — | — |
+| **Cat 8 — The Blueprint** | jp-realm-v0.1 (implied-vs-declared ontology comparison) | — | — |
+| **Cat 9a — The Handshake (invocation)** | gemma4 vs qwen3.5 readings at n=5/n=20, vanilla/forced ([#3]) | Tau2 cross-validation across additional model families pending | — |
+| **Cat 9b — Call-through success** | Implemented in PR #1 | MCP-Bench ESR naming alignment pending ([#41]) | — |
+| **Cat 10 — The Echo (read-after-write)** | Not yet spec'd | — | — |
+
+### Cross-cutting evidence
+
+- **Substrate-floor parity with LongMemEval:** R@5 = 0.9660, byte-identical across all 6 question types (substring scorer, no judge). Cross-validation confirms the embedding plumbing matches upstream. Loader-format adds 2.2pp materialization overhead, measured and documented in [#9].
+- **AdaptMem FT-300 independent reproduction:** R@5 = 1.000 on 200q held-out (+0.5pp within published noise of Atakan's 0.995). Confirms encoder-side calibration baseline.
+- **Judge-human agreement on SME corpora:** Not yet measured ([#46]). Until it lands, Cat 6 / judge-scored claims carry no inherited calibration from LongMemEval.
+- **Statistical hygiene:** PR #36 adds paired bootstrap CIs and BH-FDR. Retrofitting CIs onto existing readings is in-flight.
+
+### How to contribute evidence
+
+Running SME against a corpus you maintain and finding something (real bug, surprising signal, null result) is evidence. Two ways to land it here:
+
+1. **Anonymized case study** at [`docs/case-studies/`](case-studies/) following the shape of `docs/issue-drafts/2026-05-05-content-engine-feedback/` (workflow note → gap → proposal → action).
+2. **Public-corpus reading** — once Phase 1 of [#43] ships, "ran Cat X against [LoCoMo / HotpotQA / MINE] and surfaced N findings of shape Y" is the natural unit. PR adds a row to the table above.
+
+Null results count. A category that surfaces no findings on a corpus where it expected to is published as a null and helps calibrate the category's sensitivity floor.
