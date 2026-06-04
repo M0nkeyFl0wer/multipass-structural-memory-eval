@@ -546,7 +546,6 @@ class LadybugDBAdapter(SMEAdapter):
         for table in self.include_node_tables:
             cols = self._node_columns.get(table, [])
             name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
-            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
             if not name_col:
                 continue
             try:
@@ -684,7 +683,6 @@ class LadybugDBAdapter(SMEAdapter):
         for table in self.include_node_tables:
             cols = self._node_columns.get(table, [])
             name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
-            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
             if not name_col:
                 continue
             try:
@@ -790,7 +788,6 @@ class LadybugDBAdapter(SMEAdapter):
         for table in self.include_node_tables:
             cols = self._node_columns.get(table, [])
             name_col = next((c[0] for c in cols if c[0] in NAME_COLUMN_CANDIDATES), None)
-            desc_col = next((c[0] for c in cols if c[0] == "description"), None)
             if not name_col:
                 continue
             try:
