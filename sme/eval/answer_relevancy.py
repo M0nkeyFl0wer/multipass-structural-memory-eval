@@ -24,7 +24,7 @@ def grade_relevancy(
 
     Returns:
         {
-            "score": float,  # 0.0-1.0
+            "score": float | None,  # 0.0-1.0; None if judge failed
             "rationale": str,
             "usage": dict,
             "error": str | None,
@@ -45,7 +45,7 @@ def grade_relevancy(
 
     if result.get("error"):
         return {
-            "score": 0.0,
+            "score": None,  # conflation guard: None means "could not judge"
             "rationale": "",
             "usage": result.get("usage", {}),
             "error": result["error"],
@@ -56,7 +56,7 @@ def grade_relevancy(
     if parsed is None or not isinstance(parsed, dict):
         snippet = raw_content[:200] if raw_content else "<empty>"
         return {
-            "score": 0.0,
+            "score": None,  # conflation guard: None means "could not judge"
             "rationale": "",
             "usage": result.get("usage", {}),
             "error": f"Failed to parse judge response as JSON: {snippet!r}",

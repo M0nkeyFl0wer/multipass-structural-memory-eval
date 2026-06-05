@@ -5,11 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sme.eval.faithfulness import grade_faithfulness
-from sme.eval.judge_cache import clear_cache
-
-# Ensure a clean slate so cached results from previous runs don't
-# leak into these deterministic unit tests.
-clear_cache()
 
 
 def _fake_openai_response(
@@ -114,7 +109,7 @@ def test_error_handling_malformed_json():
         use_cache=False
     )
     assert result["error"] is not None
-    assert result["score"] == 0.0
+    assert result["score"] is None  # conflation guard: None = "could not judge"
     assert result["claims"] == []
 
 
@@ -132,10 +127,11 @@ def test_error_handling_api_failure():
 
     result = grade_faithfulness(
         context_string="Paris is the capital of France.",
-        answer="Paris is the capital of France.",
+        answer="London is the capital of France.",
         client=_BrokenClient(),
+        use_cache=False
     )
     assert result["error"] is not None
     assert "judge call failed" in result["error"]
-    assert result["score"] == 0.0
+    assert result["score"] is None  # conflation guard: None = "could not judge"
     assert result["claims"] == []

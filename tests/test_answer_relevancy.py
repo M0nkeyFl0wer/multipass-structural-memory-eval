@@ -5,11 +5,6 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sme.eval.answer_relevancy import grade_relevancy
-from sme.eval.judge_cache import clear_cache
-
-# Ensure a clean slate so cached results from previous runs don't
-# leak into these deterministic unit tests.
-clear_cache()
 
 
 def _fake_openai_response(
@@ -110,7 +105,7 @@ def test_malformed_json():
         use_cache=False,
     )
     assert result["error"] is not None
-    assert result["score"] == 0.0
+    assert result["score"] is None  # conflation guard: None = "could not judge"
 
 
 def test_api_failure():
@@ -133,4 +128,4 @@ def test_api_failure():
     )
     assert result["error"] is not None
     assert "judge call failed" in result["error"]
-    assert result["score"] == 0.0
+    assert result["score"] is None  # conflation guard: None = "could not judge"

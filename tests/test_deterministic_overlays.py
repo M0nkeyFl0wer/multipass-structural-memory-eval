@@ -70,6 +70,17 @@ def test_entity_id_overlap_match_by_name():
     assert entity_id_overlap(result, ["Wonderland"]) == 1.0
 
 
+def test_entity_id_overlap_case_insensitive():
+    """Source/entity matching should not depend on capitalization."""
+    result = QueryResult(
+        answer="",
+        retrieved_entities=[
+            Entity(id="DOC_1", name="Alice in Wonderland", entity_type="book"),
+        ],
+    )
+    assert entity_id_overlap(result, ["doc_1", "wonderland"]) == 1.0
+
+
 def test_entity_id_overlap_no_match():
     """Zero of two retrieved entities match."""
     result = QueryResult(
@@ -135,4 +146,11 @@ def test_token_utilization_zero_context_tokens_fallback(monkeypatch):
     # Force fallback path by hiding tiktoken.
     monkeypatch.delitem(sys.modules, "tiktoken", raising=False)
     monkeypatch.setitem(sys.modules, "tiktoken", None)
+    assert token_utilization(result) is None
+
+
+def test_token_utilization_pass_through_returns_none():
+    """When the adapter echoes context as answer (pass-through), the
+    compression ratio is meaningless — return None."""
+    result = QueryResult(answer="exact same text", context_string="exact same text")
     assert token_utilization(result) is None

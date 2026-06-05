@@ -24,7 +24,7 @@ def grade_faithfulness(
 
     Returns:
         {
-            "score": float,  # fraction of claims supported (0.0-1.0)
+            "score": float | None,  # fraction supported; None if judge failed
             "claims": [{"text": str, "verdict": "SUPPORTED|CONTRADICTED|UNSUPPORTED"}],
             "rationale": str,
             "usage": dict,
@@ -62,7 +62,7 @@ def grade_faithfulness(
 
     if result.get("error"):
         return {
-            "score": 0.0,
+            "score": None,  # conflation guard: None means "could not judge"
             "claims": [],
             "rationale": "",
             "usage": result.get("usage", {}),
@@ -74,7 +74,7 @@ def grade_faithfulness(
     if parsed is None or not isinstance(parsed, dict):
         snippet = raw_content[:200] if raw_content else "<empty>"
         return {
-            "score": 0.0,
+            "score": None,  # conflation guard: None means "could not judge"
             "claims": [],
             "rationale": "",
             "usage": result.get("usage", {}),

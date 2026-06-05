@@ -5,6 +5,7 @@ import json
 import time
 from pathlib import Path
 
+import sme.eval.judge_cache as judge_cache
 
 from sme.eval.judge_cache import (
     DEFAULT_TTL_SECONDS,
@@ -164,6 +165,21 @@ def test_set_cache_creates_nested_directories(tmp_path: Path):
     key = _cache_key("r", "b", "m", "p")
     expected_file = tmp_path / key[:2] / f"{key}.json"
     assert expected_file.exists()
+
+
+def test_set_cache_leaves_no_tmp_files(tmp_path: Path):
+    set_cache({"score": 5}, "r", "b", "m", "p", cache_dir=tmp_path)
+    assert not list(tmp_path.rglob("*.tmp"))
+
+
+def test_set_cache_threshold_eviction(monkeypatch, tmp_path: Path):
+    monkeypatch.setattr(judge_cache, "_MAX_CACHE_FILES", 3)
+    for i in range(5):
+        set_cache({"score": i}, f"r{i}", f"b{i}", "m", "p", cache_dir=tmp_path)
+        time.sleep(0.001)  # ensure stable mtime ordering on coarse filesystems
+
+    cached_files = list(tmp_path.rglob("*.json"))
+    assert len(cached_files) < 5
 
 
 # --- malformed entry handling ---------------------------------------------

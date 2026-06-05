@@ -152,7 +152,7 @@ class RubricJudge:
                 return fn()
             except retryable as e:
                 last_exc = e
-                log.warning(
+                log.info(
                     "RubricJudge[%s]: attempt %d/%d failed (%s): %s",
                     label, attempt + 1, max_retries,
                     e.__class__.__name__, e,

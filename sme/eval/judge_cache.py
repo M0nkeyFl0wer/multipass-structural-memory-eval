@@ -25,16 +25,17 @@ and returns ``None``.
 Thread / process safety
 -----------------------
 
-Writes are not atomic and this module does not use file locking.  In practice
-SME's judge pipeline is single-process for a given cache directory, so the
-race-window (read between write+close and rename) is acceptable.  If parallel
-judge runs become common we can switch to atomic writes via ``os.replace``.
+Writes are atomic (temp file in the same directory, then ``os.replace``), but
+this module does not use file locking.  In practice SME's judge pipeline is
+single-process for a given cache directory; concurrent writers for the same key
+are last-write-wins.
 """
 from __future__ import annotations
 
 import hashlib
 import json
 import logging
+import os
 import time
 from pathlib import Path
 
@@ -81,11 +82,11 @@ def get_cached(
     except FileNotFoundError:
         return None
     except (json.JSONDecodeError, OSError) as exc:
-        log.warning("judge_cache: unreadable entry %s: %s", path, exc)
+        log.info("judge_cache: unreadable entry %s: %s", path, exc)
         return None
 
     if not isinstance(data, dict) or "cached_at" not in data or "result" not in data:
-        log.warning("judge_cache: malformed entry %s", path)
+        log.info("judge_cache: malformed entry %s", path)
         return None
 
     if time.time() - data["cached_at"] > ttl_seconds:
@@ -117,11 +118,57 @@ def set_cache(
 
     payload = {"result": result, "cached_at": time.time()}
 
+    # Atomic write: write to a temp file in the same directory, then rename.
+    # This prevents half-written files if the process crashes mid-write.
+    tmp_path = path.with_name(f"{path.name}.{os.getpid()}.{time.time_ns()}.tmp")
     try:
-        with path.open("w", encoding="utf-8") as fh:
+        with tmp_path.open("w", encoding="utf-8") as fh:
             json.dump(payload, fh, indent=2)
+        os.replace(tmp_path, path)
     except OSError as exc:
         log.warning("judge_cache: cannot write %s: %s", path, exc)
+        try:
+            tmp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        return
+
+    # Threshold-based eviction: when the cache grows beyond a reasonable
+    # size, trim the oldest entries.  This is a coarse guard against
+    # unbounded growth — a cron job or explicit `--clear-judge-cache`
+    # CLI flag is still the right way to do full housekeeping.
+    _maybe_evict(cache_dir)
+
+
+# Coarse threshold: when the cache exceeds this many files, evict the oldest
+# 20 %.  Chosen to be large enough for a full LongMemEval run (~500 q)
+# without triggering, small enough to prevent multi-gigabyte caches.
+_MAX_CACHE_FILES = 5000
+
+
+def _maybe_evict(cache_dir: Path) -> None:
+    """Evict oldest entries if the cache is above the threshold."""
+    if not cache_dir.exists():
+        return
+    entries = list(cache_dir.rglob("*.json"))
+    if len(entries) <= _MAX_CACHE_FILES:
+        return
+    # Sort by mtime (oldest first) and remove the oldest 20 %.
+    try:
+        entries.sort(key=lambda p: p.stat().st_mtime)
+    except OSError as exc:
+        log.info("judge_cache: eviction skipped after stat failure: %s", exc)
+        return
+    to_remove = int(len(entries) * 0.2)
+    removed = 0
+    for path in entries[:to_remove]:
+        try:
+            path.unlink()
+            removed += 1
+        except OSError:
+            pass
+    log.info("judge_cache: evicted %d/%d oldest entries (threshold=%d)",
+             removed, len(entries), _MAX_CACHE_FILES)
 
 
 def clear_cache(cache_dir: Path | None = None) -> None:

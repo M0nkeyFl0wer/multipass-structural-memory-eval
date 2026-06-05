@@ -24,8 +24,13 @@ if str(_SCRIPTS) not in sys.path:
 
 import cross_validate_longmemeval as harness  # noqa: E402
 
-# Prevent stale cached judge results from leaking across test modules.
-clear_cache()
+
+@pytest.fixture(autouse=True)
+def _isolate_judge_cache():
+    """Cross-validation tests reuse prompts with different fake judges."""
+    clear_cache()
+    yield
+    clear_cache()
 
 
 FIXTURE = [
@@ -208,10 +213,6 @@ def test_aggregation_reports_judge_correct_rate(dataset, args_factory):
 
 def test_aggregation_records_disagreements(tmp_path, args_factory):
     """If SME recall is high but judge says INCORRECT, harness flags it."""
-    # Prevent cached results from earlier tests in this module (which use
-    # the same fixture but a different judge client) from shadowing the
-    # always-INCORRECT client we inject here.
-    clear_cache()
     # Construct a fixture where the abstention case has SME recall=0
     # but a misbehaving judge marks it INCORRECT — that's a
     # disagreement (sme says wrong, judge says wrong → AGREE) so let's

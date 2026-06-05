@@ -39,8 +39,10 @@ def entity_id_overlap(
 
     matched = 0
     for entity in result.retrieved_entities:
+        e_id = entity.id.lower()
+        e_name = entity.name.lower()
         if any(
-            source in entity.id or source in entity.name
+            source.lower() in e_id or source.lower() in e_name
             for source in expected_sources
         ):
             matched += 1
