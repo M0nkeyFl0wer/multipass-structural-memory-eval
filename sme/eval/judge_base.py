@@ -23,6 +23,47 @@ PROVIDER_DEFAULT_MODEL = {
 
 VALID_PROVIDERS = set(PROVIDER_DEFAULT_MODEL)
 
+# Lazily-built tuple of exception types that justify a retry.
+_RETRYABLE_TYPES: tuple[type[BaseException], ...] | None = None
+
+
+def _retryable_types() -> tuple[type[BaseException], ...]:
+    """Return exception types that indicate a transient failure.
+
+    Includes standard network errors plus SDK-specific API errors.
+    Non-retryable exceptions (ValueError, TypeError, AssertionError,
+    etc.) are NOT in this list so bugs surface immediately.
+    """
+    global _RETRYABLE_TYPES
+    if _RETRYABLE_TYPES is not None:
+        return _RETRYABLE_TYPES
+
+    types: list[type[BaseException]] = [ConnectionError, TimeoutError]
+    try:
+        import openai  # type: ignore[import-not-found]
+
+        types.extend([
+            openai.APIConnectionError,
+            openai.RateLimitError,
+            openai.APITimeoutError,
+            openai.InternalServerError,
+        ])
+    except ImportError:
+        pass
+    try:
+        import anthropic  # type: ignore[import-not-found]
+
+        types.extend([
+            anthropic.APIConnectionError,
+            anthropic.RateLimitError,
+            anthropic.APITimeoutError,
+            anthropic.InternalServerError,
+        ])
+    except ImportError:
+        pass
+    _RETRYABLE_TYPES = tuple(types)
+    return _RETRYABLE_TYPES
+
 
 def _default_client(provider: str) -> Optional[Any]:
     """Return a lazily-imported provider client, or None if unavailable.
@@ -96,18 +137,25 @@ class RubricJudge:
     def _retry(fn, *, max_retries: int = 3, label: str = "judge"):
         """Run ``fn()`` with exponential backoff, returning its result.
 
+        Only retries on transient API/network errors (ConnectionError,
+        TimeoutError, and SDK-specific rate-limit / server-error types).
+        Programming bugs (ValueError, TypeError, AttributeError, etc.)
+        are re-raised immediately so they don't get masked by retries.
+
         Raises the final exception on exhaustion.
         """
+        retryable = _retryable_types()
         last_exc: Optional[BaseException] = None
         delay = 1.0
         for attempt in range(max_retries):
             try:
                 return fn()
-            except Exception as e:  # noqa: BLE001
+            except retryable as e:
                 last_exc = e
                 log.warning(
-                    "RubricJudge[%s]: attempt %d/%d failed: %s",
-                    label, attempt + 1, max_retries, e,
+                    "RubricJudge[%s]: attempt %d/%d failed (%s): %s",
+                    label, attempt + 1, max_retries,
+                    e.__class__.__name__, e,
                 )
                 if attempt + 1 < max_retries:
                     time.sleep(delay)
@@ -128,7 +176,9 @@ class RubricJudge:
         Used for both ``provider='openai'`` and ``provider='openrouter'``.
         Returns ``{'content': str, 'usage': dict}`` on success.
         """
-        combined = rubric + body
+        # Ensure a clean boundary between rubric and body so callers don't
+        # have to remember to append a trailing newline to every rubric.
+        combined = rubric.rstrip() + "\n\n" + body.lstrip()
 
         def _do() -> dict:
             resp = self.client.chat.completions.create(

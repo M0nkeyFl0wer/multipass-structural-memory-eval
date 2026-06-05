@@ -185,7 +185,7 @@ class _FlakyClient:
             def create(self, *, model, messages, temperature=0.0):
                 outer.attempts += 1
                 if outer.attempts <= outer.fail_n:
-                    raise RuntimeError(f"transient {outer.attempts}")
+                    raise ConnectionError(f"transient {outer.attempts}")
                 if outer.final_exc is not None:
                     raise outer.final_exc
                 return _fake_response(outer.then_content)
