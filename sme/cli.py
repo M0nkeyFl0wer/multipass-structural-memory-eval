@@ -1212,7 +1212,7 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
 
     # Deterministic overlays (Layer 2 — no API calls)
     from sme.eval.deterministic_overlays import (
-        contextual_precision_proxy,
+        entity_id_overlap,
         token_utilization,
     )
 
@@ -1312,7 +1312,7 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
             print(f"  ERROR: {err}")
 
         # Layer 2: deterministic overlays (always computed, no API cost)
-        precision = contextual_precision_proxy(result, expected)
+        precision = entity_id_overlap(result, expected)
         utilization = token_utilization(result)
 
         # Layer 3: LLM-judge overlays (only when --eval-generative and not --offline)
@@ -1341,7 +1341,7 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
                 "retrieval_path": path,
                 "error": err,
                 "overlays": {
-                    "contextual_precision_proxy": precision,
+                    "entity_id_overlap": precision,
                     "token_utilization": utilization,
                     "generative": gen_overlays if _eval_generative else None,
                 },

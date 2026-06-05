@@ -92,11 +92,14 @@ def generate_distractor_corpus(size: int, *, seed: int = 42) -> list[str]:
 
 def insert_literal_needles(
     corpus: list[str],
-    needles: list[str],
+    needles: list[tuple[str, str]],
     *,
     seed: int = 42,
 ) -> tuple[list[str], list[float]]:
     """Insert needles at random positions.
+
+    Each needle is a ``(needle_text, question)`` tuple.  Only the
+    ``needle_text`` is written into the corpus.
 
     Returns ``(corpus_with_needles, depth_pcts)``.
     """
@@ -115,7 +118,7 @@ def insert_literal_needles(
     out = corpus.copy()
     depth_pcts: list[float] = []
     for idx, needle in zip(indices, working_needles):
-        out[idx] = needle
+        out[idx] = needle[0]
         depth_pcts.append(idx / (len(corpus) - 1) if len(corpus) > 1 else 0.0)
 
     return out, depth_pcts
@@ -123,11 +126,14 @@ def insert_literal_needles(
 
 def insert_sequential_needles(
     corpus: list[str],
-    needles: list[str],
+    needles: list[tuple[str, str]],
     *,
     seed: int = 42,
 ) -> tuple[list[str], list[float]]:
     """Insert needles in sequence at increasing depths.
+
+    Each needle is a ``(needle_text, question)`` tuple.  Only the
+    ``needle_text`` is written into the corpus.
 
     Returns ``(corpus_with_needles, depth_pcts)``.
     """
@@ -163,7 +169,7 @@ def insert_sequential_needles(
     # overlap — that is acceptable for the stress test.
     depth_pcts: list[float] = []
     for idx, needle in zip(indices, needles):
-        out[idx] = needle
+        out[idx] = needle[0]
         depth_pcts.append(idx / (len(corpus) - 1) if len(corpus) > 1 else 0.0)
 
     return out, depth_pcts
@@ -174,7 +180,7 @@ def insert_sequential_needles(
 
 def run_niah(
     adapter: SMEAdapter,
-    needles: list[str],
+    needles: list[tuple[str, str]],
     corpus_size: int = 1000,
     *,
     sequential: bool = False,
@@ -182,12 +188,17 @@ def run_niah(
 ) -> NIAHReport:
     """Run needle-in-a-haystack against an SME adapter.
 
+    Each needle is a ``(needle_text, question)`` tuple.  The ``question``
+    is passed to ``adapter.query()``, and the report checks whether
+    ``needle_text`` appears in the returned answer, context string, or
+    retrieved entities.
+
     1. Generate distractor corpus
     2. Insert needles (literal or sequential)
     3. Concatenate corpus into a single large text
-    4. Call ``adapter.query()`` for each needle
-    5. Check if needle appears in ``result.context_string`` or
-       ``result.retrieved_entities``
+    4. Call ``adapter.query(question)`` for each needle
+    5. Check if ``needle_text`` appears in ``result.answer``,
+       ``result.context_string``, or ``result.retrieved_entities``
     6. Return report
     """
     corpus = generate_distractor_corpus(corpus_size, seed=seed)
@@ -207,37 +218,41 @@ def run_niah(
     # every needle still appears in the report.
     padded_depths = list(depth_pcts) + [0.0] * (len(needles) - len(depth_pcts))
 
-    for needle, depth in zip(needles, padded_depths):
-        query_result: QueryResult = adapter.query(needle)
+    for (needle_text, question), depth in zip(needles, padded_depths):
+        query_result: QueryResult = adapter.query(question)
 
         found = False
         rank: Optional[int] = None
 
-        # 1. Substring match in the context string
-        if query_result.context_string and needle in query_result.context_string:
+        # 1. Substring match in the answer
+        if query_result.answer and needle_text in str(query_result.answer):
             found = True
 
-        # 2. Name match in retrieved entities
+        # 2. Substring match in the context string
+        if not found and query_result.context_string and needle_text in query_result.context_string:
+            found = True
+
+        # 3. Name match in retrieved entities
         if not found and query_result.retrieved_entities:
             for entity in query_result.retrieved_entities:
-                if needle in entity.name:
+                if needle_text in entity.name:
                     found = True
                     break
 
         if found:
             found_count += 1
-            # Rank = first entity position whose name contains the needle
+            # Rank = first entity position whose name contains the needle text
             for i, entity in enumerate(query_result.retrieved_entities):
-                if needle in entity.name:
+                if needle_text in entity.name:
                     rank = i
                     break
             if rank is None:
-                # Found via context_string but not as a discrete ranked entity
+                # Found via answer/context_string but not as a discrete ranked entity
                 rank = 0
 
         results.append(
             NeedleResult(
-                needle=needle,
+                needle=needle_text,
                 depth_pct=depth,
                 found=found,
                 found_rank=rank if found else None,

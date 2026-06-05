@@ -10,15 +10,15 @@ import sys
 
 from sme.adapters.base import Entity, QueryResult
 from sme.eval.deterministic_overlays import (
-    contextual_precision_proxy,
+    entity_id_overlap,
     token_utilization,
 )
 
 
-# --- contextual_precision_proxy ------------------------------------------
+# --- entity_id_overlap ----------------------------------------------------
 
 
-def test_contextual_precision_proxy_perfect_match():
+def test_entity_id_overlap_perfect_match():
     """All retrieved entities match expected sources."""
     result = QueryResult(
         answer="",
@@ -27,10 +27,10 @@ def test_contextual_precision_proxy_perfect_match():
             Entity(id="doc_2", name="Bob", entity_type="person"),
         ],
     )
-    assert contextual_precision_proxy(result, ["doc_1", "doc_2"]) == 1.0
+    assert entity_id_overlap(result, ["doc_1", "doc_2"]) == 1.0
 
 
-def test_contextual_precision_proxy_partial_match():
+def test_entity_id_overlap_partial_match():
     """Only one of two retrieved entities matches expected sources."""
     result = QueryResult(
         answer="",
@@ -39,10 +39,10 @@ def test_contextual_precision_proxy_partial_match():
             Entity(id="doc_3", name="Charlie", entity_type="person"),
         ],
     )
-    assert contextual_precision_proxy(result, ["doc_1", "doc_2"]) == 0.5
+    assert entity_id_overlap(result, ["doc_1", "doc_2"]) == 0.5
 
 
-def test_contextual_precision_proxy_empty_expected_sources():
+def test_entity_id_overlap_empty_expected_sources():
     """No oracle → None."""
     result = QueryResult(
         answer="",
@@ -50,16 +50,16 @@ def test_contextual_precision_proxy_empty_expected_sources():
             Entity(id="doc_1", name="Alice", entity_type="person"),
         ],
     )
-    assert contextual_precision_proxy(result, []) is None
+    assert entity_id_overlap(result, []) is None
 
 
-def test_contextual_precision_proxy_empty_retrieved_entities():
+def test_entity_id_overlap_empty_retrieved_entities():
     """Nothing retrieved → 0.0."""
     result = QueryResult(answer="")
-    assert contextual_precision_proxy(result, ["doc_1"]) == 0.0
+    assert entity_id_overlap(result, ["doc_1"]) == 0.0
 
 
-def test_contextual_precision_proxy_match_by_name():
+def test_entity_id_overlap_match_by_name():
     """Substring match in entity.name is sufficient."""
     result = QueryResult(
         answer="",
@@ -67,10 +67,10 @@ def test_contextual_precision_proxy_match_by_name():
             Entity(id="e_1", name="Alice in Wonderland", entity_type="book"),
         ],
     )
-    assert contextual_precision_proxy(result, ["Wonderland"]) == 1.0
+    assert entity_id_overlap(result, ["Wonderland"]) == 1.0
 
 
-def test_contextual_precision_proxy_no_match():
+def test_entity_id_overlap_no_match():
     """Zero of two retrieved entities match."""
     result = QueryResult(
         answer="",
@@ -79,21 +79,31 @@ def test_contextual_precision_proxy_no_match():
             Entity(id="doc_4", name="Dana", entity_type="person"),
         ],
     )
-    assert contextual_precision_proxy(result, ["doc_1", "doc_2"]) == 0.0
+    assert entity_id_overlap(result, ["doc_1", "doc_2"]) == 0.0
 
 
 # --- token_utilization ----------------------------------------------------
 
 
 def test_token_utilization_normal_case():
-    """Ratio of answer tokens to context tokens with real tiktoken."""
+    """Compression ratio with answer shorter than context."""
     result = QueryResult(
         answer="The quick brown fox.",
-        context_string="Lorem ipsum dolor sit amet.",
+        context_string="Lorem ipsum dolor sit amet. " * 10,
     )
     ratio = token_utilization(result)
     assert ratio is not None
-    assert ratio > 0.0
+    assert 0.0 < ratio < 1.0
+
+
+def test_token_utilization_capped_at_one():
+    """When answer is longer than context, ratio is capped at 1.0."""
+    result = QueryResult(
+        answer="Lorem ipsum dolor sit amet. " * 20,
+        context_string="Short context.",
+    )
+    ratio = token_utilization(result)
+    assert ratio == 1.0
 
 
 def test_token_utilization_empty_context():

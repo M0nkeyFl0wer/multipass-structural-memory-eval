@@ -118,10 +118,6 @@ class QueryResult:
     # Number of interaction turns the adapter took to produce this result.
     # Single-turn adapters default to 1; multi-turn retrieval increments.
     interaction_turns: int = 1
-    # Optional cost callback: cost_callback(prompt_tokens, completion_tokens, provider_name) -> float
-    # When the adapter or harness calls an LLM, it can pass token counts here
-    # and the downstream overlay scorer will surface cost metrics.
-    cost_callback: Optional[Callable[[int, int, str], float]] = None
 
 
 class SMEAdapter(ABC):

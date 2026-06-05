@@ -173,7 +173,6 @@ def test_query_returns_QueryResult(adapter: SMEAdapter) -> None:
     assert result.latency_ms >= 0
     assert isinstance(result.interaction_turns, int)
     assert result.interaction_turns >= 1
-    assert result.cost_callback is None or callable(result.cost_callback)
 
 
 def test_query_without_n_results_kwarg(adapter: SMEAdapter) -> None:

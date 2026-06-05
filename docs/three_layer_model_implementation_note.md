@@ -31,11 +31,11 @@ Computed from `QueryResult` fields without any API calls.
 
 | Metric | Module | Description |
 |---|---|---|
-| `contextual_precision_proxy` | `sme/eval/deterministic_overlays.py` | Fraction of retrieved entities that match expected sources. Approximates RAG Triad Contextual Precision without an LLM judge. Returns `null` when no oracle is available. |
+| `entity_id_overlap` | `sme/eval/deterministic_overlays.py` | Fraction of retrieved entities whose id/name contains an expected source substring. Only meaningful when adapter IDs are human-readable. Not a general contextual-precision metric. Returns `null` when no oracle is available. |
 | `token_utilization` | `sme/eval/deterministic_overlays.py` | Ratio of answer tokens to context tokens. Weak signal for TRACe Utilization. Uses tiktoken (cl100k_base) when available; falls back to whitespace split. |
 | `latency_ms` | Harness layer | Wall-clock time per query. Populated by `timed_query()` wrapper in `sme/harness/wrapper.py`. |
 | `interaction_turns` | Adapter layer | Number of turns per query. Single-turn adapters default to 1. Multi-turn adapters increment. Used for Stompy-style exploration overhead. |
-| `cost_callback` | Adapter layer | Optional `Callable[[int, int, str], float]` for cost tracking. Users inject their own pricing; SME ships a no-op default. |
+| `latency_ms` | Harness layer | Wall-clock time per query. Populated by `timed_query()` wrapper. |
 
 These answer: **"Is the retrieval precise and efficient?"**
 
@@ -75,7 +75,7 @@ Each question in the `retrieve` JSON output now includes an `overlays` key:
   "tokens": 452,
   "elapsed_ms": 120.5,
   "overlays": {
-    "contextual_precision_proxy": 0.6,
+    "entity_id_overlap": 0.6,
     "token_utilization": 0.08,
     "generative": {
       "faithfulness": 0.85,
@@ -89,7 +89,7 @@ When `--offline` is set, `"generative": null`. When `--eval-generative` is not s
 
 ## Backward Compatibility
 
-- `QueryResult` new fields (`latency_ms`, `interaction_turns`, `cost_callback`) have safe defaults and do not break existing adapters.
+- `QueryResult` new fields (`latency_ms`, `interaction_turns`) have safe defaults and do not break existing adapters.
 - Report `to_dict()` methods are explicit (not `dataclasses.asdict`) so new dataclass fields do not auto-leak into JSON output.
 - Overlay data is nested under `overlays` in CLI JSON output, not at the top level, so existing consumers that only look at `recall`, `tokens`, etc. are unaffected.
 - The `RubricJudge` extraction in Batch D preserved the public API of `grade_answer()` — all existing LongMemEval tests pass unchanged.
@@ -106,7 +106,7 @@ Tests marked `@pytest.mark.slow` validate that the rubric produces scores within
 
 | File | Change |
 |---|---|
-| `sme/adapters/base.py` | Added `latency_ms`, `interaction_turns`, `cost_callback` to `QueryResult` |
+| `sme/adapters/base.py` | Added `latency_ms`, `interaction_turns` to `QueryResult` |
 | `sme/harness/wrapper.py` | New — `timed_query()` wrapper |
 | `sme/eval/deterministic_overlays.py` | New — Layer 2 metrics |
 | `sme/eval/judge_base.py` | New — extracted `RubricJudge` class |

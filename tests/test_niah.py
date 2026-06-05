@@ -39,7 +39,10 @@ class _MockAdapter(SMEAdapter):
         }
 
     def query(self, question: str) -> QueryResult:
-        found = any(question in s for s in self._sentences)
+        # Reverse the check: a sentence is a "match" if it appears as a
+        # substring inside the question (this lets us ask natural-language
+        # questions that contain the needle text).
+        found = any(s in question for s in self._sentences)
         entities = [
             Entity(id=f"e{i}", name=s, entity_type="sentence")
             for i, s in enumerate(self._sentences)
@@ -69,7 +72,9 @@ class _ShallowOnlyAdapter(SMEAdapter):
     def query(self, question: str) -> QueryResult:
         half = len(self._sentences) // 2
         shallow = self._sentences[:half]
-        found = any(question in s for s in shallow)
+        # Reverse the check: a sentence matches when it is a substring of the
+        # question (questions are expected to contain the needle text).
+        found = any(s in question for s in shallow)
         entities = [
             Entity(id=f"e{i}", name=s, entity_type="sentence")
             for i, s in enumerate(shallow)
@@ -111,11 +116,15 @@ def test_generate_distractor_corpus_is_deterministic() -> None:
 
 def test_insert_literal_needles_puts_all_needles() -> None:
     corpus = generate_distractor_corpus(100, seed=1)
-    needles = ["NEEDLE-ALPHA", "NEEDLE-BETA", "NEEDLE-GAMMA"]
+    needles = [
+        ("NEEDLE-ALPHA", "Where is NEEDLE-ALPHA?"),
+        ("NEEDLE-BETA", "Where is NEEDLE-BETA?"),
+        ("NEEDLE-GAMMA", "Where is NEEDLE-GAMMA?"),
+    ]
     out, depths = insert_literal_needles(corpus, needles, seed=2)
     assert len(out) == len(corpus)
-    for needle in needles:
-        assert needle in out
+    for needle_text, _ in needles:
+        assert needle_text in out
     assert len(depths) == len(needles)
     for d in depths:
         assert 0.0 <= d <= 1.0
@@ -130,7 +139,7 @@ def test_insert_literal_needles_empty_needle_list() -> None:
 
 def test_insert_literal_needles_preserves_corpus_size() -> None:
     corpus = generate_distractor_corpus(50, seed=3)
-    needles = ["A", "B", "C", "D", "E"]
+    needles = [("A", "Find A"), ("B", "Find B"), ("C", "Find C"), ("D", "Find D"), ("E", "Find E")]
     out, _ = insert_literal_needles(corpus, needles, seed=4)
     assert len(out) == len(corpus)
 
@@ -140,11 +149,15 @@ def test_insert_literal_needles_preserves_corpus_size() -> None:
 
 def test_insert_sequential_needles_preserves_order() -> None:
     corpus = generate_distractor_corpus(200, seed=5)
-    needles = ["FIRST", "SECOND", "THIRD"]
+    needles = [
+        ("FIRST", "Where is FIRST?"),
+        ("SECOND", "Where is SECOND?"),
+        ("THIRD", "Where is THIRD?"),
+    ]
     out, depths = insert_sequential_needles(corpus, needles, seed=6)
     assert len(out) == len(corpus)
-    for needle in needles:
-        assert needle in out
+    for needle_text, _ in needles:
+        assert needle_text in out
     # Depths must be strictly increasing
     for i in range(1, len(depths)):
         assert depths[i] > depths[i - 1]
@@ -159,7 +172,7 @@ def test_insert_sequential_needles_empty_needle_list() -> None:
 
 def test_insert_sequential_needles_single_needle() -> None:
     corpus = generate_distractor_corpus(100, seed=1)
-    out, depths = insert_sequential_needles(corpus, ["ONLY"], seed=1)
+    out, depths = insert_sequential_needles(corpus, [("ONLY", "Find ONLY")], seed=1)
     assert "ONLY" in out
     assert len(depths) == 1
     assert 0.0 <= depths[0] <= 1.0
@@ -170,7 +183,10 @@ def test_insert_sequential_needles_single_needle() -> None:
 
 def test_run_niah_literal_finds_shallow_and_deep() -> None:
     adapter = _MockAdapter()
-    needles = ["SHALLOW-NEEDLE", "DEEP-NEEDLE"]
+    needles = [
+        ("SHALLOW-NEEDLE", "Where is SHALLOW-NEEDLE?"),
+        ("DEEP-NEEDLE", "Where is DEEP-NEEDLE?"),
+    ]
     report = run_niah(adapter, needles, corpus_size=100, sequential=False, seed=99)
 
     assert isinstance(report, NIAHReport)
@@ -187,7 +203,11 @@ def test_run_niah_literal_finds_shallow_and_deep() -> None:
 
 def test_run_niah_literal_report_metrics() -> None:
     adapter = _MockAdapter()
-    needles = ["A-NEEDLE", "B-NEEDLE", "C-NEEDLE"]
+    needles = [
+        ("A-NEEDLE", "Where is A-NEEDLE?"),
+        ("B-NEEDLE", "Where is B-NEEDLE?"),
+        ("C-NEEDLE", "Where is C-NEEDLE?"),
+    ]
     report = run_niah(adapter, needles, corpus_size=200, sequential=False, seed=11)
 
     assert report.needle_count == 3
@@ -200,18 +220,18 @@ def test_run_niah_literal_not_found() -> None:
     # Put one needle in the deep half so it is missed
     corpus = generate_distractor_corpus(100, seed=12)
     # Manually place needles: first at index 10, second at index 80
-    needles = ["SHALLOW-X", "DEEP-Y"]
-    corpus[10] = needles[0]
-    corpus[80] = needles[1]
+    needles = [("SHALLOW-X", "Find SHALLOW-X"), ("DEEP-Y", "Find DEEP-Y")]
+    corpus[10] = needles[0][0]
+    corpus[80] = needles[1][0]
 
     adapter.ingest_corpus([{"id": f"s{i}", "text": s} for i, s in enumerate(corpus)])
     # We can't call run_niah directly because it regenerates the corpus.
     # Instead, test through the helper manually:
-    result0 = adapter.query(needles[0])
-    result1 = adapter.query(needles[1])
+    result0 = adapter.query(needles[0][1])
+    result1 = adapter.query(needles[1][1])
 
-    assert needles[0] in result0.context_string
-    assert needles[1] not in result1.context_string
+    assert needles[0][0] in result0.context_string
+    assert needles[1][0] not in result1.context_string
 
 
 def test_run_niah_empty_needle_list() -> None:
@@ -229,7 +249,11 @@ def test_run_niah_empty_needle_list() -> None:
 
 def test_run_niah_sequential_checks_found_in_order() -> None:
     adapter = _MockAdapter()
-    needles = ["SEQ-A", "SEQ-B", "SEQ-C"]
+    needles = [
+        ("SEQ-A", "Where is SEQ-A?"),
+        ("SEQ-B", "Where is SEQ-B?"),
+        ("SEQ-C", "Where is SEQ-C?"),
+    ]
     report = run_niah(adapter, needles, corpus_size=150, sequential=True, seed=21)
 
     assert report.needle_count == 3
@@ -245,29 +269,33 @@ def test_run_niah_sequential_partial_order() -> None:
     """If a deep needle is missed, found_in_order stops at the gap."""
     adapter = _ShallowOnlyAdapter()
     corpus = generate_distractor_corpus(100, seed=30)
-    needles = ["SEQ-A", "SEQ-B", "SEQ-C"]
+    needles = [
+        ("SEQ-A", "Find SEQ-A"),
+        ("SEQ-B", "Find SEQ-B"),
+        ("SEQ-C", "Find SEQ-C"),
+    ]
     # Insert manually at known positions: 10, 30, 80
-    for idx, needle in zip((10, 30, 80), needles):
-        corpus[idx] = needle
+    for idx, (needle_text, _) in zip((10, 30, 80), needles):
+        corpus[idx] = needle_text
 
     adapter.ingest_corpus([{"id": f"s{i}", "text": s} for i, s in enumerate(corpus)])
     # Build report by hand since run_niah regenerates the corpus
     results: list[NeedleResult] = []
     found_in_order = 0
-    for needle, idx in zip(needles, (10, 30, 80)):
-        result = adapter.query(needle)
-        found = needle in result.context_string
+    for (needle_text, question), idx in zip(needles, (10, 30, 80)):
+        result = adapter.query(question)
+        found = needle_text in result.context_string
         rank = None
         if found:
             for i, ent in enumerate(result.retrieved_entities):
-                if needle in ent.name:
+                if needle_text in ent.name:
                     rank = i
                     break
             if rank is None:
                 rank = 0
         results.append(
             NeedleResult(
-                needle=needle,
+                needle=needle_text,
                 depth_pct=idx / 99,
                 found=found,
                 found_rank=rank if found else None,
@@ -298,7 +326,7 @@ def test_run_niah_sequential_partial_order() -> None:
 
 def test_run_niah_corpus_size_zero() -> None:
     adapter = _MockAdapter()
-    report = run_niah(adapter, ["X"], corpus_size=0, seed=1)
+    report = run_niah(adapter, [("X", "Find X")], corpus_size=0, seed=1)
     assert report.corpus_size == 0
     assert report.needle_count == 1
     assert report.needles_found == 0
@@ -309,7 +337,7 @@ def test_run_niah_corpus_size_zero() -> None:
 def test_run_niah_needle_count_exceeds_corpus() -> None:
     """Literal insertion samples without replacement; excess needles are dropped."""
     corpus = generate_distractor_corpus(5, seed=1)
-    needles = [f"NEEDLE-{i}" for i in range(20)]
+    needles = [(f"NEEDLE-{i}", f"Find NEEDLE-{i}") for i in range(20)]
     out, depths = insert_literal_needles(corpus, needles, seed=2)
     assert len(out) == 5
     assert len(depths) == 5  # only as many as fit
@@ -318,7 +346,7 @@ def test_run_niah_needle_count_exceeds_corpus() -> None:
 def test_run_niah_rank_via_entities() -> None:
     """If an adapter returns entities, found_rank should reflect entity order."""
     adapter = _MockAdapter()
-    needles = ["RANK-TEST"]
+    needles = [("RANK-TEST", "Where is RANK-TEST?")]
     report = run_niah(adapter, needles, corpus_size=50, seed=42)
     assert report.results[0].found is True
     # The needle replaced exactly one sentence, so its entity rank equals

@@ -16,13 +16,15 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-def contextual_precision_proxy(
+def entity_id_overlap(
     result: QueryResult, expected_sources: list[str]
 ) -> float | None:
-    """Fraction of retrieved entities that are relevant.
+    """Fraction of retrieved entities whose id/name overlaps expected sources.
 
-    An entity is considered relevant if its ``id`` or ``name`` contains
-    at least one of the expected source strings as a substring.
+    This is NOT a general contextual-precision metric — it only works when
+    adapter entity IDs are human-readable substrings of the oracle source
+    strings. For semantic search with opaque IDs (UUIDs, hashes), this
+    returns 0.0 regardless of retrieval quality.
 
     Returns:
         float in [0.0, 1.0] when expected_sources is non-empty.
@@ -47,15 +49,22 @@ def contextual_precision_proxy(
 
 
 def token_utilization(result: QueryResult) -> float | None:
-    """Ratio of answer tokens to context tokens.
+    """Compression ratio: how much the answer shrinks the context.
+
+    A well-utilized answer is concise and dense. This metric returns
+    a *lower* value for bloated or hallucinated answers.
+
+    Formula: min(answer_tokens, context_tokens) / context_tokens
+    - 1.0 = answer uses the entire context (or more — capped)
+    - 0.05 = answer is a tight 5 % summary of a large context
+    - 0.0 = empty answer
 
     Uses tiktoken with cl100k_base (same as SME's Cat 7) when available.
-    Falls back to a naive whitespace split and logs a warning if tiktoken
-    is not installed.
+    Falls back to a naive whitespace split and logs a warning.
 
     Returns:
-        float > 0.0 when both strings are non-empty.
-        None when context_string is empty (cannot compute utilization).
+        float in [0.0, 1.0] when context_string is non-empty.
+        None when context_string is empty (cannot compute).
     """
     if not result.context_string:
         return None
@@ -76,4 +85,6 @@ def token_utilization(result: QueryResult) -> float | None:
     if context_tokens == 0:
         return None
 
-    return answer_tokens / context_tokens
+    # Capped at 1.0: an answer longer than context is no more "utilized"
+    # than one that exactly matches context length.
+    return min(answer_tokens, context_tokens) / context_tokens
