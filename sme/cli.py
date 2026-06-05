@@ -1210,6 +1210,20 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
         def count_tokens(text: str) -> int:
             return len(text) // 4 if text else 0
 
+    # Deterministic overlays (Layer 2 — no API calls)
+    from sme.eval.deterministic_overlays import (
+        contextual_precision_proxy,
+        token_utilization,
+    )
+
+    # Optional LLM-judge overlays (Layer 3 — requires API key)
+    _eval_generative = getattr(args, "eval_generative", False) and not getattr(
+        args, "offline", False
+    )
+    if _eval_generative:
+        from sme.eval.answer_relevancy import grade_relevancy
+        from sme.eval.faithfulness import grade_faithfulness
+
     # Load questions
     with open(args.questions) as f:
         qdoc = yaml.safe_load(f)
@@ -1297,6 +1311,22 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
         if err:
             print(f"  ERROR: {err}")
 
+        # Layer 2: deterministic overlays (always computed, no API cost)
+        precision = contextual_precision_proxy(result, expected)
+        utilization = token_utilization(result)
+
+        # Layer 3: LLM-judge overlays (only when --eval-generative and not --offline)
+        gen_overlays: dict[str, Any] = {}
+        if _eval_generative and not err:
+            faith = grade_faithfulness(ctx, result.answer)
+            rel = grade_relevancy(text, result.answer)
+            gen_overlays = {
+                "faithfulness": faith.get("score") if not faith.get("error") else None,
+                "faithfulness_error": faith.get("error"),
+                "answer_relevancy": rel.get("score") if not rel.get("error") else None,
+                "answer_relevancy_error": rel.get("error"),
+            }
+
         per_question.append(
             {
                 "id": qid,
@@ -1310,6 +1340,11 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
                 "elapsed_ms": round(elapsed * 1000, 1),
                 "retrieval_path": path,
                 "error": err,
+                "overlays": {
+                    "contextual_precision_proxy": precision,
+                    "token_utilization": utilization,
+                    "generative": gen_overlays if _eval_generative else None,
+                },
             }
         )
 
@@ -1396,6 +1431,13 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="enable info logging"
+    )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="skip all LLM-judge (Layer 3) overlays. "
+        "Structural (Layer 1) and deterministic (Layer 2) metrics still run. "
+        "Useful for CI runs without API keys.",
     )
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -1593,6 +1635,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SECONDS",
         help="(familiar) HTTP timeout for /api/familiar/eval and "
         "/api/familiar/graph. Default 30s.",
+    )
+    ret.add_argument(
+        "--eval-generative",
+        action="store_true",
+        help="run LLM-judge overlays (faithfulness, answer relevancy) "
+        "on the retrieved results. Requires API key. Ignored when --offline.",
     )
     ret.set_defaults(func=cmd_retrieve)
 
