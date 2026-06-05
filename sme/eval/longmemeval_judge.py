@@ -190,6 +190,7 @@ def grade_answer(
     provider: str = "openai",
     judge_model: Optional[str] = None,
     client: Optional[Any] = None,
+    use_cache: bool = True,
 ) -> dict:
     """Grade a system answer against the gold answer with an LLM judge.
 
@@ -276,7 +277,7 @@ def grade_answer(
     user_body = _user_body(question, gold_answer, hypothesis)
 
     judge = RubricJudge(provider=provider, model=judge_model, client=client)
-    result = judge.judge(rubric, user_body)
+    result = judge.judge(rubric, user_body, use_cache=use_cache)
 
     if result["error"]:
         base_result["rationale"] = result["error"]

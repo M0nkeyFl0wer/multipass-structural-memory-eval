@@ -1103,12 +1103,6 @@ def cmd_cat9(args: argparse.Namespace) -> int:
     return 0 if result.failed_probes == 0 else 1
 
 
-def cmd_niah(args: argparse.Namespace) -> int:
-    """Run needle-in-a-haystack stress test."""
-    print("NIAH subcommand not yet wired")
-    return 0
-
-
 def cmd_compile_wiki(args: argparse.Namespace) -> int:
     """Compile a raw vault into Karpathy-style wiki + index for Condition D2.
 
@@ -1952,19 +1946,6 @@ def main(argv: list[str] | None = None) -> int:
         help="recompile every note regardless of cache.",
     )
     cw.set_defaults(func=cmd_compile_wiki)
-
-    # --- niah subcommand ------------------------------------------------
-
-    niah_parser = sub.add_parser(
-        "niah",
-        help="Run needle-in-a-haystack stress test",
-    )
-    niah_parser.add_argument("--adapter", default="full-context")
-    niah_parser.add_argument("--needles", type=int, default=5)
-    niah_parser.add_argument("--corpus-size", type=int, default=1000)
-    niah_parser.add_argument("--sequential", action="store_true")
-    niah_parser.add_argument("--json", type=Path, metavar="PATH")
-    niah_parser.set_defaults(func=cmd_niah)
 
     args = parser.parse_args(argv)
     logging.basicConfig(

@@ -5,6 +5,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sme.eval.faithfulness import grade_faithfulness
+from sme.eval.judge_cache import clear_cache
+
+# Ensure a clean slate so cached results from previous runs don't
+# leak into these deterministic unit tests.
+clear_cache()
 
 
 def _fake_openai_response(
@@ -57,6 +62,7 @@ def test_perfect_score_when_all_claims_supported():
         context_string="Paris is the capital of France.",
         answer="Paris is the capital of France.",
         client=client,
+        use_cache=False
     )
     assert result["error"] is None
     assert result["score"] == 1.0
@@ -75,6 +81,7 @@ def test_partial_score_when_some_unsupported():
         context_string="Paris is the capital of France.",
         answer="Paris is the capital of France and has 10 million people.",
         client=client,
+        use_cache=False
     )
     assert result["error"] is None
     assert result["score"] == 0.5
@@ -91,6 +98,7 @@ def test_zero_score_when_all_unsupported():
         context_string="Paris is the capital of France.",
         answer="London is the capital of France.",
         client=client,
+        use_cache=False
     )
     assert result["error"] is None
     assert result["score"] == 0.0
@@ -103,6 +111,7 @@ def test_error_handling_malformed_json():
         context_string="Paris is the capital of France.",
         answer="Paris is the capital of France.",
         client=client,
+        use_cache=False
     )
     assert result["error"] is not None
     assert result["score"] == 0.0

@@ -5,6 +5,11 @@ from __future__ import annotations
 from types import SimpleNamespace
 
 from sme.eval.answer_relevancy import grade_relevancy
+from sme.eval.judge_cache import clear_cache
+
+# Ensure a clean slate so cached results from previous runs don't
+# leak into these deterministic unit tests.
+clear_cache()
 
 
 def _fake_openai_response(
@@ -57,6 +62,7 @@ def test_perfect_relevancy():
         question="What is the capital of France?",
         answer="The capital of France is Paris.",
         client=client,
+        use_cache=False,
     )
     assert result["error"] is None
     assert result["score"] == 1.0
@@ -73,6 +79,7 @@ def test_partial_relevancy():
         question="What is the capital of France and its population?",
         answer="The capital of France is Paris.",
         client=client,
+        use_cache=False,
     )
     assert result["error"] is None
     assert result["score"] == 0.5
@@ -88,6 +95,7 @@ def test_irrelevant():
         question="What is the capital of France?",
         answer="The Eiffel Tower is in Paris.",
         client=client,
+        use_cache=False,
     )
     assert result["error"] is None
     assert result["score"] == 0.0
@@ -99,6 +107,7 @@ def test_malformed_json():
         question="What is the capital of France?",
         answer="Paris.",
         client=client,
+        use_cache=False,
     )
     assert result["error"] is not None
     assert result["score"] == 0.0
@@ -120,6 +129,7 @@ def test_api_failure():
         question="What is the capital of France?",
         answer="Paris.",
         client=_BrokenClient(),
+        use_cache=False,
     )
     assert result["error"] is not None
     assert "judge call failed" in result["error"]

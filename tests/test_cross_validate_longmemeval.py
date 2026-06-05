@@ -14,6 +14,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from sme.eval.judge_cache import clear_cache
+
 # scripts/ isn't a package — pull the harness in directly.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPTS = _REPO_ROOT / "scripts"
@@ -21,6 +23,9 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 import cross_validate_longmemeval as harness  # noqa: E402
+
+# Prevent stale cached judge results from leaking across test modules.
+clear_cache()
 
 
 FIXTURE = [
@@ -203,6 +208,10 @@ def test_aggregation_reports_judge_correct_rate(dataset, args_factory):
 
 def test_aggregation_records_disagreements(tmp_path, args_factory):
     """If SME recall is high but judge says INCORRECT, harness flags it."""
+    # Prevent cached results from earlier tests in this module (which use
+    # the same fixture but a different judge client) from shadowing the
+    # always-INCORRECT client we inject here.
+    clear_cache()
     # Construct a fixture where the abstention case has SME recall=0
     # but a misbehaving judge marks it INCORRECT — that's a
     # disagreement (sme says wrong, judge says wrong → AGREE) so let's

@@ -127,7 +127,7 @@ def test_judge_openai_returns_content():
         _fake_openai_response('{"label": "CORRECT", "rationale": "ok"}')
     )
     judge = RubricJudge(provider="openai", client=client)
-    result = judge.judge("rubric text\n", "body text\n")
+    result = judge.judge("rubric text\n", "body text\n", use_cache=False)
     assert result["error"] is None
     assert result["content"] == '{"label": "CORRECT", "rationale": "ok"}'
     assert result["usage"]["prompt_tokens"] == 10
@@ -142,7 +142,7 @@ def test_judge_openai_returns_content():
 def test_judge_openrouter_returns_content():
     client = _FakeOpenAIClient(_fake_openai_response('{"label": "CORRECT"}'))
     judge = RubricJudge(provider="openrouter", client=client)
-    result = judge.judge("rubric", "body")
+    result = judge.judge("rubric", "body", use_cache=False)
     assert result["error"] is None
     assert result["content"] == '{"label": "CORRECT"}'
     assert client.calls[0]["model"] == "openai/gpt-4o-2024-08-06"
@@ -153,7 +153,7 @@ def test_judge_anthropic_returns_content():
         '{"label": "PARTIAL", "rationale": "close"}'
     )
     judge = RubricJudge(provider="anthropic", client=client)
-    result = judge.judge("rubric text", "body text")
+    result = judge.judge("rubric text", "body text", use_cache=False)
     assert result["error"] is None
     assert result["content"] == '{"label": "PARTIAL", "rationale": "close"}'
     assert result["usage"]["prompt_tokens"] == 12
@@ -176,7 +176,7 @@ def test_judge_retries_then_succeeds(monkeypatch):
         then_content='{"label": "CORRECT", "rationale": "ok"}',
     )
     judge = RubricJudge(provider="openai", client=client)
-    result = judge.judge("rubric", "body")
+    result = judge.judge("rubric", "body", use_cache=False)
     assert result["error"] is None
     assert result["content"] == '{"label": "CORRECT", "rationale": "ok"}'
     assert client.attempts == 3
@@ -186,7 +186,7 @@ def test_judge_returns_error_after_max_retries(monkeypatch):
     monkeypatch.setattr("sme.eval.judge_base.time.sleep", lambda *_: None)
     client = _FlakyOpenAIClient(fail_n=99, then_content="never")
     judge = RubricJudge(provider="openai", client=client)
-    result = judge.judge("rubric", "body")
+    result = judge.judge("rubric", "body", use_cache=False)
     assert result["error"] is not None
     assert "judge call failed" in result["error"]
     assert client.attempts == 3
@@ -200,14 +200,14 @@ def test_judge_no_client_returns_error(monkeypatch):
         "sme.eval.judge_base._default_client", lambda provider: None
     )
     judge = RubricJudge(provider="openai", client=None)
-    result = judge.judge("rubric", "body")
+    result = judge.judge("rubric", "body", use_cache=False)
     assert result["error"] is not None
     assert "no API key in keyring" in result["error"]
 
 
 def test_judge_unknown_provider_returns_error():
     judge = RubricJudge(provider="bogus")
-    result = judge.judge("rubric", "body")
+    result = judge.judge("rubric", "body", use_cache=False)
     assert result["error"] is not None
     assert "unknown provider" in result["error"]
 

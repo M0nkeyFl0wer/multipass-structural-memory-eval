@@ -18,6 +18,7 @@ def grade_faithfulness(
     provider: str = "openai",
     judge_model: Optional[str] = None,
     client: Optional[Any] = None,
+    use_cache: bool = True,
 ) -> dict:
     """Grade whether the answer's claims are supported by the context.
 
@@ -36,13 +37,28 @@ def grade_faithfulness(
         "  - SUPPORTED: directly found in or entailed by the context\n"
         "  - CONTRADICTED: the context says the opposite\n"
         "  - UNSUPPORTED: not in context\n\n"
+        "Claim segmentation rules:\n"
+        "  - Split compound sentences into separate claims.\n"
+        "    'Paris is the capital of France and has 2.1M people' → 2 claims\n"
+        "  - Do NOT split clauses that share a single subject.\n"
+        "    'The quick brown fox jumps over the lazy dog' → 1 claim\n"
+        "  - 'Entailed by context' means the context makes the claim obviously true, "
+        "    not that the claim uses the exact same words.\n\n"
+        "Examples:\n"
+        "  CONTEXT: Python was created by Guido van Rossum.\n"
+        "  ANSWER: Python was created by Guido van Rossum and is popular.\n"
+        '  → {"claims": [{"text": "Python was created by Guido van Rossum", "verdict": "SUPPORTED"}, '
+        '{"text": "Python is popular", "verdict": "UNSUPPORTED"}]}\n\n'
+        "  CONTEXT: Paris is the capital of France.\n"
+        "  ANSWER: Paris is the capital of Germany.\n"
+        '  → {"claims": [{"text": "Paris is the capital of Germany", "verdict": "CONTRADICTED"}]}\n\n'
         'Reply as JSON: {"claims": [{"text": "...", "verdict": "SUPPORTED|CONTRADICTED|UNSUPPORTED"}]}'
     )
 
     body = f"CONTEXT:\n{context_string}\n\nANSWER:\n{answer}"
 
     judge = RubricJudge(provider=provider, model=judge_model, client=client)
-    result = judge.judge(rubric, body)
+    result = judge.judge(rubric, body, use_cache=use_cache)
 
     if result.get("error"):
         return {

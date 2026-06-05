@@ -219,8 +219,19 @@ class RubricJudge:
 
         return self._retry(_do, max_retries=max_retries, label="anthropic")
 
-    def judge(self, rubric: str, body: str) -> dict:
+    def judge(
+        self,
+        rubric: str,
+        body: str,
+        *,
+        use_cache: bool = True,
+    ) -> dict:
         """Call the LLM judge with a rubric and body.
+
+        Args:
+            rubric: The static (cacheable) rubric text.
+            body: The per-call (varying) user prompt body.
+            use_cache: When True, read from and write to the disk cache.
 
         Returns a dict::
 
@@ -239,6 +250,23 @@ class RubricJudge:
                     f"supported: {sorted(VALID_PROVIDERS)}"
                 ),
             }
+
+        # -- Cache read -------------------------------------------------
+        if use_cache:
+            try:
+                from sme.eval.judge_cache import get_cached
+
+                cached = get_cached(rubric, body, self.model, self.provider)
+                if cached is not None:
+                    log.debug("RubricJudge: cache hit")
+                    return {
+                        "content": cached.get("content", ""),
+                        "usage": cached.get("usage", {}),
+                        "error": None,
+                    }
+            except Exception:  # noqa: BLE001
+                # Cache errors must not break the judge pipeline.
+                log.warning("RubricJudge: cache read failed, proceeding to API")
 
         client = self._resolve_client()
         if client is None:
@@ -264,6 +292,15 @@ class RubricJudge:
                 "usage": {},
                 "error": f"judge call failed after retries: {e}",
             }
+
+        # -- Cache write ------------------------------------------------
+        if use_cache:
+            try:
+                from sme.eval.judge_cache import set_cache
+
+                set_cache(result, rubric, body, self.model, self.provider)
+            except Exception:  # noqa: BLE001
+                log.warning("RubricJudge: cache write failed, result not cached")
 
         return {
             "content": result["content"],
@@ -296,4 +333,8 @@ class RubricJudge:
         try:
             return json.loads(blob)
         except json.JSONDecodeError:
+            log.warning(
+                "RubricJudge.parse_reply: malformed JSON in first 200 chars: %r",
+                stripped[:200],
+            )
             return None

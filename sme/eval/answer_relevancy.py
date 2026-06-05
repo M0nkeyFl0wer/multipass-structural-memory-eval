@@ -18,6 +18,7 @@ def grade_relevancy(
     provider: str = "openai",
     judge_model: Optional[str] = None,
     client: Optional[Any] = None,
+    use_cache: bool = True,
 ) -> dict:
     """Grade how directly the answer addresses the question.
 
@@ -40,7 +41,7 @@ def grade_relevancy(
     body = f"QUESTION:\n{question}\n\nANSWER:\n{answer}"
 
     judge = RubricJudge(provider=provider, model=judge_model, client=client)
-    result = judge.judge(rubric, body)
+    result = judge.judge(rubric, body, use_cache=use_cache)
 
     if result.get("error"):
         return {

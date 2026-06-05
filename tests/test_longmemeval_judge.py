@@ -68,7 +68,7 @@ def test_grade_answer_correct_label():
         gold_answer="A kayak",
         hypothesis="You bought a kayak.",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     assert out["judge_model"] == DEFAULT_JUDGE_MODEL
     assert out["rationale"].startswith("matches gold")
@@ -95,7 +95,7 @@ def test_grade_answer_incorrect_label():
         gold_answer="A kayak",
         hypothesis="A submarine",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "INCORRECT"
 
 
@@ -109,7 +109,7 @@ def test_grade_answer_abstention_returns_abstain():
         gold_answer="abstain",
         hypothesis="I don't know.",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ABSTAIN"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Abstention" in sent
@@ -125,7 +125,7 @@ def test_grade_answer_knowledge_update_uses_ku_rubric():
         gold_answer="Acme",
         hypothesis="You work at Acme.",
         client=client,
-    )
+        use_cache=False)
     sent = client.calls[0]["messages"][0]["content"]
     assert "Knowledge Update" in sent
     assert "MOST RECENT" in sent  # KU-specific verbiage
@@ -141,7 +141,7 @@ def test_grade_answer_temporal_uses_temporal_rubric():
         gold_answer="March 2023",
         hypothesis="March 2024",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "PARTIAL"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Temporal Reasoning" in sent
@@ -162,7 +162,7 @@ def test_grade_answer_no_api_key_returns_error_label(monkeypatch):
         gold_answer="g",
         hypothesis="h",
         client=None,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ERROR"
     assert "no API key in keyring" in out["rationale"]
     assert "openai" in out["rationale"]
@@ -208,7 +208,7 @@ def test_grade_answer_retries_then_succeeds(monkeypatch):
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     assert client.attempts == 3
 
@@ -220,7 +220,7 @@ def test_grade_answer_returns_error_after_max_retries(monkeypatch):
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ERROR"
     assert "judge call failed" in out["rationale"]
     # Three retry attempts before bailing.
@@ -235,7 +235,7 @@ def test_grade_answer_handles_malformed_json():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ERROR"
     assert "no JSON object" in out["rationale"] or "malformed" in out["rationale"]
 
@@ -248,7 +248,7 @@ def test_grade_answer_handles_unknown_label():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ERROR"
     assert "unknown judge label" in out["rationale"]
 
@@ -261,7 +261,7 @@ def test_grade_answer_strips_code_fences():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
 
 
@@ -288,7 +288,7 @@ def test_grade_answer_unknown_question_type_still_calls_judge():
         question_type="made-up-type",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Generic" in sent  # falls back to generic rubric
@@ -341,7 +341,7 @@ def test_grade_answer_anthropic_caches_rubric_in_system_block():
         hypothesis="A kayak.",
         provider="anthropic",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     assert out["provider"] == "anthropic"
     # Default model resolves to claude-sonnet-4-6 via PROVIDER_DEFAULT_MODEL
@@ -368,7 +368,7 @@ def test_grade_answer_openrouter_uses_default_namespaced_model():
         question="q", gold_answer="g", hypothesis="h",
         provider="openrouter",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     assert out["provider"] == "openrouter"
     # OpenRouter expects namespaced model IDs.
@@ -393,7 +393,7 @@ def test_grade_answer_anthropic_judge_is_not_paper_faithful():
         question="q", gold_answer="g", hypothesis="h",
         provider="anthropic",
         client=client,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "CORRECT"
     assert out["methodology_faithful"] is False
 
@@ -411,7 +411,7 @@ def test_grade_answer_openai_with_non_paper_model_is_not_paper_faithful():
         provider="openai",
         judge_model="gpt-4o-mini",
         client=client,
-    )
+        use_cache=False)
     assert out["methodology_faithful"] is False
 
 
@@ -421,6 +421,6 @@ def test_grade_answer_unknown_provider_returns_error():
         question="q", gold_answer="g", hypothesis="h",
         provider="bogus",
         client=None,
-    )
+        use_cache=False)
     assert out["autoeval_label"] == "ERROR"
     assert "unknown provider" in out["rationale"]
