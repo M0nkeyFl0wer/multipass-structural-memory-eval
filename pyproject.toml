@@ -94,6 +94,11 @@ Issues = "https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issue
 include = ["sme*"]
 exclude = ["tests*", "docs*"]
 
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that call live LLM APIs and should be skipped in fast CI runs",
+]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"

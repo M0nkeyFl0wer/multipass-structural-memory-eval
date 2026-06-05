@@ -198,7 +198,8 @@ class _FlakyClient:
 
 def test_grade_answer_retries_then_succeeds(monkeypatch):
     # Make sleep instant so the test isn't slow.
-    monkeypatch.setattr("sme.eval.longmemeval_judge.time.sleep", lambda *_: None)
+    # Retry logic lives in judge_base.py since Batch D extraction.
+    monkeypatch.setattr("sme.eval.judge_base.time.sleep", lambda *_: None)
     client = _FlakyClient(
         fail_n=2,
         then_content='{"label": "CORRECT", "rationale": "ok"}',
@@ -213,7 +214,7 @@ def test_grade_answer_retries_then_succeeds(monkeypatch):
 
 
 def test_grade_answer_returns_error_after_max_retries(monkeypatch):
-    monkeypatch.setattr("sme.eval.longmemeval_judge.time.sleep", lambda *_: None)
+    monkeypatch.setattr("sme.eval.judge_base.time.sleep", lambda *_: None)
     client = _FlakyClient(fail_n=99, then_content="never")
     out = grade_answer(
         question_type="single-session-user",

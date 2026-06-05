@@ -1,0 +1,44 @@
+[
+  {
+    "description": "Fully supported (all claims in context)",
+    "context": "Python was created by Guido van Rossum and released in 1991.",
+    "question": "Who created Python and when was it released?",
+    "answer": "Python was created by Guido van Rossum and released in 1991.",
+    "expected_score": 1.0
+  },
+  {
+    "description": "Partially supported (some claims unsupported)",
+    "context": "Python was created by Guido van Rossum and released in 1991.",
+    "question": "Who created Python and when was it released?",
+    "answer": "Python was created by Guido van Rossum and released in 1991. It is the most popular programming language in the world.",
+    "expected_score": 0.5
+  },
+  {
+    "description": "Fully contradicted (context says opposite)",
+    "context": "Python was created by Guido van Rossum and released in 1991.",
+    "question": "Who created Python?",
+    "answer": "Python was created by James Gosling.",
+    "expected_score": 0.0
+  },
+  {
+    "description": "Hallucination (answer adds info not in context)",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Tell me about Python.",
+    "answer": "Python was created by Guido van Rossum. It is widely used in machine learning and has a mascot named Pugsley.",
+    "expected_score": 0.33
+  },
+  {
+    "description": "Empty answer",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Who created Python?",
+    "answer": "",
+    "expected_score": 0.0
+  },
+  {
+    "description": "Empty context",
+    "context": "",
+    "question": "Who created Python?",
+    "answer": "Python was created by Guido van Rossum.",
+    "expected_score": 0.0
+  }
+]
