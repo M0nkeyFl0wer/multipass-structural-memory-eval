@@ -69,14 +69,16 @@ def grade_faithfulness(
             "error": result["error"],
         }
 
-    parsed = RubricJudge.parse_reply(result.get("content", ""))
+    raw_content = result.get("content", "")
+    parsed = RubricJudge.parse_reply(raw_content)
     if parsed is None or not isinstance(parsed, dict):
+        snippet = raw_content[:200] if raw_content else "<empty>"
         return {
             "score": 0.0,
             "claims": [],
             "rationale": "",
             "usage": result.get("usage", {}),
-            "error": "Failed to parse judge response as JSON",
+            "error": f"Failed to parse judge response as JSON: {snippet!r}",
         }
 
     claims = parsed.get("claims", [])

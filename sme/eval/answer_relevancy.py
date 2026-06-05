@@ -51,13 +51,15 @@ def grade_relevancy(
             "error": result["error"],
         }
 
-    parsed = RubricJudge.parse_reply(result.get("content", ""))
+    raw_content = result.get("content", "")
+    parsed = RubricJudge.parse_reply(raw_content)
     if parsed is None or not isinstance(parsed, dict):
+        snippet = raw_content[:200] if raw_content else "<empty>"
         return {
             "score": 0.0,
             "rationale": "",
             "usage": result.get("usage", {}),
-            "error": "Failed to parse judge response as JSON",
+            "error": f"Failed to parse judge response as JSON: {snippet!r}",
         }
 
     score = parsed.get("score", 0.0)

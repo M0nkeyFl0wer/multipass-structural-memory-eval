@@ -69,6 +69,12 @@ def token_utilization(result: QueryResult) -> float | None:
     if not result.context_string:
         return None
 
+    # Pass-through adapters (e.g. FullContextAdapter, CKGAdapter) set
+    # answer=context_string.  The compression ratio is meaningless when
+    # the system is not summarising — it is just echoing the context.
+    if result.answer.strip() == result.context_string.strip():
+        return None
+
     try:
         import tiktoken
 
