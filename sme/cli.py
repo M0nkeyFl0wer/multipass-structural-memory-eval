@@ -18,6 +18,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from sme.adapters.base import SMEAdapter
+from sme.harness.wrapper import timed_query
 from sme.topology import TopologyAnalyzer
 
 log = logging.getLogger("sme")
@@ -1252,14 +1253,14 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
             # MemPalaceAdapter.query takes n_results + route kwargs;
             # other adapters don't — fall back through typing errors.
             try:
-                result = adapter.query(
-                    text, n_results=args.n_results, route=not args.no_route
+                result = timed_query(
+                    adapter, text, n_results=args.n_results, route=not args.no_route
                 )
             except TypeError:
                 try:
-                    result = adapter.query(text, n_results=args.n_results)
+                    result = timed_query(adapter, text, n_results=args.n_results)
                 except TypeError:
-                    result = adapter.query(text)
+                    result = timed_query(adapter, text)
         except Exception as e:  # pragma: no cover
             result = type(
                 "QR", (), {"answer": "", "context_string": "", "error": str(e), "retrieved_entities": [], "retrieval_path": []}
