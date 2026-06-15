@@ -89,3 +89,6 @@ sme/corpora/canadian_politics_v01/
 HANDOFF.md
 .archive/
 docs/related_work/wip/
+
+# Internal cross-repo commit journal — never publish (see 54f54ac)
+commits/
