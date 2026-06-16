@@ -272,3 +272,313 @@ def format_cat9b_report(result: Cat9bResult, *, source_label: str = "") -> str:
         "real model runtime and are tracked separately."
     )
     return "\n".join(lines) + "\n"
+
+
+# ======================================================================
+# Sub-test: 9a invocation rate — The Handshake, by hop depth
+# ======================================================================
+#
+# 9a is the agentic counterpart to the offline multi-hop work (Cat 2c).
+# Cat 2c proved structured multi-hop retrieval earns its keep at depth —
+# but only IF it is invoked. 9a measures whether a running model
+# actually reaches for it, and whether the retrieved context lands in
+# the reply. The headline cut is by ``min_hops``: the hypothesis is that
+# an agent under-invokes precisely on the deep-hop questions where Cat
+# 2c showed structure matters most (it gives up on traversal and answers
+# from parametric memory).
+#
+# The Cat 1 substring matcher runs against the model's FINAL reply text,
+# never the raw tool response — a tool result the model ignores does not
+# count as retrieval. See sme/harness/runner.py for the model loop.
+
+from sme.harness.runner import HandshakeTrace, ModelRunner  # noqa: E402
+
+
+# --- Bands for invocation / integration-gap ---------------------------
+
+_INVOKE_HEALTHY = 0.90   # agent reaches for memory on ≥90% of answerable q
+_INVOKE_WARN = 0.60      # 60-89% — reaches inconsistently
+_GAP_HEALTHY = 0.05      # offline−in-harness recall within 5pp
+_GAP_WARN = 0.20         # 5-20pp leak between offline capability and use
+
+
+def substring_recall(text: str, expected_sources: list[str]) -> float:
+    """Fraction of ``expected_sources`` present (case-insensitive) in text.
+
+    The same substring signal Cat 1 uses (see the corpus
+    ``questions.yaml`` contract). Returns 0.0 for empty text; raises no
+    error for empty expected (returns 0.0 — caller treats as no-oracle).
+    """
+    if not expected_sources or not text:
+        return 0.0
+    low = text.lower()
+    hits = sum(1 for s in expected_sources if s.lower() in low)
+    return hits / len(expected_sources)
+
+
+def _question_hit(text: str, expected: list[str], threshold: float) -> bool:
+    """A question is a 'hit' when substring_recall ≥ threshold (default all)."""
+    return substring_recall(text, expected) >= threshold
+
+
+# --- Result types -----------------------------------------------------
+
+
+@dataclass
+class HopHandshake:
+    """9a tallies for one hop-depth bucket."""
+
+    hops: int
+    n: int = 0
+    invoked: int = 0
+    call_through: int = 0
+    offline_hits: int = 0
+    in_harness_hits: int = 0
+    result_used: int = 0
+
+    @property
+    def invocation_rate(self) -> float:
+        return self.invoked / self.n if self.n else 0.0
+
+    @property
+    def offline_recall(self) -> float:
+        return self.offline_hits / self.n if self.n else 0.0
+
+    @property
+    def in_harness_recall(self) -> float:
+        return self.in_harness_hits / self.n if self.n else 0.0
+
+    @property
+    def integration_gap(self) -> float:
+        """Offline capability minus what actually reaches the reply."""
+        return self.offline_recall - self.in_harness_recall
+
+
+@dataclass
+class Cat9aResult:
+    """Category 9a — invocation rate — scorecard for one (model, harness)."""
+
+    model: str
+    harness: str
+    n_positive: int
+    per_hop: dict[int, HopHandshake] = field(default_factory=dict)
+    n_negative: int = 0
+    n_negative_invoked: int = 0
+    empty_manifest: bool = False
+    traces: list[HandshakeTrace] = field(default_factory=list)
+
+    def _sum(self, attr: str) -> int:
+        return sum(getattr(h, attr) for h in self.per_hop.values())
+
+    @property
+    def invocation_rate(self) -> float:
+        return self._sum("invoked") / self.n_positive if self.n_positive else 0.0
+
+    @property
+    def offline_recall(self) -> float:
+        return self._sum("offline_hits") / self.n_positive if self.n_positive else 0.0
+
+    @property
+    def in_harness_recall(self) -> float:
+        return self._sum("in_harness_hits") / self.n_positive if self.n_positive else 0.0
+
+    @property
+    def integration_gap(self) -> float:
+        """Headline metric: offline Cat 1 recall − in-harness recall."""
+        return self.offline_recall - self.in_harness_recall
+
+    @property
+    def result_use_rate(self) -> float:
+        through = self._sum("call_through")
+        return self._sum("result_used") / through if through else 0.0
+
+    @property
+    def unnecessary_invocation_rate(self) -> float:
+        """9d: invocation on no-answer negative-control questions."""
+        return self.n_negative_invoked / self.n_negative if self.n_negative else 0.0
+
+    @property
+    def band(self) -> str:
+        if self.empty_manifest:
+            return "n/a"
+        invoke_band = _band(self.invocation_rate, _INVOKE_HEALTHY, _INVOKE_WARN)
+        # Gap is inverted (smaller is better), so band it by hand.
+        gap = self.integration_gap
+        gap_band = (
+            "healthy" if gap <= _GAP_HEALTHY
+            else "warn" if gap <= _GAP_WARN
+            else "concerning"
+        )
+        # Worst of the two drives the headline.
+        order = {"healthy": 0, "warn": 1, "concerning": 2}
+        return invoke_band if order[invoke_band] >= order[gap_band] else gap_band
+
+
+# --- Sub-test: 9a invocation rate -------------------------------------
+
+
+def run_cat9a(
+    adapter: SMEAdapter,
+    runner: ModelRunner,
+    questions: list[dict],
+    *,
+    negative_questions: list[dict] | None = None,
+    match_threshold: float = 1.0,
+) -> Cat9aResult:
+    """Run Category 9a against an adapter using ``runner`` as the model.
+
+    ``questions`` are the positive set — answerable, each a dict with
+    ``text``, ``expected_sources`` (list[str]), and ``min_hops`` (int).
+    Offline recall is computed from ``adapter.query()`` directly;
+    in-harness recall from the model's reply via ``runner.run()``. Both
+    use the same substring matcher, so the difference is purely the
+    harness layer — that difference is the integration gap.
+
+    ``negative_questions`` (optional) is the held-out no-answer set for
+    9d: how often the model invokes when it shouldn't.
+    """
+    manifest = adapter.get_harness_manifest()
+    result = Cat9aResult(
+        model=getattr(runner, "name", "model"),
+        harness="(declared manifest)",
+        n_positive=len(questions),
+    )
+
+    if not manifest:
+        result.empty_manifest = True
+        return result
+
+    # Make 9a real against ANY adapter: a model tool-call should run a
+    # genuine per-question retrieval. Adapters that declare an explicit
+    # properties["execute"] keep it; the rest get one synthesized from
+    # the required query() method, so the model's tool argument drives an
+    # actual retrieval instead of falling back to the fixed probe_fn call.
+    def _query_executor(args: dict) -> str:
+        q = args.get("query") or args.get("text") or args.get("q") or ""
+        qr = adapter.query(q)
+        return (getattr(qr, "context_string", "") or "") or (
+            getattr(qr, "answer", "") or ""
+        )
+
+    for descriptor in manifest:
+        if "execute" not in descriptor.properties:
+            descriptor.properties["execute"] = _query_executor
+
+    # Let a hop-aware mock policy read min_hops without coupling to the
+    # question schema (no-op for real runners that ignore hop_of).
+    hop_map = {q.get("text", ""): int(q.get("min_hops", 1)) for q in questions}
+    if getattr(runner, "hop_of", "missing") is None:
+        runner.hop_of = lambda t: hop_map.get(t, 1)  # type: ignore[attr-defined]
+
+    for q in questions:
+        text = q.get("text", "")
+        expected = q.get("expected_sources", []) or []
+        hops = int(q.get("min_hops", 1))
+        bucket = result.per_hop.setdefault(hops, HopHandshake(hops=hops))
+        bucket.n += 1
+
+        # Offline capability: does the adapter retrieve the answer at all?
+        try:
+            qr = adapter.query(text)
+            offline_text = (qr.context_string or "") + " " + (qr.answer or "")
+        except Exception:  # noqa: BLE001 — adapter is user code
+            offline_text = ""
+        if _question_hit(offline_text, expected, match_threshold):
+            bucket.offline_hits += 1
+
+        # In-harness: does the model invoke, and does the answer land?
+        trace = runner.run(text, manifest)
+        result.traces.append(trace)
+        if trace.invoked:
+            bucket.invoked += 1
+        if trace.call_through:
+            bucket.call_through += 1
+        if _question_hit(trace.final_text, expected, match_threshold):
+            bucket.in_harness_hits += 1
+        # 9c proxy: retrieved content reflected in the reply at all.
+        if trace.call_through and substring_recall(trace.final_text, expected) > 0:
+            bucket.result_used += 1
+
+    if negative_questions:
+        result.n_negative = len(negative_questions)
+        for q in negative_questions:
+            trace = runner.run(q.get("text", ""), manifest)
+            result.traces.append(trace)
+            if trace.invoked:
+                result.n_negative_invoked += 1
+
+    return result
+
+
+def format_cat9a_report(result: Cat9aResult, *, source_label: str = "") -> str:
+    """Human-readable 9a scorecard with the hop-depth table as headline."""
+    lines: list[str] = []
+    header = "Category 9a — Harness Integration (Invocation Rate)"
+    if source_label:
+        header = f"{header} — {source_label}"
+    lines.append(header)
+    lines.append("=" * len(header))
+    lines.append("")
+
+    if result.empty_manifest:
+        lines.append(
+            "  Adapter declared no harness manifest — Cat 9a does not apply. "
+            "Implement get_harness_manifest() with an executable surface."
+        )
+        return "\n".join(lines) + "\n"
+
+    lines.append(f"  model={result.model}  positives={result.n_positive}")
+    lines.append(
+        f"  invocation_rate={result.invocation_rate:.2f}  "
+        f"result_use_rate={result.result_use_rate:.2f}  "
+        f"band={result.band}"
+    )
+    lines.append(
+        f"  offline_recall={result.offline_recall:.2f}  "
+        f"in_harness_recall={result.in_harness_recall:.2f}  "
+        f"INTEGRATION_GAP={result.integration_gap:+.2f}"
+    )
+    if result.n_negative:
+        lines.append(
+            f"  unnecessary_invocation_rate(9d)={result.unnecessary_invocation_rate:.2f} "
+            f"({result.n_negative_invoked}/{result.n_negative} no-answer q invoked)"
+        )
+    lines.append("")
+
+    # The headline: every metric cut by hop depth.
+    lines.append("  By hop depth (the agentic-multi-hop cut):")
+    lines.append("    hop   n  invoke%  callthru%  used%    gap")
+    for hops in sorted(result.per_hop):
+        h = result.per_hop[hops]
+        used_pct = (h.result_used / h.call_through) if h.call_through else 0.0
+        flag = "  <- agent gives up" if h.integration_gap > _GAP_WARN else ""
+        lines.append(
+            f"    {hops:>3} {h.n:>3}   {h.invocation_rate:>5.2f}     "
+            f"{(h.call_through / h.n if h.n else 0):>5.2f}    {used_pct:>4.2f}  "
+            f"{h.integration_gap:>+5.2f}{flag}"
+        )
+    lines.append("")
+
+    lines.append("  Reading:")
+    if result.band == "healthy":
+        lines.append(
+            "    The agent reaches for memory across hop depths and the retrieved "
+            "context lands in its replies. Offline capability transfers to the harness."
+        )
+    elif result.band == "warn":
+        lines.append(
+            "    Invocation or result-use is uneven. Inspect the hop table — a gap that "
+            "widens with depth means the agent abandons multi-hop traversal."
+        )
+    else:
+        lines.append(
+            "    Large integration gap: the memory system can answer offline but the "
+            "agent isn't reaching it (or ignores the result) where it counts. This is "
+            "the deployment failure pure retrieval metrics never surface."
+        )
+    lines.append("")
+    lines.append(
+        "  Note: in-harness recall is matched against the model's FINAL reply, not the "
+        "raw tool response. A result the model ignores does not count as retrieval."
+    )
+    return "\n".join(lines) + "\n"

@@ -1070,11 +1070,14 @@ def cmd_cat9(args: argparse.Namespace) -> int:
     """
     subtest = getattr(args, "subtest", "9b") or "9b"
 
+    if subtest == "9a":
+        return _cmd_cat9a(args)
+
     if subtest != "9b":
         print(
             f"Sub-test {subtest} is spec'd but not implemented. "
-            "Only 9b (call-through success) is currently supported. "
-            "See docs/sme_spec_v8.md § Category 9 for the full plan."
+            "Only 9a (invocation rate) and 9b (call-through success) are "
+            "currently supported. See docs/sme_spec_v8.md § Category 9."
         )
         return 2
 
@@ -1123,6 +1126,84 @@ def cmd_cat9(args: argparse.Namespace) -> int:
     if result.empty_manifest:
         return 2
     return 0 if result.failed_probes == 0 else 1
+
+
+def _cmd_cat9a(args: argparse.Namespace) -> int:
+    """Cat 9a — invocation rate by hop depth.
+
+    Until a real model runner ships (Anthropic first, then Ollama), 9a
+    runs against the deterministic ``MockRunner`` so the scorecard, the
+    hop-depth cut, and the integration-gap headline are exercisable with
+    no API keys and no cost — the same floor discipline as 9b.
+    """
+    import yaml
+
+    from sme.categories.harness_integration import format_cat9a_report, run_cat9a
+    from sme.harness.runner import AnthropicRunner, MockRunner
+
+    if not args.questions:
+        print("9a requires --questions (a YAML question set with min_hops).")
+        return 2
+
+    with open(args.questions) as f:
+        qdoc = yaml.safe_load(f) or {}
+    questions = qdoc.get("questions", [])
+    if not questions:
+        print(f"No questions found in {args.questions}.")
+        return 2
+
+    model = getattr(args, "model", "mock") or "mock"
+    if model == "anthropic":
+        runner = AnthropicRunner(
+            model=args.anthropic_model,
+            invocation_mode=args.invocation_mode,
+        )
+    elif model == "mock":
+        runner = MockRunner(args.mock_mode, max_hops=args.mock_max_hops, hop_of=None)
+    else:
+        print(f"Unknown --model {model!r}; use 'mock' or 'anthropic'.")
+        return 2
+
+    adapter = _load_adapter_from_args(args)
+    result = run_cat9a(adapter, runner, questions)
+
+    print()
+    print("=" * 70)
+    print(f" {args.adapter} ({_source_label(args)}) — 9a via {runner.name} runner")
+    print("=" * 70)
+    print(format_cat9a_report(result, source_label=_source_label(args)))
+
+    if args.json:
+        out = {
+            "adapter": args.adapter,
+            "source": _source_label(args),
+            "subtest": "9a",
+            "model": result.model,
+            "n_positive": result.n_positive,
+            "invocation_rate": result.invocation_rate,
+            "offline_recall": result.offline_recall,
+            "in_harness_recall": result.in_harness_recall,
+            "integration_gap": result.integration_gap,
+            "result_use_rate": result.result_use_rate,
+            "empty_manifest": result.empty_manifest,
+            "by_hop": {
+                str(h): {
+                    "n": b.n,
+                    "invocation_rate": b.invocation_rate,
+                    "offline_recall": b.offline_recall,
+                    "in_harness_recall": b.in_harness_recall,
+                    "integration_gap": b.integration_gap,
+                }
+                for h, b in sorted(result.per_hop.items())
+            },
+        }
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+
+    adapter.close()
+    if result.empty_manifest:
+        return 2
+    return 0 if result.integration_gap <= 0.20 else 1
 
 
 def cmd_compile_wiki(args: argparse.Namespace) -> int:
@@ -1909,9 +1990,49 @@ def main(argv: list[str] | None = None) -> int:
     c9.add_argument(
         "--subtest",
         default="9b",
-        choices=["9b"],
+        choices=["9b", "9a"],
         help="Which Cat 9 sub-test to run (default: 9b call-through success). "
-        "9a, 9c–9g are spec'd but not implemented.",
+        "9a = invocation rate by hop depth (needs --questions; uses a mock "
+        "runner unless a real --model runtime is wired). 9c–9g are spec'd "
+        "but not implemented.",
+    )
+    c9.add_argument(
+        "--questions",
+        metavar="PATH",
+        help="YAML question set (positive set) for the 9a invocation scorer.",
+    )
+    c9.add_argument(
+        "--mock-mode",
+        default="hop_threshold",
+        choices=["always", "never", "hop_threshold"],
+        help="9a mock-runner invocation policy (default: hop_threshold — "
+        "invoke at shallow hops, give up deep). Used until a real model "
+        "runner is wired.",
+    )
+    c9.add_argument(
+        "--mock-max-hops",
+        type=int,
+        default=2,
+        help="9a hop_threshold cutoff: the mock invokes when min_hops <= this.",
+    )
+    c9.add_argument(
+        "--model",
+        default="mock",
+        help="9a model runner: 'mock' (default, no cost) or 'anthropic' "
+        "(real Claude tool-use; key from keyring, costs money).",
+    )
+    c9.add_argument(
+        "--anthropic-model",
+        default="claude-sonnet-4-6",
+        help="model id when --model anthropic (default: claude-sonnet-4-6).",
+    )
+    c9.add_argument(
+        "--invocation-mode",
+        default="auto",
+        choices=["auto", "forced"],
+        help="9a real-runner policy: 'auto' measures whether the model "
+        "chooses to invoke (the 9a question); 'forced' compels one call to "
+        "isolate call-through/result-use.",
     )
     c9.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c9.set_defaults(func=cmd_cat9)
