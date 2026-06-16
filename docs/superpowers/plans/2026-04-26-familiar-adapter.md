@@ -1533,8 +1533,6 @@ Plan: `docs/superpowers/plans/2026-04-26-familiar-adapter.md`
       per-question JSON
 - [ ] Direct comparison run against mempalace-daemon on the same
       corpus emits a recall delta
-
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
 EOF
 )"
 ```

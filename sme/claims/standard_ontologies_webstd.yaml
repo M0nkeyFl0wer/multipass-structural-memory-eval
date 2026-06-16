@@ -1,0 +1,133 @@
+# Standard-ontology reference table — Cat 8 sub-check 8f (external fit),
+# Phase 2: the general web-standard baseline (schema.org / FOAF / SKOS /
+# Dublin Core). Separate file from the Phase-1 prov/time table so the two
+# slices stay independently loadable.
+#
+# See docs/issue-drafts/2026-05-30-ontoclean-shacl-brokerage/
+#   04-cat8-external-standard-fit-and-audit.md  ("The reference set",
+#   "three fit outcomes").
+#
+# VERIFICATION (2026-05-31): every CURIE below was checked against the
+# standard's own documentation before being entered (per the cite-primary-
+# source discipline that caught the OWL-Time inXSDDateTime deprecation):
+#   - schema.org : each Type/Property fetched from https://schema.org/<Term>
+#     and confirmed HTTP 200 with a canonical "<Term> - Schema.org Type|
+#     Property" title (exact capitalization). Namespace https://schema.org/.
+#   - FOAF       : https://xmlns.com/foaf/spec/ — foaf:Person, foaf:Organization,
+#     foaf:member (domain foaf:Group, range foaf:Agent). NS http://xmlns.com/foaf/0.1/.
+#   - SKOS       : https://www.w3.org/TR/skos-reference/ — skos:Concept (class),
+#     skos:broader / skos:related (properties). `A skos:broader B` means B is
+#     the broader (more general) concept. NS http://www.w3.org/2004/02/skos/core#.
+#   - Dublin Core: https://www.dublincore.org/specifications/dublin-core/dcmi-terms/
+#     — dcterms:creator, dcterms:BibliographicResource. NS http://purl.org/dc/terms/.
+
+version: "standard-ontologies-webstd-v0.1"
+reference_set: ["schema", "foaf", "skos", "dcterms"]
+
+namespaces:
+  schema: "https://schema.org/"
+  foaf: "http://xmlns.com/foaf/0.1/"
+  skos: "http://www.w3.org/2004/02/skos/core#"
+  dcterms: "http://purl.org/dc/terms/"
+
+mappings:
+
+  # --- entity types -------------------------------------------------
+
+  - corpus_term: person
+    corpus_kind: entity_type
+    standard_term: "schema:Person"
+    confidence: 0.95
+
+  - corpus_term: organization
+    corpus_kind: entity_type
+    standard_term: "schema:Organization"
+    confidence: 0.95
+
+  - corpus_term: event
+    corpus_kind: entity_type
+    standard_term: "schema:Event"
+    confidence: 0.92
+
+  - corpus_term: location
+    corpus_kind: entity_type
+    standard_term: "schema:Place"
+    confidence: 0.90
+
+  - corpus_term: product
+    corpus_kind: entity_type
+    standard_term: "schema:Product"
+    confidence: 0.90
+
+  - corpus_term: concept
+    corpus_kind: entity_type
+    standard_term: "skos:Concept"
+    confidence: 0.85
+
+  - corpus_term: publication
+    corpus_kind: entity_type
+    # good-dog `publication` = "Study, article, bylaw, recall notice" — this
+    # is the canonical UNDER-SPECIFIED case from the draft: one corpus type
+    # spanning several standard classes (CreativeWork is the supertype;
+    # ScholarlyArticle / Legislation are the distinctions being collapsed).
+    # Two rows with distinct standard terms -> detected as under-specified.
+    standard_term: "schema:CreativeWork"
+    confidence: 0.80
+
+  - corpus_term: publication
+    corpus_kind: entity_type
+    standard_term: "dcterms:BibliographicResource"
+    confidence: 0.70
+
+  # breed and regulates are DELIBERATELY left unmapped — they have no clean
+  # general-standard analog and should surface as idiosyncratic (the draft's
+  # third outcome). A domain ontology (Phase 2+) would map breed; CiTO/PROV
+  # already touch the publication-relation edges in the prov/time table.
+
+  # --- edge types ---------------------------------------------------
+
+  - corpus_term: affiliated_with
+    corpus_kind: edge_type
+    standard_term: "schema:affiliation"
+    confidence: 0.88
+    constraint:
+      kind: target_entity_type_in
+      allowed: ["organization"]          # schema:affiliation range: Organization
+      component: "sh:ClassConstraintComponent"
+      message: "schema:affiliation expects an Organization target"
+
+  - corpus_term: located_in
+    corpus_kind: edge_type
+    standard_term: "schema:location"
+    confidence: 0.85
+    constraint:
+      kind: target_entity_type_in
+      allowed: ["location"]              # schema:location range includes Place
+      component: "sh:ClassConstraintComponent"
+      message: "schema:location expects a Place target"
+
+  - corpus_term: mentions
+    corpus_kind: edge_type
+    standard_term: "schema:mentions"
+    confidence: 0.90
+
+  - corpus_term: subject_of
+    corpus_kind: edge_type
+    # schema:about is publication -> topic; good-dog subject_of is
+    # "publication -> event OR concept" (same direction, same meaning).
+    standard_term: "schema:about"
+    confidence: 0.80
+
+  - corpus_term: member_of
+    corpus_kind: edge_type
+    # THE canonical under-specified showcase (draft 04): good-dog reuses
+    # member_of for TWO relationship shapes — breed-group membership and
+    # person-org membership — and self-flags it for v0.2 review. Standard
+    # alignment derives that mechanically: two distinct standard properties.
+    standard_term: "skos:broader"        # breed -> breed group (concept hierarchy)
+    confidence: 0.70
+
+  - corpus_term: member_of
+    corpus_kind: edge_type
+    standard_term: "schema:memberOf"     # person -> organization
+    confidence: 0.75

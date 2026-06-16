@@ -47,6 +47,11 @@ def test_cat9b_empty_manifest_reports_not_applicable():
     assert result.empty_manifest is True
     assert result.total_probes == 0
     assert result.band == "n/a"
+    # call_through_rate must be None on empty manifest — distinct from
+    # "every probe failed" which is the measured 0.0 floor. JSON
+    # consumers reading the rate field without checking empty_manifest
+    # would otherwise see "0%" when the truthful answer is "not measured."
+    assert result.call_through_rate is None
     report = format_cat9b_report(result)
     assert "declared no harness manifest" in report
 

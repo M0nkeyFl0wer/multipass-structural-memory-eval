@@ -1,0 +1,212 @@
+{
+  "conditions": {
+    "A": {
+      "label": "A: flat token-overlap",
+      "total": 176,
+      "full_recall": 138,
+      "partial_hits": 174,
+      "mean_recall": 0.8734005258802086,
+      "mean_tokens": 89.0909090909091,
+      "tokens_per_correct": 113.6231884057971,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.9050554373796302,
+          "hit_rate": 1.0,
+          "mean_tokens": 83.26984126984127,
+          "correct_count": 52
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 0.9772727272727273,
+          "hit_rate": 0.9772727272727273,
+          "mean_tokens": 87.73863636363636,
+          "correct_count": 86
+        },
+        "3": {
+          "hops": 3,
+          "n": 18,
+          "mean_recall": 0.3611111111111111,
+          "hit_rate": 1.0,
+          "mean_tokens": 108.94444444444444,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 4,
+          "mean_recall": 0.8,
+          "hit_rate": 1.0,
+          "mean_tokens": 106.25,
+          "correct_count": 0
+        },
+        "2": {
+          "hops": 2,
+          "n": 3,
+          "mean_recall": 0.3333333333333333,
+          "hit_rate": 1.0,
+          "mean_tokens": 109.0,
+          "correct_count": 0
+        }
+      }
+    },
+    "B": {
+      "label": "B: 2-hop structured",
+      "total": 176,
+      "full_recall": 142,
+      "partial_hits": 165,
+      "mean_recall": 0.9008116883116883,
+      "mean_tokens": 1155.9147727272727,
+      "tokens_per_correct": 1432.6830985915492,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.8197278911564626,
+          "hit_rate": 0.8253968253968254,
+          "mean_tokens": 841.3809523809524,
+          "correct_count": 51
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1096.125,
+          "correct_count": 88
+        },
+        "3": {
+          "hops": 3,
+          "n": 18,
+          "mean_recall": 0.75,
+          "hit_rate": 1.0,
+          "mean_tokens": 2159.0,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 4,
+          "mean_recall": 0.6,
+          "hit_rate": 1.0,
+          "mean_tokens": 2159.0,
+          "correct_count": 0
+        },
+        "2": {
+          "hops": 2,
+          "n": 3,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 2159.0,
+          "correct_count": 3
+        }
+      }
+    },
+    "C": {
+      "label": "C: same-nodes prose",
+      "total": 176,
+      "full_recall": 142,
+      "partial_hits": 165,
+      "mean_recall": 0.9012175324675326,
+      "mean_tokens": 801.2443181818181,
+      "tokens_per_correct": 993.0915492957746,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.8208616780045351,
+          "hit_rate": 0.8253968253968254,
+          "mean_tokens": 618.5396825396825,
+          "correct_count": 51
+        },
+        "1": {
+          "hops": 1,
+          "n": 88,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 776.4318181818181,
+          "correct_count": 88
+        },
+        "3": {
+          "hops": 3,
+          "n": 18,
+          "mean_recall": 0.75,
+          "hit_rate": 1.0,
+          "mean_tokens": 1349.0,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 4,
+          "mean_recall": 0.6,
+          "hit_rate": 1.0,
+          "mean_tokens": 1349.0,
+          "correct_count": 0
+        },
+        "2": {
+          "hops": 2,
+          "n": 3,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1349.0,
+          "correct_count": 3
+        }
+      }
+    }
+  },
+  "delta_B_minus_A": {
+    "0": {
+      "recall_delta_pp": -8.532754622316762,
+      "tokens_delta": 758.1111111111111
+    },
+    "1": {
+      "recall_delta_pp": 2.2727272727272707,
+      "tokens_delta": 1008.3863636363636
+    },
+    "2": {
+      "recall_delta_pp": 66.66666666666667,
+      "tokens_delta": 2050.0
+    },
+    "3": {
+      "recall_delta_pp": 38.88888888888889,
+      "tokens_delta": 2050.0555555555557
+    },
+    "4": {
+      "recall_delta_pp": -20.000000000000007,
+      "tokens_delta": 2052.75
+    }
+  },
+  "delta_B_minus_C": {
+    "0": {
+      "recall_delta_pp": -0.11337868480725266,
+      "tokens_delta": 222.84126984126988
+    },
+    "1": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 319.69318181818187
+    },
+    "2": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 810.0
+    },
+    "3": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 810.0
+    },
+    "4": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 810.0
+    }
+  },
+  "ratio_B_over_A": {
+    "0": 0.9057211937533761,
+    "1": 1.0232558139534884,
+    "2": 3.0,
+    "3": 2.076923076923077,
+    "4": 0.7499999999999999
+  },
+  "verdict": "mixed: structure helps at some depths and hurts at others",
+  "verdict_details": [
+    "B - C is near zero across all hop depths \u2014 structure is a neutral tax, adds nothing beyond metadata"
+  ]
+}

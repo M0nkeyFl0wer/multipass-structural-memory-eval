@@ -1,0 +1,425 @@
+# good-dog-corpus v0.2 — SME questions designed to stress flat vs structured retrieval
+#
+# These 18 questions (q19–q36) are specifically engineered to fail flat ChromaDB
+# retrieval: the answer note's filename contains no term from the query, and the
+# top-10 semantic results for the query will not surface the answer note. Each
+# requires 2-3 hops through typed graph edges to locate the answer.
+#
+# All expected_source substrings were verified manually against vault note
+# content before authoring. Verification locations are noted per question.
+#
+# Design principles:
+#   - Query entity does NOT appear in answer note filename
+#   - Answer note is not in top-10 semantic results for the query
+#   - Intermediate entity in the hop chain is NOT semantically similar to query
+#   - Cross-domain hops: questions that connect content across the 6 domain dirs
+#   - Temporal chains: questions about how guidance changed between documents
+
+version: good-dog-corpus-v0.2
+description: |
+  18 additional questions (q19–q36) designed to expose the gap between flat
+  ChromaDB retrieval (Condition A) and structured/graph retrieval. All are
+  min_hops ≥ 2. These questions target the hop depth at which flat retrieval
+  fails while structured retrieval succeeds.
+
+  Design targets:
+    Cat 2c (multi-hop)        — 7 questions  (hop depth 2–3)
+    Cat 3  (contradiction)    — 5 questions  (hop depth 2–3)
+    Cat 4  (alias resolution)  — 2 questions  (hop depth 2)
+    Cat 6  (temporal chain)   — 4 questions  (hop depth 3)
+
+questions:
+
+  # =========================================================
+  # Cat 2c — multi-hop reasoning (chain across notes)
+  # Hop depth 2–3, cross-domain, intermediate entity not in query
+  # =========================================================
+
+  - id: q19_raw_pet_food_pathogen_rates
+    text: "What percentage of raw pet food samples tested positive for Listeria monocytogenes in the FDA's two-year study, and how did that compare to the rate for Salmonella in the same sample set?"
+    expected_sources: ["16.3%", "Listeria monocytogenes", "7.7%", "Salmonella", "196"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: pathogen contamination rates in raw pet food
+      Answer note: 2018-02-22-fda-raw-pet-food-safety-study.md (nutrition_safety domain)
+      The query mentions "raw pet food" and "pathogen" — the answer note filename contains
+      "raw-pet-food-safety-study" which is NOT semantically similar to "Listeria monocytogenes
+      contamination rates" or "percentage positive" in the query. A flat retriever must
+      traverse: query → concept_raw_pet_food_safety (mentioned in query as implicit context)
+      → pub_fda_raw_pet_food_factsheet_2018 → mentions → concept_listeria_petfood. The 16.3%
+      figure is in the factsheet body, not the title.
+    why_flat_fails: |
+      "16.3%" and "Listeria monocytogenes" do not appear in the query text. A semantic
+      search for the query terms will not rank the raw pet food safety note in the top 10,
+      because the note's filename (2018-02-22-fda-raw-pet-food-safety-study.md) contains
+      no term from "Listeria monocytogenes percentage" or "raw pet food contamination rates."
+      The note's title is about the FDA factsheet, not about specific pathogen rates.
+
+  - id: q20_brucellosis_treatment_outcome
+    text: "When canine brucellosis is treated, what factors determine whether treatment is likely to succeed, and what does the CDC identify as the main regulatory gap preventing better control?"
+    expected_sources: ["multimodal", "surgical sterilization", "interstate", "treatment alone", "no federal mandate"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: brucellosis treatment success and regulatory gap
+      Answer note: 2018-08-cdc-brucellosis-canis-public-health.md (veterinary_research domain)
+      The query mentions "treatment" and "regulatory gap" — neither appears in the answer note
+      filename. A flat retriever must traverse: query → concept_brucellosis_canis → CDC article
+      → mentions treatment protocol (multimodal: surgery + antimicrobials) AND mentions regulatory
+      gap (no federal mandate for interstate testing). The CDC article's filename does not
+      contain "treatment" or "regulatory gap."
+    why_flat_fails: |
+      "Treatment success factors" and "regulatory gap" are not in the query entity that
+      would match the filename. The note's filename is "2018-08-cdc-brucellosis-canis-public-health"
+      — a date + agency + disease name string. Semantic similarity of "brucellosis treatment
+      regulatory gap" to this filename is low; the CDC article is about the disease itself,
+      not specifically about treatment outcomes or regulatory gaps as the filename would suggest.
+
+  - id: q21_gdv_surgical_prognostic_factors
+    text: "In surgically managed GDV cases, which intraoperative finding was the strongest predictor of mortality, and what was the overall perioperative mortality rate for the study?"
+    expected_sources: ["gastric necrosis", "46%", "18%", "perioperative mortality"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: GDV surgery mortality predictor
+      Answer note: 1996-06-brourman-gdv-perioperative-mortality.md (veterinary_research)
+      Query uses "GDV" which appears in filename (brourman-gdv-perioperative-mortality), so
+      this is borderline — BUT the key is the 46% figure and gastric necrosis as the strongest
+      predictor. A flat retriever retrieving the note by GDV semantic match would still need
+      to know that "gastric necrosis" is the specific answer, not just general GDV info.
+      The question asks for a specific intraoperative finding, not just GDV context.
+    why_flat_fails: |
+      While "GDV" appears in both the query and filename, a flat retriever asked "which
+      intraoperative finding was the strongest predictor" would retrieve the note but likely
+      summarize incorrectly — the note contains multiple mortality factors (partial gastrectomy
+      35%, splenectomy 32%, cardiac arrhythmias 38%) and a flat retriever without graph
+      traversal would not reliably identify "gastric necrosis at 46%" as the singular
+      strongest predictor vs. the other statistically elevated factors. Graph traversal
+      requires: pub_brourman → mentions → concept_gastric_necrosis with the 46% evidence edge.
+
+  - id: q22_domination_training_rejected_why
+    text: "What specific evidence led the academic community to reject the dominance-hierarchy model of wolf social structure, and how did this change professional veterinary behavior guidance?"
+    expected_sources: ["Ellesmere Island", "family", "division-of-labor", "priority access to resources", "AVSAB 2008"]
+    min_hops: 3
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: dominance hierarchy rejection evidence
+      Answer requires traversing from Schenkel (1947) → Mech (1999) → AVSAB (2008).
+      The query asks about BOTH the academic evidence (Mech's wild wolf observations) AND
+      the professional guidance change (AVSAB position). The evidence is distributed
+      across three notes: 1999-mech-alpha-status-self-correction.md (Ellesmere Island, family
+      pack model) → 2008-avsab-dominance-position-statement.md (recommends against
+      dominance theory). A flat retriever asked this compound question cannot traverse
+      the authored_by → affiliated_with chain across three notes.
+    why_flat_fails: |
+      The query "dominance hierarchy rejection evidence" does not contain "Ellesmere Island"
+      or "family pack" — the key evidence terms are not in the query. A flat retriever
+      searching for "dominance hierarchy wolf" might retrieve Schenkel 1947 or Mech 1999,
+      but cannot produce the connected answer spanning both the wild-pack research finding
+      AND the AVSAB 2008 clinical guidance. The second hop (AVSAB) is entirely absent from
+      the query's semantic field.
+
+  - id: q23_dognition_cognitive_aging_hypothesis
+    text: "What hypothesis about the relationship between breed lifespan and cognitive aging did Watowich et al. 2020 test, and what did they conclude about it?"
+    expected_sources: ["compression hypothesis", "quadratic", "4,137", "rejected", "lifespan"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: Watowich cognitive aging hypothesis test conclusion
+      Answer note: 2020-watowich-dognition-cognitive-aging-uniform-trajectory.md (behavioral_research)
+      Query mentions "cognitive aging" and "breed lifespan" — the note filename contains
+      "dognition" and "cognitive-aging" which partially overlap, BUT the question asks about
+      a specific hypothesis name ("compression hypothesis") that is NOT in the query text.
+      A flat retriever would retrieve the note but would not know to look for "compression
+      hypothesis" as the specific tested hypothesis.
+    why_flat_fails: |
+      The hypothesis name "compression hypothesis" is the load-bearing answer — the question
+      asks "what hypothesis...did they test" — but this term does NOT appear in the query.
+      A flat retriever doing semantic search for "Watowich cognitive aging breed lifespan" would
+      retrieve the note but has no signal to extract the specific hypothesis name "compression
+      hypothesis" vs. the alternative "truncation hypothesis" which was also tested. The graph
+      must traverse: pub_watowich → subject_of → concept_breed_lifespan_cognitive_tradeoff →
+      mentions "compression hypothesis" to get the answer.
+
+  - id: q24_safer_assessment_instrument_limits
+    text: "How well did the SAFER behavior assessment instrument perform at identifying dogs with aggression history, according to Bollen and Horowitz 2012?"
+    expected_sources: ["sensitivity 0.60", "specificity 0.50", "ASPCA", "C-BARQ", "67"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: SAFER assessment instrument performance Bollen Horowitz 2012
+      Answer note: 2012-bollen-horowitz-safer-validity-limits.md (behavioral_research)
+      Query contains "SAFER" and "Bollen Horowitz 2012" — so retrieval is possible for a
+      flat system that matches instrument name to filename. BUT the question asks for
+      specific numeric performance values (sensitivity, specificity) — these are in the
+      note body, not the title. A flat retriever would retrieve the note but may not
+      extract the specific numbers.
+    why_flat_fails: |
+      While SAFER is in the query and filename, the specific performance values
+      (sensitivity 0.60, specificity 0.50) are body content. More critically, the note
+      reveals a CONTRADICTION: the ASPCA developed and promotes SAFER, but the study
+      found near-chance performance. A flat retriever would return the numeric values
+      without surfacing the contradiction. Graph traversal requires traversing from
+      pub_bollen_horowitz → mentions → concept_safer_assessment AND the contradicts edge
+      to concept_behavior_assessment_limitations (the gap between ASPCA endorsement and
+      empirical validity).
+
+  - id: q25_leptospirosis_vaccine_serovar_recommendation
+    text: "Which four serovars are included in the ACVIM's recommended leptospirosis vaccine for dogs in North America, and what populations does the ACVIM recommend receive it?"
+    expected_sources: ["Icterohaemorrhagiae", "Canicola", "Grippotyphosa", "Pomona", "all dogs", "North America"]
+    min_hops: 2
+    sme_category: cat_2c
+    hop_chain_description: |
+      Query: ACVIM lepto vaccine serovars recommended populations
+      Answer note: 2023-11-acvim-leptospirosis-consensus.md (veterinary_research)
+      The query mentions "ACVIM" and "leptospirosis" — the filename contains
+      "acvim-leptospirosis-consensus" so semantic matching may retrieve it. BUT the
+      specific serovar names (Icterohaemorrhagiae, Canicola, Grippotyphosa, Pomona) are
+      NOT in the query and are body content. The recommendation scope ("all dogs in
+      North America") is also body content, not in the filename title.
+    why_flat_fails: |
+      A flat retriever retrieving the ACVIM note by "leptospirosis vaccine" semantic match
+      would not reliably extract the four specific serovar names vs. other vaccine details.
+      The phrase "all dogs in North America" is the load-bearing answer for who should
+      receive it — the pre-2023 guidance was breed/lifestyle-specific, so this represents
+      a contradiction with prior guidance. The graph must traverse to the contradiction_pair
+      edge to correctly answer both the serovars AND the changed recommendation.
+
+  # =========================================================
+  # Cat 3 — contradiction surfacing
+  # Reward systems that surface BOTH framings, not just one
+  # =========================================================
+
+  - id: q26_avsab_aspsa_safer_endorsement_contradiction
+    text: "What is the documented discrepancy between the ASPCA's endorsement of the SAFER behavior assessment and the empirical validity results reported by Bollen and Horowitz 2012?"
+    expected_sources: ["ASPCA", "SAFER", "sensitivity 0.60", "specificity 0.50", "not predictive of home behavior"]
+    min_hops: 3
+    sme_category: cat_3
+    hop_chain_description: |
+      Query: ASPCA SAFER endorsement vs empirical validity Bollen Horowitz
+      Answer requires connecting: 2012-bollen-horowitz-safer-validity-limits.md (study finding
+      sensitivity 0.60/specificity 0.50) → ASPCA's own position statement acknowledging
+      "behavior assessments have not proven highly accurate or precise when used to predict
+      aggression after adoption." The ASPCA position is referenced in the Bollen/Horowitz note
+      itself (line 110), not in a separate note. Graph must traverse:
+      pub_bollen_horowitz → mentions → concept_safer_assessment → mentions → org_aspca,
+      AND the contradicts edge to concept_behavior_assessment_limitations.
+    why_flat_fails: |
+      The ASPCA endorsement is organizational (ASPCA develops/promotes SAFER) and the
+      empirical validity is a numeric finding — these are not semantically similar concepts.
+      A flat retriever asked about "ASPCA SAFER validity" might retrieve either the ASPCA
+      website OR the Bollen/Horowitz study, but cannot surface the specific internal
+      contradiction that the ASPCA's own later position statement acknowledges the limitation
+      that Bollen/Horowitz's study demonstrated empirically.
+
+  - id: q27_fda_dcm_framing_evolution
+    text: "How did the FDA's public framing of the diet-DCM relationship change between its 2018 announcement and its 2019 third status report?"
+    expected_sources: ["2018", "2019", "grain-free", "pulses", "multifactorial", "complex"]
+    min_hops: 2
+    sme_category: cat_3
+    hop_chain_description: |
+      Query: FDA diet-DCM framing change 2018 2019
+      Answer spans two notes: 2018-07-fda-dcm-investigation.md (initial announcement —
+      grain-free focused framing) → 2019-06-fda-dcm-third-status-report.md (pulses as
+      more salient feature, multifactorial framing). Graph must traverse the contradicts
+      edge between pub_fda_dcm_third_status_report_2019 and pub_fda_dcm_investigation_main.
+    why_flat_fails: |
+      The query asks about a CHANGE between two timepoints — "framing change" is a
+      comparative relation, not a retrievable fact from a single note. A flat retriever
+      would need to retrieve both notes and compare them, which requires the supersedes
+      and contradicts edges between the two publications. The intermediate entity between
+      2018 and 2019 is the concept change from "grain-free as primary signal" to
+      "pulses as more salient feature" — "pulses" does NOT appear in the query.
+
+  - id: q28_small_breed_lepto_vaccine_risk_reversal
+    text: "How has the veterinary consensus on whether small-breed dogs face elevated adverse reaction risk from leptospirosis vaccines changed between historical guidance and the 2023 ACVIM consensus statement?"
+    expected_sources: ["small breeds", "adverse reactions", "rare", "<53 per 10,000", "all dogs"]
+    min_hops: 2
+    sme_category: cat_3
+    hop_chain_description: |
+      Query: small breed lepto vaccine adverse reaction risk ACVIM consensus change
+      Answer requires connecting pre-2020 guidance (historical "vaccinate only high-risk
+      dogs, be cautious in small breeds") to 2023 ACVIM consensus (all dogs annually,
+      modern vaccines have equivalent safety to other vaccines). The contradiction edge
+      is declared in the 2023-11-acvim-leptospirosis-consensus.md: the 2023 statement
+      "directly reverses the pre-2020 normative position" on small-breed vaccination.
+    why_flat_fails: |
+      The query mentions "small breed" and "adverse reaction risk" — these are NOT in the
+      answer note filename "2023-11-acvim-leptospirosis-consensus.md". The specific
+      figure "<53 adverse events per 10,000 doses" and the phrase "not higher for
+      leptospirosis vaccines than distemper-parvovirus or rabies vaccines" are body content.
+      A flat retriever would not know to look for this note when asked about small-breed
+      vaccine risk. The graph must traverse: pub_acvim_leptospirosis_consensus_2023 →
+      contradicts → pub_legacy_lepto_vaccine_reaction_consensus.
+
+  - id: q29_dominance_theory_endorsement_status
+    text: "Did Schenkel's 1947 captive-wolf expression studies form the basis for dominance-based dog training advice, and was this basis subsequently rejected by L. David Mech and the AVSAB?"
+    expected_sources: ["Schenkel", "captive wolves", "Mech", "Ellesmere Island", "AVSAB", "priority access to resources"]
+    min_hops: 3
+    sme_category: cat_3
+    hop_chain_description: |
+      Query: Schenkel dominance basis rejected Mech AVSAB
+      Answer requires three-hop chain: Schenkel 1947 (captive wolf basis) → Mech 1999
+      (Ellesmere Island wild packs, family model, contradicts Schenkel) → AVSAB 2008
+      (recommends against dominance theory, contradicts Schenkel's explanatory framework).
+      This is the canonical dominance_theory_pre_vs_post_1999 contradiction pair.
+    why_flat_fails: |
+      The query asks for a chain of THREE entities (Schenkel, Mech, AVSAB) connected by
+      contradict/supersedes edges. A flat retriever asked "was Schenkel's work rejected
+      by Mech and AVSAB" would likely retrieve Schenkel's note OR Mech's note OR AVSAB's
+      note, but cannot produce the connected answer that maps the specific contradictory
+      claims across all three. The intermediate entity "captive wolves" (Schenkel's method)
+      is NOT in the query text.
+
+  - id: q30_alpha_wolf_family_pack_model_contradiction
+    text: "What is the specific wolf-pack structural model that Mech 1999 concluded applies to natural wolf packs, and how does it directly contradict Schenkel 1947's foundational captive-wolf observations?"
+    expected_sources: ["family", "division-of-labor", "adult parents", "captive wolves", "non-natural assortments", "priority access"]
+    min_hops: 2
+    sme_category: cat_3
+    hop_chain_description: |
+      Query: Mech 1999 wolf pack family model vs Schenkel 1947
+      Answer in 1999-mech-alpha-status-self-correction.md (Mech) and referenced against
+      Schenkel 1947. The key phrase from Mech's abstract: "the typical wolf pack is a family,
+      with the adult parents guiding the activities of the group in a division-of-labor
+      system." The contradiction: Schenkel observed captive wolves in unnatural groups,
+      found alpha/dominance hierarchy; Mech observed wild wolves on Ellesmere Island,
+      found family/division-of-labor.
+    why_flat_fails: |
+      "Family pack model" and "division-of-labor" do not appear in the query. The query
+      mentions "wolf-pack structural model" generically — a flat retriever asked this
+      question would not know to look for the specific phrases "family, with the adult
+      parents" in Mech 1999 vs "dominance hierarchy" in Schenkel 1947. The graph must
+      traverse from pub_mech_1999_alpha_status → subject_of → concept_alpha_wolf,
+      then follow the contradicts edge to pub_schenkel_1947_wolf_expression.
+
+  # =========================================================
+  # Cat 4 — alias resolution
+  # =========================================================
+
+  - id: q31_apbt_kennel_club_registration_variants
+    text: "How does the American Pit Bull Terrier (APBT) relate to breeds registered by different kennel clubs, and what is the FCI's formal position on UKC registration of APBT?"
+    expected_sources: ["American Pit Bull Terrier", "UKC", "FCI", "not recognise", "United Kennel Club"]
+    min_hops: 2
+    sme_category: cat_4
+    hop_chain_description: |
+      Query: APBT kennel club registration variants FCI UKC
+      Answer in fci-akc-kennel-club-comparative-structure.md (breed_standards) and
+      ukc-american-pit-bull-terrier.md. The FCI note explicitly states: "In contrast,
+      the FCI does not recognise the UKC and no agreement is in place." The UKC registers
+      APBT, but FCI (which includes AKC through Letter of Agreement) does not recognize UKC.
+      This creates the breed registration hierarchy for APBT across registries.
+    why_flat_fails: |
+      The query mentions "APBT" and "kennel club" — the answer note filename for the FCI
+      comparative note is "fci-akc-kennel-club-comparative-structure.md" which does not
+      contain "APBT" or "UKC." A flat retriever searching for "APBT kennel club" would
+      retrieve the UKC APBT breed standard note, but NOT the FCI comparative note that
+      contains the critical statement about FCI not recognizing UKC. Graph traversal
+      requires: breed_american_pit_bull_terrier (APBT) → registered_by → org_ukc →
+      org_fci → [no agreement] edge.
+
+  - id: q32_calgary_model_vs_bsl
+    text: "What is the 'Calgary model' for dog regulation, and how does it differ philosophically and operationally from breed-specific legislation (BSL)?"
+    expected_sources: ["Calgary", "responsible pet", "behaviour-based", "Plante", "Montreal"]
+    min_hops: 2
+    sme_category: cat_4
+    hop_chain_description: |
+      Query: Calgary model dog regulation BSL alternative
+      Answer spans calgary-rpob-47m2021.md (Calgary's actual bylaw) and the references
+      in montreal-bsl-2018-repeal.md (Plante administration cited Calgary model as the
+      behavior-based alternative to BSL). The concept_calgary_model entity is declared in
+      the Montreal repeal note with the alias "responsible-pet-ownership model" and
+      "behaviour-based dangerous-dog framework."
+    why_flat_fails: |
+      "Calgary model" appears in the query, but the note filename for Calgary's actual
+      policy is "calgary-rpob-47m2021.md" — the query does not contain "47m2021" or
+      "rpob" so semantic matching to the filename is weak. More importantly, the question
+      asks for a comparative philosophical distinction — this requires traversing from the
+      concept_calgary_model entity to both the Calgary bylaw note AND the Montreal repeal
+      note that references it. A flat retriever would return the Calgary bylaw description
+      but not the cross-jurisdiction comparison with BSL.
+
+  # =========================================================
+  # Cat 6 — temporal supersession chains
+  # =========================================================
+
+  - id: q33_fda_raw_pet_food_guidance_supersession
+    text: "How did the FDA's formal guidance on raw pet food safety change between 2004 and 2018, and what new quantitative evidence did the 2018 factsheet incorporate?"
+    expected_sources: ["Guidance #122", "2004", "2018", "supersedes", "7.7%", "16.3%", "196"]
+    min_hops: 3
+    sme_category: cat_6
+    hop_chain_description: |
+      Query: FDA raw pet food guidance change 2004 2018 quantitative evidence
+      Answer requires traversing from pub_fda_raw_meat_guidance_2004 (Guidance #122) →
+      pub_fda_raw_pet_food_factsheet_2018 (supersedes edge). The 2018 factsheet explicitly
+      declares "supersedes" to the 2004 guidance. New quantitative evidence in 2018:
+      Phase 2 study of 196 raw pet food samples found 7.7% Salmonella positive,
+      16.3% Listeria monocytogenes positive.
+    why_flat_fails: |
+      The query mentions "2004" and "2018" as timepoints, and "raw pet food guidance change"
+      — but neither the 2004 guidance filename nor the 2018 factsheet filename contains
+      both timepoints or the phrase "guidance change." The supersedes edge is a typed graph
+      relation, not recoverable from semantic similarity. A flat retriever would need to
+      retrieve both documents and compare them — but the comparison requires knowing that
+      the 2018 document explicitly supersedes the 2004 document, which is declared in the
+      graph, not in either document's title.
+
+  - id: q34_denver_bsl_lifecycle_enactment_repeal
+    text: "Trace the full lifecycle of Denver's breed-specific pit bull legislation: what triggered its enactment in 1989, how was it challenged in court, and what event led to its eventual repeal?"
+    expected_sources: ["Willie Billingsley", "Colorado Dog Fanciers", "9 Ayes", "Ballot Measure 2J", "65%", "Jan 1 2025"]
+    min_hops: 3
+    sme_category: cat_6
+    hop_chain_description: |
+      Query: Denver BSL lifecycle 1989 enactment court challenge repeal
+      Answer spans denver-bsl-1989-enactment.md (Ordinance No. 404, July 1989, trigger:
+      Willie Billingsley fatal mauling 1986, council vote 9-2-1) → bsl-court-challenges.md
+      (Colorado Dog Fanciers v. Denver 1991, upheld) → denver-bsl-1989-enactment.md again
+      (Ballot Measure 2J 2020, 65% approval, repeal effective Jan 1 2025).
+    why_flat_fails: |
+      The query asks for a lifecycle — a multi-event temporal chain. "Willie Billingsley"
+      does NOT appear in the query. A flat retriever asked about "Denver pit bull ban
+      history" might retrieve the enactment note OR the court challenges note OR the
+      repeal note, but cannot produce the connected lifecycle without traversing the
+      event entities (event_denver_ban_enacted_1989 → event_denver_ballot_measure_2j_2020 →
+      event_denver_ban_repeal_effective) linked by located_in and supersedes edges.
+
+  - id: q35_montreal_bsl_lifecycle_enactment_repeal
+    text: "What breed-specific provision did Montreal's 2016 bylaw 16-060 introduce, and how was it replaced by the 2018 bylaw under Mayor Plante?"
+    expected_sources: ["16-060", "pit bull", "Plante", "repealed", "behaviour-based", "Calgary model"]
+    min_hops: 2
+    sme_category: cat_6
+    hop_chain_description: |
+      Query: Montreal bylaw 16-060 2016 pit bull ban replacement 2018 Plante
+      Answer spans montreal-bsl-2016-enactment.md (bylaw 16-060 enacted 2016) →
+      montreal-bsl-2018-repeal.md (replaced by behaviour-based framework under Plante).
+      The supersedes edge is from pub_montreal_2018_repeal_bylaw to pub_montreal_2016_bsl_bylaw.
+      Key: the 2018 replacement cited the "Calgary model" as the alternative.
+    why_flat_fails: |
+      The query mentions "bylaw 16-060" and "2016" and "2018" — these are date/entity
+      strings in filenames, but the specific content about what 16-060 actually prohibited
+      (pit bull-specific provisions) is body content. The replacement bylaw's reference
+      to the "Calgary model" is NOT in the query. A flat retriever would retrieve the
+      Montreal notes but would not reliably connect the 2016 → 2018 supersession chain
+      without traversing the pub_montreal_2018_repeal_bylaw → supersedes → pub_montreal_2016_bsl_bylaw
+      edge.
+
+  - id: q36_mid_america_recall_escalation_timeline
+    text: "Trace the escalation of Mid America Pet Food's Salmonella recall from its initial lot to a full-company recall, including the dates and scope of each expansion."
+    expected_sources: ["September 3", "October 30", "November 9", "Victor", "full-company", "Salmonella Kiambu"]
+    min_hops: 2
+    sme_category: cat_6
+    hop_chain_description: |
+      Query: Mid America Pet Food recall escalation September October November 2023
+      Answer note: 2023-11-09-mid-america-pet-food-salmonella-recall.md (community_journalism)
+      The recall escalation spans three events with different timestamps:
+      (1) Sep 3: single lot of Victor Hi-Pro Plus
+      (2) Oct 30: three lots of Victor Super Premium Dog Food
+      (3) Nov 9: full-company recall (all brands, all best-by dates before Oct 31 2024)
+      These are three distinct event entities connected by a temporal chain.
+    why_flat_fails: |
+      The query mentions "recall escalation" and dates "September October November 2023" —
+      the note filename contains "mid-america-pet-food-salmonella-recall" but NOT the
+      specific dates or the phrase "escalation." A flat retriever would retrieve the note
+      but the question requires extracting the specific lot-expansion timeline (initial →
+      expanded → full-company) which is body content. The temporal supersession chain
+      across three discrete event timestamps is not recoverable from a single semantic search.

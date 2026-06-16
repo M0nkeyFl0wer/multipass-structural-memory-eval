@@ -43,6 +43,16 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Iterable, Optional, Protocol
 
+# Marker constants are the single source of truth for prompt-caching
+# prefix detection in `sme.eval.llm_clients.split_for_caching`. The
+# default prompt templates below interpolate them so a rename in
+# llm_clients propagates here automatically — preventing silent
+# cache-miss drift on the Anthropic provider.
+from sme.eval.llm_clients import (
+    ARTICLE_PROMPT_MARKER,
+    INDEX_PROMPT_MARKER,
+)
+
 log = logging.getLogger(__name__)
 
 _MANIFEST_NAME = "_manifest.json"
@@ -208,23 +218,23 @@ def compile_vault(
 # --- Helpers ----------------------------------------------------------
 
 
-_DEFAULT_ARTICLE_PROMPT = """\
+_DEFAULT_ARTICLE_PROMPT = f"""\
 You are compiling a personal wiki article from a raw note. Produce a
 self-contained summary that another person could read in isolation —
 include every load-bearing fact, name, date, and decision. Aim for
-roughly {target_words} words. Use markdown headings sparingly.
+roughly {{target_words}} words. Use markdown headings sparingly.
 
-Source path: {relpath}
+{ARTICLE_PROMPT_MARKER} {{relpath}}
 
 Source content:
 ---
-{body}
+{{body}}
 ---
 
 Write the wiki article now. Output ONLY the article text, no preamble.
 """
 
-_DEFAULT_INDEX_PROMPT = """\
+_DEFAULT_INDEX_PROMPT = f"""\
 You are compiling the top-level index for a personal LLM wiki. Below
 is the list of articles and their first paragraphs. Produce a short
 index — under 1500 words — that a reader can scan in one sitting and
@@ -232,8 +242,8 @@ use to decide which articles to load. Group articles into 3-7
 thematic sections. For each article, give one line: the path and a
 sentence summary.
 
-Articles:
-{article_list}
+{INDEX_PROMPT_MARKER}
+{{article_list}}
 
 Output ONLY the index in markdown.
 """

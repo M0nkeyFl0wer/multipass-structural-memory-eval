@@ -94,7 +94,7 @@ The rules in `ontology.yaml` are deliberately heterogeneous because the underlyi
 - **Byline / affiliation phrase rules** for `authored_by` and `affiliated_with`. Pattern matching on author and affiliation fields.
 - **Topic-match rules** for `subject_of`. Title or abstract subject extraction. Also marked `requires_human_grounding: true` for the same reason as contradiction — distinguishing "primarily about" from "mentions in passing" is not currently solvable by lexical rules alone.
 
-The heterogeneity is the point. Cat 10 (phantom edges) is not a single threshold; it's a per-edge-type contract about what counts as evidence, and the corpus is the first place that contract gets written down.
+The heterogeneity is the point. Cat 4g (phantom edges) is not a single threshold; it's a per-edge-type contract about what counts as evidence, and the corpus is the first place that contract gets written down.
 
 ---
 
@@ -122,7 +122,7 @@ The ontology was designed against the published SME categories, not retrofitted 
 | Cat 4 (ingestion integrity / alias resolution) | `alias_of` | GSD / German Shepherd / Alsatian collapse |
 | Cat 6 (temporal) | `supersedes` | Pet food recall lifecycle: announced → investigated → resolved |
 | Cat 8 (ontology coherence) | the entire schema vs the built graph | Did the corpus build the graph it claimed it would? |
-| Cat 10 (phantom edges) | `evidence_rule` field on every edge type | First worked example of per-edge-type evidence registration |
+| Cat 4g (phantom edges) | `evidence_rule` field on every edge type | First worked example of per-edge-type evidence registration |
 
 The corpus deliberately seeds material for each category: contradiction pairs in `vault/veterinary_research/` and `vault/behavioral_research/`, alias pairs in `vault/breed_standards/`, temporal chains in `vault/nutrition_safety/` (recall lifecycles) and `vault/behavioral_research/` (training methodology evolution), and cross-domain hop chains spanning `vault/veterinary_research/` → `vault/municipal_policy/` → `vault/community_journalism/`.
 

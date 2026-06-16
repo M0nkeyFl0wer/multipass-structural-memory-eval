@@ -1,0 +1,49 @@
+# SME pricing table — May 2026 snapshot
+# Source: public pricing pages as of 2026-05-01
+# All values in USD per 1 million tokens
+version: "2026_05"
+
+models:
+  # OpenAI
+  gpt-4o-2024-08-06:
+    input_per_1m: 2.50
+    output_per_1m: 10.00
+  gpt-4o-mini:
+    input_per_1m: 0.15
+    output_per_1m: 0.60
+  gpt-4o:
+    input_per_1m: 2.50
+    output_per_1m: 10.00
+  o1:
+    input_per_1m: 15.00
+    output_per_1m: 60.00
+  o4-mini:
+    input_per_1m: 1.10
+    output_per_1m: 4.40
+
+  # Anthropic
+  claude-sonnet-4-6:
+    input_per_1m: 3.00
+    output_per_1m: 15.00
+  claude-opus-4-6:
+    input_per_1m: 15.00
+    output_per_1m: 75.00
+  claude-haiku-4-5:
+    input_per_1m: 0.80
+    output_per_1m: 4.00
+
+  # Open-source (typical API endpoint pricing)
+  llama-3.1-70b:
+    input_per_1m: 0.35
+    output_per_1m: 0.40
+  llama-3.1-8b:
+    input_per_1m: 0.05
+    output_per_1m: 0.08
+  qwen-2.5-7b:
+    input_per_1m: 0.05
+    output_per_1m: 0.08
+
+  # Local (zero cost — amortized hardware not tracked)
+  local:
+    input_per_1m: 0.0
+    output_per_1m: 0.0

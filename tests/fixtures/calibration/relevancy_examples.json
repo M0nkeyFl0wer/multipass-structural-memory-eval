@@ -1,0 +1,30 @@
+[
+  {
+    "description": "Perfect relevancy",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Who created Python?",
+    "answer": "Python was created by Guido van Rossum.",
+    "expected_score": 1.0
+  },
+  {
+    "description": "Partial relevancy",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Who created Python and when was it released?",
+    "answer": "Python was created by Guido van Rossum.",
+    "expected_score": 0.5
+  },
+  {
+    "description": "Irrelevant",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Who created Python?",
+    "answer": "The Eiffel Tower is located in Paris, France.",
+    "expected_score": 0.0
+  },
+  {
+    "description": "Refusal when answer needed",
+    "context": "Python was created by Guido van Rossum.",
+    "question": "Who created Python?",
+    "answer": "I cannot answer that question.",
+    "expected_score": 0.0
+  }
+]
