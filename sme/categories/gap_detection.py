@@ -83,6 +83,7 @@ class GapDetectionReport:
     h1_skipped: bool = False
     isolated_by_type: dict[str, int] = field(default_factory=dict)
     h1_skip_reason: str = ""
+    representative_cycles: list[list[str]] = field(default_factory=list)
 
     # Candidate gaps across components (top-K by score, post-filter)
     candidate_gaps: list[CandidateGap] = field(default_factory=list)
@@ -306,6 +307,17 @@ def score_gap_detection(
                 "Betti-1 persistence readings"
             )
 
+    representative_cycles: list[list[str]] = []
+    if largest:
+        sub_undirected = nx.Graph()
+        sub_undirected.add_nodes_from(largest)
+        for u, v, _ in G.edges(keys=True):
+            if u in largest and v in largest and u != v:
+                sub_undirected.add_edge(u, v)
+        raw_cycles = nx.cycle_basis(sub_undirected)
+        raw_cycles.sort(key=lambda c: (len(c), c))
+        representative_cycles = raw_cycles[:10]
+
     candidates, considered, flat_rarity_mode = _candidate_gaps(
         analyzer,
         components,
@@ -357,6 +369,7 @@ def score_gap_detection(
         h1_max_persistence=h1_max_persistence,
         h1_skipped=h1_skipped,
         h1_skip_reason=h1_skip_reason,
+        representative_cycles=representative_cycles,
         candidate_gaps=candidates,
         candidate_gaps_considered=considered,
         flat_rarity_mode=flat_rarity_mode,
@@ -442,6 +455,18 @@ def format_report(report: GapDetectionReport) -> str:
     )
     if report.h1_skipped:
         lines.append(f"    (homology skipped: {report.h1_skip_reason})")
+
+    if report.representative_cycles:
+        lines.append(
+            f"  Representative cycles ({len(report.representative_cycles)}):"
+        )
+        for cycle in report.representative_cycles[:5]:
+            nodes_str = " → ".join(cycle) + " → " + cycle[0]
+            lines.append(f"      [{len(cycle)}-cycle] {nodes_str}")
+        if len(report.representative_cycles) > 5:
+            lines.append(
+                f"      ... +{len(report.representative_cycles) - 5} more"
+            )
 
     lines.append("")
     lines.append(
