@@ -137,6 +137,27 @@ def test_custom_canonicalize_function_is_respected():
     assert custom_report.canonical_collisions == 1
 
 
+def test_per_edge_type_edge_counts_populated(duplicates_graph):
+    """Issue #15 — report includes per-edge-type edge counts."""
+    entities, edges, truth = duplicates_graph
+    report = score_ingestion_integrity(entities, edges)
+    assert report.per_edge_type_edge_counts == truth["edge_type_counts"]
+
+
+def test_format_report_sparse_annotation(duplicates_graph):
+    """Issue #15 — sparse edge types annotated in format output."""
+    entities, edges, _ = duplicates_graph
+    report = score_ingestion_integrity(entities, edges)
+    rendered = format_report(report)
+    # MENTIONS has 1 edge — should be annotated as sparse
+    assert "sparse" in rendered.lower()
+    # RELATED has 6 edges — should NOT be annotated as sparse
+    related_line = next(
+        line for line in rendered.splitlines() if "RELATED" in line and "edge" in line
+    )
+    assert "sparse" not in related_line.lower()
+
+
 def test_empty_graph_is_all_zeros():
     report = score_ingestion_integrity([], [])
     assert report.entities == 0
