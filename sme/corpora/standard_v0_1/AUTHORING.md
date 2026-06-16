@@ -4,6 +4,8 @@
 
 **Principle:** Hand-author everything. No LLM synthesis, no dataset adaptation. At 30 notes this is 2-3 hours of writing. The payoff is that every ground-truth answer is verified and every defect is intentional.
 
+**Starting point:** [`questions.yaml`](questions.yaml) ships nine reference questions covering the multi-hop chain A, the temporal evolution chain, one contradiction pair, and one alias pair from the schema below. Use it as a working template, then expand to the full 50-question set described in this document as you author the corresponding vault notes.
+
 ---
 
 ## Corpus structure

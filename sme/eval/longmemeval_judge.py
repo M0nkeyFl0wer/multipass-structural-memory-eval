@@ -29,11 +29,15 @@ Design notes:
 
 from __future__ import annotations
 
-import json
 import logging
-import os
-import time
 from typing import Any, Optional
+
+from sme.eval.judge_base import (
+    PROVIDER_DEFAULT_MODEL,
+    RubricJudge,
+    VALID_PROVIDERS,
+    _default_client,
+)
 
 log = logging.getLogger(__name__)
 
@@ -57,10 +61,12 @@ JUDGE_QUESTION_TYPES = {
 VALID_LABELS = {"CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN", "ERROR"}
 
 
-def _prompt_for_question_type(qtype: str, question: str, gold: str, hyp: str) -> str:
-    """Build the grading prompt body for a given question type.
+def _rubric_for_question_type(qtype: str) -> str:
+    """Build the static (cacheable) rubric for a given question type.
 
-    The five branches reflect the scoring intents described in the
+    Same content as the previous monolithic prompt, just split out so
+    it can be sent as a cacheable system prefix on Anthropic. The
+    five branches reflect the scoring intents described in the
     LongMemEval paper:
 
     - IE (single-session-*): strict factual match of the gold fact.
@@ -74,12 +80,9 @@ def _prompt_for_question_type(qtype: str, question: str, gold: str, hyp: str) ->
     - ABS (abstention): the system should refuse. Reward refusal,
       penalize hallucinated answers.
     """
-    common_header = (
+    header = (
         "You are an evaluator for a long-term memory benchmark. "
         "Judge whether the system's answer is correct given the gold answer.\n\n"
-        f"Question: {question}\n"
-        f"Gold answer: {gold}\n"
-        f"System answer: {hyp}\n\n"
     )
     if qtype in ("single-session-user", "single-session-assistant",
                  "single-session-preference"):
@@ -142,7 +145,22 @@ def _prompt_for_question_type(qtype: str, question: str, gold: str, hyp: str) ->
         '{"label": "CORRECT|PARTIAL|INCORRECT|ABSTAIN", '
         '"rationale": "<one sentence>"}\n'
     )
-    return common_header + rubric + instr
+    return header + rubric + instr
+
+
+def _user_body(question: str, gold: str, hyp: str) -> str:
+    """The per-call (varying) part of the judge prompt.
+
+    Kept as the standard LongMemEval shape: Question / Gold / System.
+    Always returned with the `Question:` marker first so
+    ``split_for_caching`` can find it when the rubric and body are
+    concatenated for non-caching providers.
+    """
+    return (
+        f"Question: {question}\n"
+        f"Gold answer: {gold}\n"
+        f"System answer: {hyp}\n"
+    )
 
 
 def _parse_judge_reply(content: str) -> tuple[str, str]:
@@ -153,96 +171,14 @@ def _parse_judge_reply(content: str) -> tuple[str, str]:
     """
     if not content:
         return "ERROR", "empty judge response"
-    # Strip code fences if present.
-    stripped = content.strip()
-    if stripped.startswith("```"):
-        # remove leading and trailing fences
-        lines = stripped.splitlines()
-        # drop first line (``` or ```json) and any trailing ``` line
-        if lines and lines[0].startswith("```"):
-            lines = lines[1:]
-        if lines and lines[-1].strip().startswith("```"):
-            lines = lines[:-1]
-        stripped = "\n".join(lines).strip()
-    # Find the first {...} JSON object.
-    start = stripped.find("{")
-    end = stripped.rfind("}")
-    if start == -1 or end == -1 or end <= start:
+    obj = RubricJudge.parse_reply(content)
+    if obj is None:
         return "ERROR", f"no JSON object in judge reply: {content[:200]!r}"
-    blob = stripped[start:end + 1]
-    try:
-        obj = json.loads(blob)
-    except json.JSONDecodeError as e:
-        return "ERROR", f"malformed judge JSON ({e}): {content[:200]!r}"
     label = str(obj.get("label", "")).strip().upper()
     rationale = str(obj.get("rationale", "")).strip()
     if label not in VALID_LABELS - {"ERROR"}:
         return "ERROR", f"unknown judge label {label!r}: {content[:200]!r}"
     return label, rationale or "(no rationale)"
-
-
-def _call_openai(
-    *,
-    client: Any,
-    model: str,
-    prompt: str,
-    max_retries: int = 3,
-) -> dict:
-    """Call the OpenAI Chat Completions endpoint with simple backoff.
-
-    Returns ``{'content': str, 'usage': dict}`` on success, raises the
-    final exception on exhaustion. The caller is responsible for catching.
-    """
-    last_exc: Optional[BaseException] = None
-    delay = 1.0
-    for attempt in range(max_retries):
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.0,
-            )
-            choice = resp.choices[0]
-            content = getattr(choice.message, "content", "") or ""
-            usage_obj = getattr(resp, "usage", None)
-            if usage_obj is None:
-                usage = {"prompt_tokens": 0, "completion_tokens": 0,
-                         "total_tokens": 0}
-            else:
-                usage = {
-                    "prompt_tokens": getattr(usage_obj, "prompt_tokens", 0) or 0,
-                    "completion_tokens": getattr(
-                        usage_obj, "completion_tokens", 0) or 0,
-                    "total_tokens": getattr(usage_obj, "total_tokens", 0) or 0,
-                }
-            return {"content": content, "usage": usage}
-        except Exception as e:  # noqa: BLE001 — judge errors are diagnostic
-            last_exc = e
-            log.warning(
-                "longmemeval_judge: attempt %d/%d failed: %s",
-                attempt + 1, max_retries, e,
-            )
-            if attempt + 1 < max_retries:
-                time.sleep(delay)
-                delay *= 2
-    assert last_exc is not None
-    raise last_exc
-
-
-def _default_client() -> Optional[Any]:
-    """Return a lazily-imported OpenAI client, or None if unavailable.
-
-    Treats both "package not installed" and "OPENAI_API_KEY not set" as
-    None — the caller decides how to surface the absence.
-    """
-    if not os.environ.get("OPENAI_API_KEY"):
-        return None
-    try:
-        from openai import OpenAI  # type: ignore[import-not-found]
-    except ImportError:
-        log.info("longmemeval_judge: openai SDK not installed")
-        return None
-    return OpenAI()
 
 
 def grade_answer(
@@ -251,34 +187,76 @@ def grade_answer(
     gold_answer: str,
     hypothesis: str,
     *,
-    judge_model: str = DEFAULT_JUDGE_MODEL,
+    provider: str = "openai",
+    judge_model: Optional[str] = None,
     client: Optional[Any] = None,
+    use_cache: bool = True,
 ) -> dict:
-    """Grade a system answer against the gold answer using a GPT-4o judge.
+    """Grade a system answer against the gold answer with an LLM judge.
 
     Args:
         question_type: One of LME_QUESTION_TYPES or 'abstention'.
         question: The natural-language question text.
         gold_answer: The reference answer string.
         hypothesis: The system's generated answer.
-        judge_model: OpenAI model id to use. Defaults to the LongMemEval
-            paper's choice.
-        client: An OpenAI-SDK-shaped client (must have
-            ``client.chat.completions.create(model, messages, ...)``).
-            When None, one is constructed from ``OPENAI_API_KEY``.
-            Tests pass a fake.
+        provider: 'openai' (default — direct OpenAI), 'openrouter'
+            (OpenAI-compatible gateway, used to reach gpt-4o without an
+            OpenAI account), or 'anthropic' (uses prompt caching on the
+            rubric across calls of the same question_type).
+        judge_model: Model id. When None, the provider's default is
+            used (gpt-4o-2024-08-06 for openai, openai/gpt-4o-2024-08-06
+            for openrouter, claude-sonnet-4-6 for anthropic).
+        client: A pre-built provider-shaped client. When None, one is
+            constructed lazily from the keyring. Tests pass a fake.
 
     Returns:
         {
           'autoeval_label': 'CORRECT' | 'PARTIAL' | 'INCORRECT' | 'ABSTAIN' | 'ERROR',
           'judge_model': str,
+          'provider': str,
+          'methodology_faithful': bool,
           'rationale': str,
-          'usage': {prompt_tokens, completion_tokens, total_tokens},
+          'usage': {prompt_tokens, completion_tokens, total_tokens, ...},
         }
     """
+    if provider not in VALID_PROVIDERS:
+        return {
+            "autoeval_label": "ERROR",
+            "judge_model": judge_model or "?",
+            "provider": provider,
+            "methodology_faithful": False,
+            "rationale": (
+                f"unknown provider {provider!r}; "
+                f"supported: {sorted(VALID_PROVIDERS)}"
+            ),
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0,
+                      "total_tokens": 0},
+        }
+
+    if judge_model is None:
+        judge_model = PROVIDER_DEFAULT_MODEL[provider]
+
+    # methodology_faithful is True only when the call exactly matches
+    # the LongMemEval paper's grading procedure: model id
+    # `gpt-4o-2024-08-06`, single-user-message prompt shape, no
+    # system block. The Anthropic path is intentionally a different
+    # shape (system+user, with prompt caching) — useful for SME-
+    # internal cross-validation but not paper-faithful, so its
+    # judge readings should be reported separately and not mixed into
+    # comparisons against published LongMemEval numbers.
+    is_paper_judge_model = judge_model in (
+        "gpt-4o-2024-08-06",
+        "openai/gpt-4o-2024-08-06",
+    )
+    methodology_faithful = (
+        provider in ("openai", "openrouter") and is_paper_judge_model
+    )
+
     base_result = {
         "autoeval_label": "ERROR",
         "judge_model": judge_model,
+        "provider": provider,
+        "methodology_faithful": methodology_faithful,
         "rationale": "",
         "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
     }
@@ -288,24 +266,29 @@ def grade_answer(
         log.info("longmemeval_judge: unknown question_type %r", question_type)
 
     if client is None:
-        client = _default_client()
+        client = _default_client(provider)
     if client is None:
-        base_result["rationale"] = "OPENAI_API_KEY not set; judge skipped"
+        base_result["rationale"] = (
+            f"no API key in keyring for service={provider}; judge skipped"
+        )
         return base_result
 
-    prompt = _prompt_for_question_type(
-        question_type, question, gold_answer, hypothesis
-    )
-    try:
-        called = _call_openai(client=client, model=judge_model, prompt=prompt)
-    except Exception as e:  # noqa: BLE001 — judge errors are diagnostic
-        base_result["rationale"] = f"judge call failed after retries: {e}"
+    rubric = _rubric_for_question_type(question_type)
+    user_body = _user_body(question, gold_answer, hypothesis)
+
+    judge = RubricJudge(provider=provider, model=judge_model, client=client)
+    result = judge.judge(rubric, user_body, use_cache=use_cache)
+
+    if result["error"]:
+        base_result["rationale"] = result["error"]
         return base_result
 
-    label, rationale = _parse_judge_reply(called["content"])
+    label, rationale = _parse_judge_reply(result["content"])
     return {
         "autoeval_label": label,
         "judge_model": judge_model,
+        "provider": provider,
+        "methodology_faithful": methodology_faithful,
         "rationale": rationale,
-        "usage": called["usage"],
+        "usage": result["usage"],
     }

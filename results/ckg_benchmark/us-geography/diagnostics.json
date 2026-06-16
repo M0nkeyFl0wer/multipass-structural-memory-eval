@@ -1,0 +1,104 @@
+{
+  "domain": "us-geography",
+  "n_concepts": 200,
+  "n_edges": 357,
+  "cat1_ontology_coherence": {
+    "n_taxonomies": 13,
+    "tax_distribution": {
+      "STATE": 50,
+      "WATER": 25,
+      "CLIM": 19,
+      "PHYS": 18,
+      "ECON": 17,
+      "MAPS": 14,
+      "REG": 12,
+      "HUMAN": 12,
+      "LAND": 9,
+      "FOUND": 8,
+      "CULT": 6,
+      "ATTR": 5,
+      "TRANS": 5
+    },
+    "tax_entropy_bits": 3.3731271637344973,
+    "tax_entropy_norm": 0.9115476593762701,
+    "tax_dominant_share": 0.25,
+    "n_edge_types": 1,
+    "edge_type_distribution": {
+      "DEPENDS_ON": 357
+    },
+    "edge_type_entropy_bits": -0.0
+  },
+  "cat2_ingestion_integrity": {
+    "phantom_edge_errors": [],
+    "duplicate_id_warnings": [],
+    "orphan_concepts": 0,
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "cat7_abacus": {
+    "A": {
+      "n": 176,
+      "mean_tokens": 89.0909090909091,
+      "full_recall": 138,
+      "tokens_per_correct": 113.6231884057971,
+      "mean_recall": 0.8734005258802086
+    },
+    "B": {
+      "n": 176,
+      "mean_tokens": 1155.9147727272727,
+      "full_recall": 142,
+      "tokens_per_correct": 1432.6830985915492,
+      "mean_recall": 0.9008116883116883
+    },
+    "C": {
+      "n": 176,
+      "mean_tokens": 801.2443181818181,
+      "full_recall": 142,
+      "tokens_per_correct": 993.0915492957746,
+      "mean_recall": 0.9012175324675326
+    },
+    "available": true
+  },
+  "cat8_schema_vs_shape": {
+    "declared_fields": [
+      "ConceptID",
+      "ConceptLabel",
+      "Dependencies",
+      "TaxonomyID"
+    ],
+    "declared_edge_types": [
+      "DEPENDS_ON"
+    ],
+    "observed_distinct_taxonomy_pairs": 62,
+    "top_pairs": [
+      {
+        "child_tax": "STATE",
+        "parent_tax": "REG",
+        "count": 50
+      },
+      {
+        "child_tax": "STATE",
+        "parent_tax": "MAPS",
+        "count": 50
+      },
+      {
+        "child_tax": "PHYS",
+        "parent_tax": "PHYS",
+        "count": 24
+      },
+      {
+        "child_tax": "WATER",
+        "parent_tax": "WATER",
+        "count": 24
+      },
+      {
+        "child_tax": "CLIM",
+        "parent_tax": "CLIM",
+        "count": 23
+      }
+    ],
+    "max_parents_per_child": 3,
+    "max_children_per_parent": 54,
+    "multi_parent_share": 0.765
+  }
+}

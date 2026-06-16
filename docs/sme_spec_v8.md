@@ -1,5 +1,13 @@
 # Structural Memory Evaluation (SME) Framework — v8
 
+> **Status: this spec describes the target design.** Several CLI commands
+> referenced below are not yet implemented in `sme/cli.py`. The
+> implemented set (as of 2026-05-22) is: `analyze`, `retrieve`, `cat4`,
+> `cat5`, `cat8`, `cat2c`, `cat9`, and `check`. Commands marked 🚧 in
+> this document are planned but not built yet — call them out when
+> reviewing PRs that reference them. See the README's "Status" section
+> for the canonical list of shipped commands and adapters.
+>
 > **Version note.** Originally `sme_spec_v5.md`; content level matches v8
 > (Category 8 ontology coherence, multi-hop 2c sub-test, introspection/external
 > splits on Categories 4/5/8, operationalized claim library, use-case profiles,
@@ -16,9 +24,11 @@
 
 **One question: what should a memory system know about its own structure, and how do you test whether it does?**
 
-Standard benchmarks (LongMemEval, LoCoMo, EverMemBench) test: "can you find a memory?" That's necessary but not sufficient. A filing cabinet can find a memory. The question is what the structure gives you beyond retrieval.
+SME is a **diagnostic toolkit**, not a benchmark leaderboard. Standard benchmarks (LongMemEval, LoCoMo, EverMemBench) test "can you find a memory?" — necessary but not sufficient. A filing cabinet can find a memory. The question is what the structure gives you beyond retrieval, and where *your specific build*, on *your specific corpus*, is silently breaking down.
 
-SME adds six structural categories on top of factual retrieval, plus a graph-vs-no-graph baseline and an ontology coherence layer that measures whether the system's schema matches its claims. Eight categories total. No system will score 90%+ across all eight today. The framework reveals where each architecture excels and where it doesn't.
+The framework defines nine categories of structural readings on top of factual retrieval. Pointed at a single system, it surfaces ingestion artifacts, structural gaps, ontology incoherence, and harness-integration failures that retrieval-only benchmarks don't reach. Pointed at the same system before and after a change, the deltas tell you whether the change moved what you thought it did. The framework is designed for *operators* (the people who maintain memory systems and need to know what's broken) more than for cross-system rankings.
+
+Cross-system comparison is possible but secondary: comparable readings require matched corpora, matched ontologies, and matched retrieval conditions. The framework supports such comparisons, but its core value is per-system diagnosis. See the [Scope and Limitations](#scope-and-limitations) section below for what SME deliberately doesn't try to measure.
 
 ---
 
@@ -83,6 +93,40 @@ Persistent homology is extensively applied in molecular science, protein structu
 - BenchmarkQED's AutoQ query synthesis → test query generation at scale
 - Structural quality metrics from Semantic Web Journal → ontology coherence in calibration
 - KGist's compression-based anomaly detection concept → Category 4 inspiration
+
+---
+
+## Scope and Limitations
+
+SME is opinionated about what it measures and what it deliberately leaves to other tools. Naming the boundaries explicitly is part of the diagnostic framing — readings that fall outside SME's scope are not failures of the framework, they're invitations to reach for the right complementary tool.
+
+### What SME measures
+
+- **Per-system structural integrity** across the nine category surfaces.
+- **Before/after deltas** under matched conditions — the most defensible reading shape.
+- **Within-system A/B/C ablations** — graph-on vs. graph-off, full-context vs. retrieval, etc.
+- **Cross-validation against external benchmarks** when corpora and methodologies are matched (LongMemEval cross-validation harness; standard-corpus integration in progress per [#43]).
+
+### What SME deliberately doesn't measure
+
+- **Cross-system absolute rankings.** Two systems with different ontologies, different corpora, or different retrieval conditions produce readings that are not directly comparable. The framework supports controlled cross-system runs but treats unconditioned "system X scores higher than system Y" claims as out of scope.
+- **Generalization of deltas across corpus scales.** The framework's corpora today are hand-authored at N ≤ 100. "This finding holds on a 10k-note production corpus" is not a claim the framework currently supports; standard-corpus integration ([#43]) is the path toward that surface.
+- **Ontology design quality.** Cat 4 / Cat 5 operate on top of an ontology that's exogenous to SME. A poorly-designed ontology produces readings that look like structural defects; a well-designed one can hide them. Ontology-sensitivity reading ([#45]) is the planned investigation; until it lands, cross-system readings on differently-ontologized graphs carry an unmeasured confound.
+- **Operator workflow beyond the diagnostic report.** SME tells you what's wrong; "and here's the migration to fix it" is out of scope. Diagnostic actionability ([#44]) is moving toward "fix this and re-run" guidance in the report layer; the actual remediation work lives downstream.
+- **Live agentic memory dynamics.** Read-after-write consistency, ordering invariants, and concurrent-update behaviour are JEPSEN-shaped questions that need their own category (Cat 10, [#24]) and aren't covered by Cats 1–9.
+- **Human-judgment calibration without explicit calibration runs.** Cat 6 judge scores inherit LongMemEval's prompts but not LongMemEval's >97% human-judge agreement number — SME-specific corpora need their own calibration run ([#46]).
+
+### Heavyweight integrations SME stays out of
+
+The framework's constitutional principle is **lightweight and locally runnable** — `pip install -e .` plus a clone of the repo gets you the full test surface with no service hosting, no GPU dependency, no multi-GB model weights at default install. The integrations below are flagged in [`docs/industry_standards_integration.md`](industry_standards_integration.md) as Tier 3 and stay out of the default path:
+
+- Full RAG-evaluation frameworks (DeepEval, RAGAS, TruLens, Phoenix, MLflow). SME's `sme/eval/longmemeval_judge.py` is a 300-LOC wrapper around the OpenAI SDK on purpose.
+- LangChain / LlamaIndex adapter inheritance. SME ships a thin compat wrapper as an opt-in extra; the core ABC stays bespoke.
+- ProVe full-pipeline integration for Cat 8b. ProVe is cited in the spec as the heavy semantic tier; SME's per-edge-type `evidence_rule` registry stays the lightweight first-tier.
+
+### Stage of the framework
+
+This is a **pre-1.0 diagnostic framework actively evolving in public**. Categories 1, 2c, 4, 5, 6, 7, 8, 9b have working implementations; 2, 2b, 3, 9a, 9c-9g have spec text and partial implementations. The validation-evidence appendix at the bottom of this spec is the running record of what each category has been demonstrated to catch on real corpora.
 
 ---
 
@@ -176,9 +220,16 @@ class SMEAdapter(ABC):
         Returns: {'type': 'declared'|'readme'|'inferred',
                   'schema': [...], 'documentation': str}"""
         return {'type': 'inferred', 'schema': [], 'documentation': ''}
+
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Return invocation surfaces this memory system exposes.
+        Used by Category 9 (Harness Integration). Adapters that don't
+        expose a harness surface (pure library APIs) return [] — Cat 9b
+        reports empty_manifest=True rather than crashing."""
+        return []
 ```
 
-Three required methods. That's the minimum viable adapter. `get_flat_retrieval` and `get_ontology_source` have defaults — SME fills in its own flat baseline and infers ontology from the graph if the adapter doesn't provide them.
+Three required methods. That's the minimum viable adapter. `get_flat_retrieval`, `get_ontology_source`, and `get_harness_manifest` have defaults — SME fills in its own flat baseline, infers ontology from the graph, and treats an empty harness manifest as "Cat 9 not applicable" when the adapter doesn't provide them.
 
 ### Default Adapters
 
@@ -218,7 +269,7 @@ A single graph has multiple legitimate structural interpretations depending on w
 | 2 Cross-Domain Discovery | semantic_snapshot | Cross-domain means cross-topic in the knowledge layer, not cross-document |
 | 3 Contradiction Detection | semantic_snapshot | Contradictions are semantic claims, not mention frequencies |
 | 4 Ingestion Integrity | both — report separately | 4c monoculture runs on both (the RELATED-in-semantic case and the MENTIONS-in-full case are both real failure modes) |
-| 5 Gap Detection | semantic_snapshot | Structural holes in the knowledge layer are what Cat 5 finds; document-mention edges mask them |
+| 5 Gap Detection | semantic_snapshot | Topological holes (H1 cycles) in the knowledge layer are what Cat 5 finds; document-mention edges mask them |
 | 6 Temporal Reasoning | full_snapshot | Temporal queries can traverse any edge, including document citations |
 | 7 Token Efficiency | full_snapshot | Retrieval is run on the full graph — this is what the system actually does at query time |
 | 8 Ontology Coherence | both — report separately | Declared schema tested against both views; drift is usually visible in full, while semantic-layer vocabulary balance is visible in the semantic view |
@@ -237,11 +288,11 @@ Many embedded graph databases (LadybugDB among them) take a single-writer file l
 
 SME provides two paths around it:
 
-1. **`sme-eval snapshot --db-path PATH --output SNAPSHOT`** — copies the database file (and any sibling WAL / shadow files) to a specified output location, preserving any on-disk consistency guarantees the target DB provides. Produces a point-in-time backup suitable for benchmarking. Call this before `sme-eval run` when the target is in active use.
+1. 🚧 **`sme-eval snapshot --db-path PATH --output SNAPSHOT`** (not yet implemented) — copies the database file (and any sibling WAL / shadow files) to a specified output location, preserving any on-disk consistency guarantees the target DB provides. Produces a point-in-time backup suitable for benchmarking. Call this before `sme-eval run` when the target is in active use. Note: the daemon adapter has no file path; this command applies only to file-backed adapters like LadybugDB.
 
 2. **API-based adapters** — where the system under test exposes an HTTP search API, an adapter can read through the API rather than opening the file directly. Higher fidelity (reads the current live state) but requires the target's API to expose graph introspection endpoints.
 
-The reference LadybugDB adapter opens with `read_only=True` by default but will surface a clear error if the writer lock blocks access, pointing the user to `sme-eval snapshot`.
+The reference LadybugDB adapter opens with `read_only=True` by default but will surface a clear error if the writer lock blocks access, pointing the user to `sme-eval snapshot` (🚧 not yet implemented).
 
 ### Built-in Flat Baseline
 
@@ -355,7 +406,7 @@ class TopologyAnalyzer:
 
 ### Corpus Calibration (codetopo method)
 
-`sme-eval calibrate` verifies the seeded corpus against a frozen reference, not exploratory analysis. The reference ships as `sme/corpora/standard_v1/calibration.json`:
+🚧 `sme-eval calibrate` (not yet implemented) is intended to verify the seeded corpus against a frozen reference, not exploratory analysis. The reference would ship as `sme/corpora/standard_v1/calibration.json`:
 
 ```json
 {
@@ -374,14 +425,14 @@ class TopologyAnalyzer:
 }
 ```
 
-`sme-eval calibrate` first checks `corpus_sha256` against the actual corpus tree (YAML + vault). If the hash doesn't match, calibration is stale — someone edited the corpus without re-running calibration. The tool aborts with a specific diagnostic. Then it re-computes structural properties and diffs against the frozen reference. If any value drifts beyond threshold, calibration fails with a specific diagnostic. Calibration results are versioned with the corpus — anyone can reproduce.
+When implemented, `sme-eval calibrate` will first check `corpus_sha256` against the actual corpus tree (YAML + vault). If the hash doesn't match, calibration is stale — someone edited the corpus without re-running calibration. The tool aborts with a specific diagnostic. Then it re-computes structural properties and diffs against the frozen reference. If any value drifts beyond threshold, calibration fails with a specific diagnostic. Calibration results are versioned with the corpus — anyone can reproduce.
 
 **Thresholds:**
 - "Disconnected" = shortest path > 4 hops between gap communities (no accidental bridges)
 - Alias pairs must have Jaccard string similarity < 0.25 AND cosine semantic similarity > 0.78 (confirms testing canonicalization, not fuzzy match)
 - Runaway cluster must be in its own connected component
 
-**On failure:** `sme-eval calibrate --repair` attempts automated fixes (removing accidental bridge edges, adjusting defect placement). If repair fails, manual intervention required. The tool outputs exactly which property failed and why.
+**On failure (planned):** 🚧 `sme-eval calibrate --repair` (not yet implemented) is intended to attempt automated fixes (removing accidental bridge edges, adjusting defect placement). If repair fails, manual intervention required. The tool outputs exactly which property failed and why.
 
 ### Seeded Corpus: v0.1 Specification
 
@@ -531,7 +582,7 @@ The scorecard reports both. Without this split, the benchmark conflates "good sy
   - **Level 1 (L1):** Answers "what topics have no cross-references?" when explicitly asked.
   - **Level 2 (L2):** Proactively surfaces gaps in a health check or briefing without being asked.
 - **5-external:** Does SME's topology layer detect the seeded gaps?
-  - **Level 3 (L3):** Persistent H1 features from Ripser identify structural holes.
+  - **Level 3 (L3):** Persistent H1 features from Ripser identify topological holes (H1 cycles).
 
 **Topology integration (external):** Ripser with confidence-weighted filtration. H1 features persisting across wide filtration range = stable structural gaps. Cross-reference with Louvain communities for high-confidence gap identification. A persistent H1 feature spanning two communities with shared topic keywords is a confirmed gap.
 
@@ -609,7 +660,7 @@ calibration:
   # Report judge-human agreement for YOUR corpus, not just LongMemEval's
 ```
 
-`sme-eval run --dry-run` estimates judge cost across all categories × conditions × queries and aborts if it exceeds the budget. No surprise bills.
+🚧 `sme-eval run --dry-run` (not yet implemented) is intended to estimate judge cost across all categories × conditions × queries and abort if it exceeds the budget. No surprise bills.
 
 ---
 
@@ -632,12 +683,15 @@ The adapter's `get_ontology_source()` method returns whichever is available. The
 The extraction is a one-time tool, not part of the benchmark loop. Run it once, commit the result as `implied_ontology.yaml` in the adapter directory. SME reads the YAML during eval — no LLM call in the benchmark path.
 
 ```bash
+# 🚧 Not yet implemented — placeholder design.
 # One-time: extract implied ontology from README
 sme-eval extract-ontology --readme path/to/README.md --output implied_ontology.yaml
 
 # The LLM call is cached by sha256(readme + configs)
 # Re-running on identical input returns cached result
 ```
+
+For now, hand-author `implied_ontology.yaml` files (see `sme/corpora/implied_ontology_mempalace.yaml` for an example) and pass them to `sme-eval cat8 --implied-ontology …`.
 
 ```python
 @dataclass
@@ -790,11 +844,11 @@ This is the category that turns "retrieval is great in principle" into "retrieva
 - **Model runner shim.** A thin layer that sends a user message to the target model API with the declared harness wired in, lets the model take its turn (including any tool calls), and returns a `HandshakeTrace` containing: the model's output, the list of tool calls attempted, the list of tool calls that succeeded, the tool responses received, and any hook activity the runner can observe.
 - **Matcher reuse.** The Cat 1 substring-match matcher runs against the model's *final reply text*, not against the raw tool response. The whole point of Cat 9 is that a tool response buried in a conversation the model ignores does not count as retrieval.
 
-**Status:** Spec'd, not implemented. This is the single most important planned addition to the framework because it's the thing that turns every other category's reading into a claim about a specific deployment rather than a claim about a retriever in isolation. Listed as a Tier-1 planned refinement alongside the grep-floor baseline and the hop-reachability pre-test gate.
+**Status:** Partially implemented. Sub-test 9b (call-through success) ships as the `cat9` subcommand (`sme/categories/harness_integration.py`) and needs no model API; 9a and 9c–9g remain spec'd (they require a real model runtime). This is the single most important in-progress addition to the framework because it's the thing that turns every other category's reading into a claim about a specific deployment rather than a claim about a retriever in isolation. The grep-floor baseline and the hop-reachability pre-test gate remain Tier-1 planned refinements.
 
 **Open design questions:**
 
-1. **Can this be scored without a live model API?** Partially. 9b (call-through success) can be measured against a mock model that always invokes the tool — this tests the integration independent of model behaviour. 9a, 9c, 9d, 9e, 9g all require a real model runtime and cost real money.
+1. **Can this be scored without a live model API?** Partially — and that part is built. 9b (call-through success) is measured against a mock model that always invokes the tool, testing the integration independent of model behaviour (shipped as `cat9`). 9a, 9c, 9d, 9e, 9g all require a real model runtime and cost real money.
 2. **How to attribute hook failures?** When a Claude Code hook fails to fire or to inject context, the failure could be in the harness's hook runtime, in the hook command itself, or in the memory system the hook is reaching. The HandshakeTrace needs enough provenance to attribute each step.
 3. **How much of this is model-provider-specific?** The tool-call protocol is standardizing (OpenAI tool-calls, Anthropic tool-use, MCP) but the Claude Code hook system is Anthropic-specific and the equivalent callback points in other harnesses have different names and shapes. A portable test probably needs per-harness adapters.
 4. **How does this compose with Cat 7's pairwise judge?** Cat 7 judges answer quality. Cat 9 measures whether the model ever sees the context that would inform a good answer. In production these are coupled: no invocation → no context → worse answer. The reporting layer should show both numbers side by side.
@@ -899,6 +953,26 @@ Topology summary
 
 ## CLI
 
+### Implemented today
+
+```bash
+# Analyze a graph snapshot and print structural reading
+sme-eval analyze --adapter mempalace-daemon --api-url http://… --betti
+
+# Per-category readings
+sme-eval cat4  --adapter <name> …            # ingestion integrity
+sme-eval cat5  --adapter <name> …            # gap detection
+sme-eval cat8  --adapter <name> --implied-ontology …  # ontology coherence
+sme-eval cat9  --adapter <name> …            # harness integration (9b only)
+sme-eval cat2c --graph results.json …        # multi-hop scorecard
+
+# Retrieval probe + check shortcut
+sme-eval retrieve --adapter <name> --questions corpus.yaml --json out.json
+sme-eval check    --adapter <name> …         # cat4 + cat5 combined
+```
+
+### 🚧 Planned (not yet implemented)
+
 ```bash
 sme-eval run --config sme_config.yaml
 sme-eval run --config sme_config.yaml --category ingestion_integrity
@@ -906,7 +980,13 @@ sme-eval compare --configs ladybugdb.yaml mempalace.yaml flat.yaml --output repo
 sme-eval calibrate --corpus sme/corpora/standard_v1.yaml
 sme-eval viz --config sme_config.yaml --output report/graph_snapshot.html
 sme-eval report --scores report/raw_scores.json --output report/
+sme-eval snapshot --db-path PATH --output SNAPSHOT
+sme-eval extract-ontology --readme path/to/README.md --output implied_ontology.yaml
 ```
+
+These commands are referenced throughout this spec for the full target
+design. Tracking issues:
+[#6](https://github.com/techempower-org/multipass-structural-memory-eval/issues/6).
 
 ---
 
@@ -942,3 +1022,43 @@ The topology layer means structural properties invisible to queries — holes, m
 Category 7 answers: "why not just use more tokens?" Category 4 answers: "how do I know my pipeline isn't corrupting my graph?" Category 5 answers: "what's missing that I haven't thought to ask about?" Category 8 answers: "does my graph match what I think I built?" The multi-hop curve in Categories 2c and 7d answers: "at what reasoning depth does structure start earning its keep?"
 
 The prior art table makes clear: Categories 1, 3, and 6 extend existing benchmarks. Categories 4, 5, 7, and 8 are novel. Category 2's canonicalization and multi-hop sub-tests are novel. The adapter architecture, topology integration, and implied ontology extraction are novel. Everything this builds on is open source. Everything this produces will be open source.
+
+---
+
+## Validation Evidence (appendix)
+
+This is the running record of what each category has been demonstrated to catch on real corpora. The diagnostic-tool framing in the opening section depends on construct validity per category — "Cat 4 catches the kinds of canonical collisions real graphs accumulate," not just "Cat 4 catches the canonical collisions we seeded into jp-realm-v0.1."
+
+The appendix is populated incrementally as standard-corpus integration ([#43]) and case-study work ([#44]) ship. Empty cells are not category failures — they're "not yet demonstrated against a public surface" markers.
+
+| Category | Hand-authored evidence | Public-corpus evidence | Real-system case studies |
+|---|---|---|---|
+| **Cat 1 — The Lookup** | jp-realm-v0.1 (24 notes, 8 questions) | LongMemEval substrate parity (R@5 = 0.9660 byte-identical to upstream) | — |
+| **Cat 2c — The Stairway (multi-hop)** | jp-realm-v0.1 (10 multi-hop questions at hop depths 1/2/3) | HotpotQA integration pending ([#43]) | — |
+| **Cat 3 — The Dissonance** | jp-realm-v0.1 (2 contradiction pairs) | — | — |
+| **Cat 4 — The Threshold (Ingestigation)** | jp-realm-v0.1 (3 alias pairs, 5 seeded defects) | MINE integration pending ([#43]) | Content-engine baseline pass 2026-05-05 (canonical-collision bug surfaced + rebuild informed; drafts at [`docs/issue-drafts/2026-05-05-content-engine-feedback/`](issue-drafts/2026-05-05-content-engine-feedback/)) |
+| **Cat 5 — The Missing Room** | jp-realm-v0.1 (1 structural gap between auth_engineering and privacy_research) | MINE / GraphRAG-Bench integration pending ([#43]) | — |
+| **Cat 6 — The Archive** | jp-realm-v0.1 (1 temporal evolution chain) | LongMemEval cross-validation harness merged | — |
+| **Cat 7 — The Abacus** | jp-realm-v0.1 (8 token-efficiency questions) | — | — |
+| **Cat 7.b — Latency** | PR #33 (in flight) | — | — |
+| **Cat 7 — Cost-per-correct** | PR #34 (in flight) | — | — |
+| **Cat 8 — The Blueprint** | jp-realm-v0.1 (implied-vs-declared ontology comparison) | — | — |
+| **Cat 9a — The Handshake (invocation)** | gemma4 vs qwen3.5 readings at n=5/n=20, vanilla/forced ([#3]) | Tau2 cross-validation across additional model families pending | — |
+| **Cat 9b — Call-through success** | Implemented in PR #1 | MCP-Bench ESR naming alignment pending ([#41]) | — |
+| **Cat 10 — The Echo (read-after-write)** | Not yet spec'd | — | — |
+
+### Cross-cutting evidence
+
+- **Substrate-floor parity with LongMemEval:** R@5 = 0.9660, byte-identical across all 6 question types (substring scorer, no judge). Cross-validation confirms the embedding plumbing matches upstream. Loader-format adds 2.2pp materialization overhead, measured and documented in [#9].
+- **AdaptMem FT-300 independent reproduction:** R@5 = 1.000 on 200q held-out (+0.5pp within published noise of Atakan's 0.995). Confirms encoder-side calibration baseline.
+- **Judge-human agreement on SME corpora:** Not yet measured ([#46]). Until it lands, Cat 6 / judge-scored claims carry no inherited calibration from LongMemEval.
+- **Statistical hygiene:** PR #36 adds paired bootstrap CIs and BH-FDR. Retrofitting CIs onto existing readings is in-flight.
+
+### How to contribute evidence
+
+Running SME against a corpus you maintain and finding something (real bug, surprising signal, null result) is evidence. Two ways to land it here:
+
+1. **Anonymized case study** at [`docs/case-studies/`](case-studies/) following the shape of `docs/issue-drafts/2026-05-05-content-engine-feedback/` (workflow note → gap → proposal → action).
+2. **Public-corpus reading** — once Phase 1 of [#43] ships, "ran Cat X against [LoCoMo / HotpotQA / MINE] and surfaced N findings of shape Y" is the natural unit. PR adds a row to the table above.
+
+Null results count. A category that surfaces no findings on a corpus where it expected to is published as a null and helps calibrate the category's sensitivity floor.

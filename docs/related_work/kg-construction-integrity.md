@@ -1,7 +1,7 @@
 # Knowledge Graph Construction Integrity — Related Work
 
 Companion to SME spec v8, focused on Cat 4 (Threshold — ingestion integrity) and
-proposed Cat 8b (Phantom Wall — per-edge groundedness, issue #4). The goal of
+proposed Cat 4g (Phantom Wall — per-edge groundedness, issue #4). The goal of
 this note is to find out whether SME is reinventing well-known KG-construction
 metrics or genuinely measuring something new, and to nominate concrete pieces
 of prior work SME could borrow rather than rebuild.
@@ -21,7 +21,7 @@ grepped. Confirmed primary-source findings:
   > provenance*. Examples of deep provenance include information about
   > the **creation date, confidence score (of the extraction method)
   > or the original text paragraph the fact was derived from**."
-- The correct citation for the SME Cat 8b mapping is therefore
+- The correct citation for the SME Cat 4g mapping is therefore
   **"fact-level provenance"** (or "deep provenance" /
   "statement-level provenance"), with the verbatim definition above,
   cited to Hofer et al. 2023 §6 (page 729 of the arXiv PDF, around
@@ -127,12 +127,12 @@ canonical terminology of the survey.
 | Accuracy of extracted entities/relations | Cat 4 (Threshold) — overall ingestion integrity | Approximate — SME is more about did-it-land-at-all than ground-truth correctness |
 | Consistency / no contradictions | Cat 3 (CONTRADICTS edges) and Cat 4 sub-test on dangling endpoints | Strong for the dangling-endpoint piece |
 | Coverage (domain breadth) | Cat 5 (The Missing Room — what fell off) and Cat 8a (declared-vs-built shape) | Approximate |
-| Fact-level provenance (creation date, source paragraph, confidence) | Cat 6b (provenance chain queries) and proposed Cat 8b (Phantom Wall) | Strong, structurally — SME's `_created_by` reserved property is the same pattern |
+| Fact-level provenance (creation date, source paragraph, confidence) | Cat 6b (provenance chain queries) and proposed Cat 4g (Phantom Wall) | Strong, structurally — SME's `_created_by` reserved property is the same pattern |
 | Entity resolution and fusion | Cat 4a (canonical collisions, alias-pair resolution) | Strong — see Part 2 |
 | Knowledge completion | Cat 8a (declared structure) — adjacent | Weak |
 
 The clean takeaway: SME Cat 4 is well-aligned with the survey's
-"intrinsic evaluation + entity resolution" frame, and SME Cat 8b is
+"intrinsic evaluation + entity resolution" frame, and SME Cat 4g is
 well-aligned with the survey's "fact-level provenance" frame. SME's
 contribution on top of the survey is **operationalizing these as test
 fixtures with pass/fail thresholds**, not as descriptive desiderata.
@@ -235,7 +235,7 @@ nodes). It also reports raw **Node Count** and **Edge Count** as
 SME-relevant: it's a simple structural-health probe (any node with zero
 edges is suspect) and SME could trivially fold it into Cat 4 as an
 introspection signal. None of the GraphRAG-Bench metrics overlap with
-Cat 8b's per-edge groundedness probe.
+Cat 4g's per-edge groundedness probe.
 
 **OpenEA** (Sun et al., VLDB 2020). Standard benchmark for
 embedding-based entity alignment across KGs; evaluation is Hits@k and
@@ -253,10 +253,10 @@ import for SME's Cat 4a scorecard work.
 & Zou, 2023, [PKU mirror](https://www.wict.pku.edu.cn/docs/20240422164533167415.pdf)).
 Independent of the Hofer survey, organizes KG quality dimensions
 along accuracy / completeness / consistency / timeliness / trust
-axes. SME's Cat 8b ("can each edge trace to a source?") is
+axes. SME's Cat 4g ("can each edge trace to a source?") is
 formalized in this literature as the **trust** dimension — every
 edge carries provenance, and provenance traceability is a quality
-metric. This is the closest published predecessor I found to Cat 8b.
+metric. This is the closest published predecessor I found to Cat 4g.
 
 ## What SME could directly incorporate
 
@@ -267,10 +267,10 @@ metric. This is the closest published predecessor I found to Cat 8b.
    3-pair seed becomes a labelled gold set; threshold becomes "F1 ≥
    0.85" or similar.
 
-2. **Provenance-traceability probe for proposed Cat 8b.** Borrow the
+2. **Provenance-traceability probe for proposed Cat 4g.** Borrow the
    Hofer survey's fact-level provenance model directly: every edge has
    a `_created_by` (already reserved in spec v8 line 117) and a
-   source-document reference. Cat 8b's pass criterion becomes "for
+   source-document reference. Cat 4g's pass criterion becomes "for
    every edge, traversing `_created_by` (and the source-document edge
    if present) reaches an in-graph Document node." The traversal is
    one or two hops; this is cheap. Phantom edges fail this probe by
@@ -291,7 +291,7 @@ metric. This is the closest published predecessor I found to Cat 8b.
    pattern). The surveyed metrics treat all edges as equally graded
    against ground truth or against a single provenance schema. SME
    lets each edge type declare its own evidence rule and scores edges
-   against the rule for that type. Cat 8b is the harness for this.
+   against the rule for that type. Cat 4g is the harness for this.
    Nothing in the surveyed work supports per-edge-type rule
    registration — they are global-per-graph.
 
@@ -323,7 +323,7 @@ metric. This is the closest published predecessor I found to Cat 8b.
   publication-grade citation.
 - Does the survey define a quantitative threshold for fact-level
   provenance traceability, or does it leave it as a desideratum? SME's
-  Cat 8b would benefit from any prior-art threshold to anchor against.
+  Cat 4g would benefit from any prior-art threshold to anchor against.
 - Is there a published ER evaluation that reports B-Cubed *with*
   semantic-similarity gating (à la SME's cosine 0.78 threshold)?
   Standard B-Cubed is similarity-agnostic; SME's variant gates on

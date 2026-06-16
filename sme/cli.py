@@ -13,154 +13,189 @@ import json
 import logging
 import sys
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, Callable
 
 from sme.adapters.base import SMEAdapter
+from sme.harness.wrapper import timed_query
 from sme.topology import TopologyAnalyzer
 
 log = logging.getLogger("sme")
 
 
+@dataclass(frozen=True)
+class _AdapterSpec:
+    """Allowlist registration for one adapter.
+
+    `accepts` enumerates the constructor kwargs the adapter understands.
+    Any CLI-level kwarg not in this set is silently dropped — this makes
+    drop-list drift (the PR #7 class of regression) structurally
+    impossible: a new CLI flag can't break an old adapter just by being
+    present in the bag of kwargs.
+
+    `rename` translates CLI-side names to constructor-side names (e.g.
+    the CLI's --api-url maps to FamiliarAdapter's `base_url`).
+    """
+
+    aliases: tuple[str, ...]
+    loader: Callable[[], type[SMEAdapter]]
+    accepts: frozenset[str]
+    rename: dict[str, str] = field(default_factory=dict)
+
+
+def _ladybugdb_loader() -> type[SMEAdapter]:
+    from sme.adapters.ladybugdb import LadybugDBAdapter
+
+    return LadybugDBAdapter
+
+
+def _mempalace_daemon_loader() -> type[SMEAdapter]:
+    from sme.adapters.mempalace_daemon import MemPalaceDaemonAdapter
+
+    return MemPalaceDaemonAdapter
+
+
+
+def _familiar_loader() -> type[SMEAdapter]:
+    from sme.adapters.familiar import FamiliarAdapter
+
+    return FamiliarAdapter
+
+
+def _mempalace_loader() -> type[SMEAdapter]:
+    from sme.adapters.mempalace import MemPalaceAdapter
+
+    return MemPalaceAdapter
+
+
+def _flat_loader() -> type[SMEAdapter]:
+    from sme.adapters.flat_baseline import FlatBaselineAdapter
+
+    return FlatBaselineAdapter
+
+
+def _full_context_loader() -> type[SMEAdapter]:
+    from sme.conditions.full_context import FullContextAdapter
+
+    return FullContextAdapter
+
+
+
+def _karpathy_compiled_loader() -> type[SMEAdapter]:
+    from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
+
+    return KarpathyCompiledAdapter
+
+
+def _random_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.random_retrieval import RandomRetrievalAdapter
+
+    return RandomRetrievalAdapter
+
+
+def _oracle_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.oracle_retrieval import OracleRetrievalAdapter
+
+    return OracleRetrievalAdapter
+
+
+_ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
+    _AdapterSpec(
+        aliases=("ladybugdb", "ladybug"),
+        loader=_ladybugdb_loader,
+        accepts=frozenset({
+            "db_path", "read_only", "buffer_pool_size",
+            "include_node_tables", "include_edge_tables", "auto_discover",
+            "skip_infrastructure", "api_url", "default_query_mode",
+            "api_timeout",
+        }),
+    ),
+    _AdapterSpec(
+        aliases=("mempalace-daemon", "mempalace_daemon"),
+        loader=_mempalace_daemon_loader,
+        accepts=frozenset({
+            "api_url", "api_key", "env_file", "kind", "api_timeout",
+            "prefer_graph_endpoint", "read_only",
+        }),
+    ),
+    _AdapterSpec(
+        aliases=("familiar",),
+        loader=_familiar_loader,
+        accepts=frozenset({
+            "base_url", "timeout_s", "mock_inference", "opener",
+        }),
+        rename={"api_url": "base_url"},
+    ),
+    _AdapterSpec(
+        aliases=("mempalace",),
+        loader=_mempalace_loader,
+        accepts=frozenset({
+            "db_path", "read_only", "kg_path", "collection_name",
+            "include_kg", "include_drawers", "max_drawer_nodes",
+        }),
+    ),
+    _AdapterSpec(
+        aliases=("flat", "flat_baseline"),
+        loader=_flat_loader,
+        accepts=frozenset({
+            "db_path", "read_only", "collection_name", "n_results",
+        }),
+    ),
+    _AdapterSpec(
+        aliases=("full-context", "full_context"),
+        loader=_full_context_loader,
+        accepts=frozenset({"vault_dir", "read_only"}),
+        rename={"db_path": "vault_dir"},
+    ),
+    _AdapterSpec(
+        aliases=("karpathy-compiled", "karpathy_compiled"),
+        loader=_karpathy_compiled_loader,
+        accepts=frozenset({"compiled_dir", "include_wiki"}),
+        rename={"db_path": "compiled_dir"},
+    ),
+    _AdapterSpec(
+        aliases=("random", "random-retrieval", "random_retrieval"),
+        loader=_random_retrieval_loader,
+        accepts=frozenset({"seed", "n_results"}),
+    ),
+    _AdapterSpec(
+        aliases=("oracle", "oracle-retrieval", "oracle_retrieval"),
+        loader=_oracle_retrieval_loader,
+        accepts=frozenset({"questions"}),
+    ),
+)
+
+
+def _registry_by_alias() -> dict[str, _AdapterSpec]:
+    out: dict[str, _AdapterSpec] = {}
+    for spec in _ADAPTER_REGISTRY:
+        for alias in spec.aliases:
+            out[alias] = spec
+    return out
+
+
 def _load_adapter(name: str, **kwargs) -> SMEAdapter:
+    """Build an adapter by name from the registry.
+
+    Drops None-valued kwargs (so adapter defaults take over), applies
+    each spec's rename map (CLI-side → constructor-side), then keeps
+    only kwargs the adapter actually accepts. Unknown kwargs are
+    silently dropped — this is the structural fix for the PR #7 class
+    of drop-list drift (M0nkeyFl0wer/multipass-structural-memory-eval#20).
+    """
     name = name.lower()
-    # Drop Nones so adapter defaults kick in
+    spec = _registry_by_alias().get(name)
+    if spec is None:
+        raise SystemExit(f"unknown adapter: {name}")
+
     kwargs = {k: v for k, v in kwargs.items() if v is not None}
+    for src, dst in spec.rename.items():
+        if src in kwargs:
+            kwargs[dst] = kwargs.pop(src)
+    filtered = {k: v for k, v in kwargs.items() if k in spec.accepts}
 
-    if name == "ladybugdb" or name == "ladybug":
-        from sme.adapters.ladybugdb import LadybugDBAdapter
-
-        return LadybugDBAdapter(**kwargs)
-
-    if name in ("mempalace-daemon", "mempalace_daemon"):
-        from sme.adapters.mempalace_daemon import MemPalaceDaemonAdapter
-
-        # Drop kwargs the daemon adapter doesn't understand
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "collection_name",
-            "default_query_mode",
-            "db_path",
-            "buffer_pool_size",
-        ):
-            kwargs.pop(k, None)
-        return MemPalaceDaemonAdapter(**kwargs)
-
-    if name == "familiar":
-        from sme.adapters.familiar import FamiliarAdapter
-
-        # Drop kwargs the familiar adapter doesn't understand
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "collection_name",
-            "default_query_mode",
-            "db_path",
-            "buffer_pool_size",
-            "api_key",
-            "kind",
-            "read_only",
-        ):
-            kwargs.pop(k, None)
-        # CLI uses --api-url; familiar adapter constructor uses base_url.
-        if "api_url" in kwargs:
-            kwargs["base_url"] = kwargs.pop("api_url")
-        return FamiliarAdapter(**kwargs)
-
-    if name == "mempalace":
-        from sme.adapters.mempalace import MemPalaceAdapter
-
-        # LadybugDB-specific kwargs are silently ignored for other adapters
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "api_url",
-            "api_key",
-            "kind",
-            "default_query_mode",
-        ):
-            kwargs.pop(k, None)
-        return MemPalaceAdapter(**kwargs)
-
-    if name == "flat" or name == "flat_baseline":
-        from sme.adapters.flat_baseline import FlatBaselineAdapter
-
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "default_query_mode",
-        ):
-            kwargs.pop(k, None)
-        return FlatBaselineAdapter(**kwargs)
-
-    if name in ("full-context", "full_context"):
-        # Karpathy-baseline Condition D1 — see
-        # docs/cross_validation_2026.md § (4) and
-        # sme/conditions/full_context.py. Treats `--db` as the vault
-        # path; loads every .md file under it as the prompt context.
-        from sme.conditions.full_context import FullContextAdapter
-
-        # Drop kwargs other adapters use that don't apply to D1.
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "collection_name",
-            "default_query_mode",
-            "mock_inference",
-            "timeout_s",
-            "buffer_pool_size",
-        ):
-            kwargs.pop(k, None)
-        # FullContextAdapter takes vault_dir, not db_path.
-        if "db_path" in kwargs:
-            kwargs["vault_dir"] = kwargs.pop("db_path")
-        return FullContextAdapter(**kwargs)
-
-    if name in ("karpathy-compiled", "karpathy_compiled"):
-        # Karpathy-baseline Condition D2 — see
-        # docs/cross_validation_2026.md § (4) and
-        # sme/conditions/karpathy_compiled.py. Reads a pre-compiled
-        # wiki + index produced by `sme-eval compile-wiki`. Treats
-        # `--db` as the path to the compiled output directory.
-        from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
-
-        for k in (
-            "include_node_tables",
-            "include_edge_tables",
-            "auto_discover",
-            "kg_path",
-            "api_url",
-            "api_key",
-            "kind",
-            "collection_name",
-            "default_query_mode",
-            "mock_inference",
-            "timeout_s",
-            "buffer_pool_size",
-            "read_only",  # accepted for CLI parity; not a constructor arg
-        ):
-            kwargs.pop(k, None)
-        if "db_path" in kwargs:
-            kwargs["compiled_dir"] = kwargs.pop("db_path")
-        return KarpathyCompiledAdapter(**kwargs)
-
-    raise SystemExit(f"unknown adapter: {name}")
+    return spec.loader()(**filtered)
 
 
 def _fmt_int(n: int) -> str:
@@ -174,6 +209,7 @@ def _print_report(
     ontology: dict,
     elapsed: dict[str, float],
     betti: Any = None,
+    brokerage: Any = None,
 ) -> None:
     print()
     print("=" * 70)
@@ -237,7 +273,7 @@ def _print_report(
             )
             print(
                 f"  Betti-1:              {betti.betti_1}"
-                "   (structural loops / holes)"
+                "   (topological holes / H1 cycles)"
             )
             if betti.h1_bars:
                 print(f"  max H1 persistence:   {betti.max_h1_persistence:.2f} hops")
@@ -248,6 +284,53 @@ def _print_report(
                     )
             else:
                 print("  no H1 features found — graph is acyclic / tree-like")
+
+    if brokerage is not None:
+        print("\nBrokerage  (Burt structural holes — cross-community)")
+        if brokerage.skipped:
+            print(f"  SKIPPED: {brokerage.skip_reason}")
+        else:
+            print(
+                f"  scope:                {brokerage.component_scope} component "
+                f"({_fmt_int(brokerage.component_nodes)} nodes, "
+                f"{_fmt_int(brokerage.n_communities)} communities)"
+            )
+            print(
+                f"  cross-community nodes:{_fmt_int(brokerage.n_cross_community_brokers)}"
+                "   (frontier scored; rim of every inter-community span, "
+                "ranked apex is the broker)"
+            )
+            if brokerage.n_cross_community_brokers == 0:
+                print(
+                    "  no cross-community brokerage to assess — the component is a "
+                    "single community (fully interwoven, or only one topic)."
+                )
+            else:
+                # top-1 share of k even brokers is 1/k, so a genuinely dominant
+                # single broker sits well above the 2-broker midpoint (0.5).
+                band = (
+                    "concentrated" if brokerage.concentration >= 0.66
+                    else "moderate" if brokerage.concentration >= 0.4
+                    else "distributed"
+                )
+                print(
+                    f"  concentration:        {brokerage.concentration*100:.1f}% "
+                    f"top-1 share  [{band}]  (Gini {brokerage.gini:.2f})"
+                )
+                if band == "concentrated":
+                    print(
+                        "                        one broker carries the graph's "
+                        "cross-domain reasoning — single point of structural failure."
+                    )
+                print("  top brokers (low constraint = more brokerage):")
+                for b in brokerage.top_brokers[:5]:
+                    spans = ", ".join(b.spans_labels) or "+".join(
+                        str(c) for c in b.spans_communities
+                    )
+                    print(
+                        f"    {b.name[:30]:30s} {b.entity_type:12s} "
+                        f"constraint={b.constraint:.3f}  bridges {{{spans}}}"
+                    )
 
     if ontology.get("schema") or ontology.get("documentation"):
         print(f"\nDeclared ontology (source: {ontology.get('type', '?')})")
@@ -341,11 +424,20 @@ def cmd_analyze(args: argparse.Namespace) -> int:
             log.warning("ripser not installed — skipping Betti numbers")
             elapsed["betti_numbers"] = time.time() - t0
 
+    brokerage = None
+    if args.brokerage:
+        t0 = time.time()
+        brokerage = topo.brokerage(max_nodes=args.brokerage_max_nodes)
+        elapsed["brokerage"] = time.time() - t0
+
     t0 = time.time()
     ontology = adapter.get_ontology_source()
     elapsed["ontology_source"] = time.time() - t0
 
-    _print_report(health, community, etc, ontology, elapsed, betti=betti)
+    _print_report(
+        health, community, etc, ontology, elapsed,
+        betti=betti, brokerage=brokerage,
+    )
 
     if args.json:
         out = {
@@ -368,6 +460,31 @@ def cmd_analyze(args: argparse.Namespace) -> int:
                 "betti_1": betti.betti_1,
                 "max_h1_persistence": betti.max_h1_persistence,
                 "h1_bars": betti.h1_bars[:50],
+            }
+        if brokerage is not None:
+            out["brokerage"] = {
+                "component_scope": brokerage.component_scope,
+                "component_nodes": brokerage.component_nodes,
+                "n_nodes_scored": brokerage.n_nodes_scored,
+                "n_communities": brokerage.n_communities,
+                "n_cross_community_brokers": brokerage.n_cross_community_brokers,
+                "concentration": brokerage.concentration,
+                "gini": brokerage.gini,
+                "skipped": brokerage.skipped,
+                "skip_reason": brokerage.skip_reason,
+                "top_brokers": [
+                    {
+                        "node": b.node,
+                        "name": b.name,
+                        "entity_type": b.entity_type,
+                        "constraint": b.constraint,
+                        "effective_size": b.effective_size,
+                        "spans_communities": b.spans_communities,
+                        "spans_labels": b.spans_labels,
+                        "degree": b.degree,
+                    }
+                    for b in brokerage.top_brokers
+                ],
             }
         Path(args.json).write_text(json.dumps(out, indent=2, default=str))
         print(f"JSON report written to {args.json}")
@@ -515,7 +632,48 @@ def cmd_cat8(args: argparse.Namespace) -> int:
             print(f"        data:  {short_metrics}")
         print()
 
-    print("Introspection")
+    if report.external_fit:
+        ef = report.external_fit
+        results = ef["audit"]["sh:result"]
+        violations = [r for r in results if r["sh:resultSeverity"] == "sh:Violation"]
+        infos = [r for r in results if r["sh:resultSeverity"] != "sh:Violation"]
+        print("\n8f External-standard fit (auto-generated audit)")
+        print(f"   reference set:    {', '.join(ef['reference_set'])}")
+        print(
+            f"   aligned coverage: {ef['aligned_coverage']:.1%}  "
+            f"({ef['mappable_count']} cleanly mappable of "
+            f"{ef['considered_terms']} declared)"
+        )
+        under = sorted(
+            {
+                a["corpus_term"]
+                for a in ef["alignments"]
+                if a["outcome"] == "under-specified"
+            }
+        )
+        if under:
+            print(
+                f"   under-specified:  {', '.join(under)}  "
+                "(one term → several standard terms)"
+            )
+        if ef["unaligned_types"]:
+            shown = ef["unaligned_types"][:10]
+            more = "..." if len(ef["unaligned_types"]) > 10 else ""
+            print(
+                f"   idiosyncratic:    {len(ef['unaligned_types'])}  "
+                f"({', '.join(shown)}{more})"
+            )
+        print(
+            f"   audit:            "
+            f"{'CONFORMS' if ef['audit']['sh:conforms'] else 'VIOLATIONS'}  "
+            f"({len(violations)} violation(s), {len(infos)} informational)"
+        )
+        for r in violations + infos:
+            tag = "✗" if r["sh:resultSeverity"] == "sh:Violation" else "·"
+            print(f"   {tag} {r['sh:resultPath']}: {r['sh:resultMessage']}")
+            print(f"       [{r['provenance']}]")
+
+    print("\nIntrospection")
     print(f"   available checks: {len(report.introspection_available)}")
     print(f"   score:            {report.introspection_score:.1%}")
     print(
@@ -982,15 +1140,45 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
     smoke-testing the pipeline without spending API credits).
     """
     from sme.conditions.wiki_compiler import compile_vault
+    from sme.eval.llm_clients import (
+        ANTHROPIC_DEFAULT_MODEL,
+        OPENAI_DEFAULT_MODEL,
+        OPENROUTER_DEFAULT_JUDGE_MODEL,
+        AnthropicLLMClient,
+        OpenAILLMClient,
+        OpenRouterLLMClient,
+        StubLLMClient,
+    )
 
-    if args.llm_provider == "stub":
-        client = _StubLLMClient()
-    elif args.llm_provider == "openai":
-        client = _OpenAILLMClient(model=args.llm_model)
+    # Per-provider default model mapping. CLI's --llm-model default is
+    # gpt-4o-mini for back-compat with the previous openai-only behavior;
+    # the anthropic / openrouter defaults below kick in only if the user
+    # leaves --llm-model at that default while picking a non-openai provider.
+    _provider_default_model = {
+        "stub": None,
+        "openai": OPENAI_DEFAULT_MODEL,
+        "anthropic": ANTHROPIC_DEFAULT_MODEL,
+        "openrouter": OPENROUTER_DEFAULT_JUDGE_MODEL,
+    }
+
+    provider = args.llm_provider
+    requested_model = args.llm_model
+    # If the user didn't override --llm-model, swap in the provider default.
+    if requested_model == "gpt-4o-mini" and provider != "openai":
+        requested_model = _provider_default_model.get(provider) or "gpt-4o-mini"
+
+    if provider == "stub":
+        client = StubLLMClient()
+    elif provider == "openai":
+        client = OpenAILLMClient(model=requested_model)
+    elif provider == "anthropic":
+        client = AnthropicLLMClient(model=requested_model)
+    elif provider == "openrouter":
+        client = OpenRouterLLMClient(model=requested_model)
     else:
         raise SystemExit(
-            f"unknown --llm-provider {args.llm_provider!r}; "
-            "supported: stub, openai"
+            f"unknown --llm-provider {provider!r}; "
+            "supported: stub, openai, anthropic, openrouter"
         )
 
     report = compile_vault(
@@ -1020,64 +1208,6 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
     return 0 if report.n_failed == 0 else 1
 
 
-class _StubLLMClient:
-    """Deterministic LLM stub — useful for `compile-wiki --llm-provider stub`.
-
-    Produces a reproducible summary per note so the compile pipeline can
-    be exercised end-to-end without burning real LLM credits, and so
-    cross-validation runs that don't need true LLM compilation can still
-    use Condition D2 as a sanity baseline.
-    """
-
-    def complete(self, prompt: str, **kwargs) -> str:
-        if "Source path:" in prompt:
-            for line in prompt.splitlines():
-                if line.startswith("Source path: "):
-                    rel = line.split(": ", 1)[1].strip()
-                    # Pull the body so the stub at least reflects content.
-                    body_marker = "Source content:\n---\n"
-                    end_marker = "\n---"
-                    body = ""
-                    if body_marker in prompt:
-                        body = prompt.split(body_marker, 1)[1]
-                        if end_marker in body:
-                            body = body.split(end_marker, 1)[0]
-                    head = body.strip().split("\n", 1)[0][:160]
-                    return (
-                        f"# Stub summary of {rel}\n\n"
-                        f"First line of source: {head}\n"
-                    )
-        # Index prompt
-        return "# Index\n\n(stub-generated)\n"
-
-
-class _OpenAILLMClient:
-    """Thin OpenAI-API client — only used by `compile-wiki --llm-provider openai`.
-
-    Imports openai lazily so the rest of SME doesn't depend on it.
-    """
-
-    def __init__(self, *, model: str = "gpt-4o-mini") -> None:
-        try:
-            from openai import OpenAI
-        except ImportError as exc:  # pragma: no cover — runtime install
-            raise SystemExit(
-                "openai package not installed; run `pip install openai` "
-                "or use --llm-provider stub for a no-API-key compile."
-            ) from exc
-
-        self._client = OpenAI()
-        self.model = model
-
-    def complete(self, prompt: str, **kwargs) -> str:
-        response = self._client.chat.completions.create(
-            model=self.model,
-            messages=[{"role": "user", "content": prompt}],
-            temperature=0.2,
-        )
-        return response.choices[0].message.content or ""
-
-
 def cmd_retrieve(args: argparse.Namespace) -> int:
     """Run a question set through an adapter's query() and score it."""
     import yaml
@@ -1095,6 +1225,20 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
 
         def count_tokens(text: str) -> int:
             return len(text) // 4 if text else 0
+
+    # Deterministic overlays (Layer 2 — no API calls)
+    from sme.eval.deterministic_overlays import (
+        entity_id_overlap,
+        token_utilization,
+    )
+
+    # Optional LLM-judge overlays (Layer 3 — requires API key)
+    _eval_generative = getattr(args, "eval_generative", False) and not getattr(
+        args, "offline", False
+    )
+    if _eval_generative:
+        from sme.eval.answer_relevancy import grade_relevancy
+        from sme.eval.faithfulness import grade_faithfulness
 
     # Load questions
     with open(args.questions) as f:
@@ -1145,14 +1289,14 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
             # MemPalaceAdapter.query takes n_results + route kwargs;
             # other adapters don't — fall back through typing errors.
             try:
-                result = adapter.query(
-                    text, n_results=args.n_results, route=not args.no_route
+                result = timed_query(
+                    adapter, text, n_results=args.n_results, route=not args.no_route
                 )
             except TypeError:
                 try:
-                    result = adapter.query(text, n_results=args.n_results)
+                    result = timed_query(adapter, text, n_results=args.n_results)
                 except TypeError:
-                    result = adapter.query(text)
+                    result = timed_query(adapter, text)
         except Exception as e:  # pragma: no cover
             result = type(
                 "QR", (), {"answer": "", "context_string": "", "error": str(e), "retrieved_entities": [], "retrieval_path": []}
@@ -1183,6 +1327,22 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
         if err:
             print(f"  ERROR: {err}")
 
+        # Layer 2: deterministic overlays (always computed, no API cost)
+        precision = entity_id_overlap(result, expected)
+        utilization = token_utilization(result)
+
+        # Layer 3: LLM-judge overlays (only when --eval-generative and not --offline)
+        gen_overlays: dict[str, Any] = {}
+        if _eval_generative and not err:
+            faith = grade_faithfulness(ctx, result.answer)
+            rel = grade_relevancy(text, result.answer)
+            gen_overlays = {
+                "faithfulness": faith.get("score") if not faith.get("error") else None,
+                "faithfulness_error": faith.get("error"),
+                "answer_relevancy": rel.get("score") if not rel.get("error") else None,
+                "answer_relevancy_error": rel.get("error"),
+            }
+
         per_question.append(
             {
                 "id": qid,
@@ -1196,6 +1356,11 @@ def cmd_retrieve(args: argparse.Namespace) -> int:
                 "elapsed_ms": round(elapsed * 1000, 1),
                 "retrieval_path": path,
                 "error": err,
+                "overlays": {
+                    "entity_id_overlap": precision,
+                    "token_utilization": utilization,
+                    "generative": gen_overlays if _eval_generative else None,
+                },
             }
         )
 
@@ -1283,6 +1448,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "-v", "--verbose", action="store_true", help="enable info logging"
     )
+    parser.add_argument(
+        "--offline",
+        action="store_true",
+        help="skip all LLM-judge (Layer 3) overlays. "
+        "Structural (Layer 1) and deterministic (Layer 2) metrics still run. "
+        "Useful for CI runs without API keys.",
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     ana = sub.add_parser(
@@ -1353,6 +1525,23 @@ def main(argv: list[str] | None = None) -> int:
         help="if the largest component exceeds --betti-max-nodes, take "
         "a random subsample instead of skipping. Betti numbers become "
         "approximate; use with caution.",
+    )
+    ana.add_argument(
+        "--brokerage",
+        action="store_true",
+        help="also compute Burt structural-hole brokerage (network "
+        "constraint / effective size) over the Louvain partition on the "
+        "largest component. Surfaces which entities broker across "
+        "communities and how concentrated that brokerage is.",
+    )
+    ana.add_argument(
+        "--brokerage-max-nodes",
+        type=int,
+        default=50000,
+        help="maximum component size for brokerage. constraint runs only on "
+        "the cross-community frontier (cheap); Louvain over the whole "
+        "component is the bottleneck at scale. Larger components are "
+        "skipped. Default: 50000.",
     )
     ana.add_argument(
         "--json",
@@ -1462,6 +1651,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="SECONDS",
         help="(familiar) HTTP timeout for /api/familiar/eval and "
         "/api/familiar/graph. Default 30s.",
+    )
+    ret.add_argument(
+        "--eval-generative",
+        action="store_true",
+        help="run LLM-judge overlays (faithfulness, answer relevancy) "
+        "on the retrieved results. Requires API key. Ignored when --offline.",
     )
     ret.set_defaults(func=cmd_retrieve)
 
@@ -1744,16 +1939,22 @@ def main(argv: list[str] | None = None) -> int:
     )
     cw.add_argument(
         "--llm-provider",
-        choices=["stub", "openai"],
+        choices=["stub", "openai", "anthropic", "openrouter"],
         default="stub",
         help="stub = deterministic no-LLM summaries (useful for smoke "
-        "tests and sanity baselines); openai = real LLM calls (requires "
-        "OPENAI_API_KEY).",
+        "tests and sanity baselines); openai / anthropic / openrouter = "
+        "real LLM calls. Keys are read from the system keyring "
+        "(service=openai / anthropic / openrouter) without echoing; "
+        "openai falls back to OPENAI_API_KEY env var.",
     )
     cw.add_argument(
         "--llm-model",
         default="gpt-4o-mini",
-        help="(openai) model name. Default gpt-4o-mini.",
+        help="model name. Default gpt-4o-mini for --llm-provider openai. "
+        "When --llm-provider is anthropic or openrouter and --llm-model "
+        "is left at the default, the provider's default kicks in "
+        "(claude-sonnet-4-6 for anthropic, openai/gpt-4o-2024-08-06 for "
+        "openrouter).",
     )
     cw.add_argument(
         "--summary-words",

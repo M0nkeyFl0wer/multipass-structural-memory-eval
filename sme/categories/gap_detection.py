@@ -10,8 +10,10 @@ Signals reported:
   - Components, isolated-node count, structural bridges (L3a): crude
     "these parts of the graph aren't connected at all" reading.
   - Betti-1 persistence on the largest component (L3b): loops that
-    survive the Vietoris-Rips filtration are stable structural holes
-    inside an otherwise connected region.
+    survive the Vietoris-Rips filtration are stable topological holes
+    (H1 cycles) inside an otherwise connected region. (Note: these are
+    topological holes in the TDA sense, not Burt structural holes /
+    brokerage gaps — see the brokerage metric in topology/analyzer.)
   - Candidate gaps (L3c): pairs of components that share an
     entity_type — i.e., they hold the same kind of thing but are
     structurally disconnected. This is a heuristic; a maintainer
@@ -87,6 +89,13 @@ class GapDetectionReport:
     # Pre-filter total, so a maintainer can tell "we filtered 21k → 20"
     candidate_gaps_considered: int = 0
 
+    # True when the rarity fallback fired (≤ 2 sized components, every
+    # shared type weighted as 1.0). In this regime the score scales
+    # linearly with shared-type count — a 100-shared-type degenerate
+    # pair scores 100× a 1-shared-rare-type pair, which is misleading
+    # if the consumer doesn't know it's the flat-rarity branch.
+    flat_rarity_mode: bool = False
+
     # When seeded_missing_edges is provided
     gap_recall: Optional[float] = None
     gap_precision: Optional[float] = None
@@ -118,7 +127,7 @@ def _candidate_gaps(
     min_size: int = 3,
     max_type_prevalence: float = 0.5,
     top_k: int = 20,
-) -> tuple[list[CandidateGap], int]:
+) -> tuple[list[CandidateGap], int, bool]:
     """Rank candidate missing-edge pairs across components.
 
     A pair ``(comp_i, comp_j)`` is considered only when both components
@@ -136,15 +145,16 @@ def _candidate_gaps(
     The √min size term prevents a huge component from dominating every
     pair it participates in.
 
-    Returns ``(top_k_gaps, total_pairs_considered)`` so a caller can
-    report "showing 20 of 1,847 considered."
+    Returns ``(top_k_gaps, total_pairs_considered, flat_rarity_mode)``
+    so a caller can report "showing 20 of 1,847 considered" and flag
+    when the rarity-weighting fallback was active.
     """
     if len(components) < 2:
-        return [], 0
+        return [], 0, False
 
     sized_indices = [i for i, c in enumerate(components) if len(c) >= min_size]
     if len(sized_indices) < 2:
-        return [], 0
+        return [], 0, False
 
     type_by_comp: dict[int, set[str]] = {}
     nodes_by_comp: dict[int, list[str]] = {}
@@ -221,7 +231,7 @@ def _candidate_gaps(
             )
 
     scored.sort(key=lambda g: g.score, reverse=True)
-    return scored[:top_k], considered
+    return scored[:top_k], considered, flat_rarity_mode
 
 
 def score_gap_detection(
@@ -296,7 +306,7 @@ def score_gap_detection(
                 "Betti-1 persistence readings"
             )
 
-    candidates, considered = _candidate_gaps(
+    candidates, considered, flat_rarity_mode = _candidate_gaps(
         analyzer,
         components,
         min_size=min_component_size,
@@ -317,19 +327,19 @@ def score_gap_detection(
         }
 
         recalled = 0
-        considered = 0
+        seeded_considered = 0
         for u, v in seeded_missing_edges:
             cu = node_to_comp.get(u)
             cv = node_to_comp.get(v)
             if cu is None or cv is None:
                 continue
-            considered += 1
+            seeded_considered += 1
             if cu == cv:
                 continue  # Endpoints already in same component — not a cross-cluster gap
             if frozenset({cu, cv}) in reported_pairs:
                 recalled += 1
 
-        gap_recall = (recalled / considered) if considered else 0.0
+        gap_recall = (recalled / seeded_considered) if seeded_considered else 0.0
         gap_precision = (
             (recalled / len(reported_pairs)) if reported_pairs else 0.0
         )
@@ -349,6 +359,7 @@ def score_gap_detection(
         h1_skip_reason=h1_skip_reason,
         candidate_gaps=candidates,
         candidate_gaps_considered=considered,
+        flat_rarity_mode=flat_rarity_mode,
         gap_recall=gap_recall,
         gap_precision=gap_precision,
     )
@@ -437,6 +448,12 @@ def format_report(report: GapDetectionReport) -> str:
         f"  Candidate gaps:        {len(report.candidate_gaps):,} shown"
         f" of {report.candidate_gaps_considered:,} considered"
     )
+    if report.flat_rarity_mode:
+        lines.append(
+            "    (flat-rarity mode: ≤2 sized components — every shared "
+            "type weighted 1.0; scores scale linearly with shared-type "
+            "count, not rarity)"
+        )
     for gap in report.candidate_gaps[:5]:
         lines.append(
             f"    [score {gap.score:5.2f}]  "
@@ -561,8 +578,8 @@ def format_report(report: GapDetectionReport) -> str:
 
     if not report.h1_skipped and report.betti_1_largest > 0:
         lines.append(
-            f"  ● Structural holes: {report.betti_1_largest} persistent H1 "
-            f"feature(s) on the largest component "
+            f"  ● Topological holes (H1 cycles): {report.betti_1_largest} "
+            f"persistent H1 feature(s) on the largest component "
             f"(max persistence {report.h1_max_persistence:.2f} hops)."
         )
         lines.append(
@@ -572,12 +589,12 @@ def format_report(report: GapDetectionReport) -> str:
         )
     elif report.h1_skipped:
         lines.append(
-            "  ● Structural holes: not measured "
+            "  ● Topological holes (H1 cycles): not measured "
             f"({report.h1_skip_reason})."
         )
     else:
         lines.append(
-            "  ● Structural holes: none on the largest component."
+            "  ● Topological holes (H1 cycles): none on the largest component."
         )
         lines.append(
             "      Either your graph is genuinely tree-like, or cycles "

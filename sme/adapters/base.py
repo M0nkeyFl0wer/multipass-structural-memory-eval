@@ -4,7 +4,7 @@ Every memory system under test implements SMEAdapter. The benchmark suite
 never touches a database directly — it talks to this thin interface.
 
 Three required methods: ingest_corpus, query, get_graph_snapshot.
-Two optional: get_flat_retrieval, get_ontology_source.
+Three optional: get_flat_retrieval, get_ontology_source, get_harness_manifest.
 """
 
 from __future__ import annotations
@@ -111,12 +111,19 @@ class QueryResult:
     # If query() fails, set this instead of raising. SME distinguishes
     # "errored" from "answered wrong" in the scorecard.
     error: Optional[str] = None
+    # --- Efficiency / overlay fields (added 2026-06) ------------------
+    # Wall-clock latency measured by the harness layer (ms).
+    # Adapters may populate this; the harness overwrites it.
+    latency_ms: float = 0.0
+    # Number of interaction turns the adapter took to produce this result.
+    # Single-turn adapters default to 1; multi-turn retrieval increments.
+    interaction_turns: int = 1
 
 
 class SMEAdapter(ABC):
     """Implement this for your database/memory system.
 
-    Three required methods. Two optional.
+    Three required methods. Three optional.
     """
 
     # --- Required ------------------------------------------------------

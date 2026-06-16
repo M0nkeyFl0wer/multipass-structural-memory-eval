@@ -37,6 +37,7 @@ from __future__ import annotations
 import logging
 import time
 from dataclasses import dataclass, field
+from typing import Optional
 
 from sme.adapters.base import HarnessDescriptor, ProbeResult, SMEAdapter
 
@@ -83,7 +84,17 @@ class Cat9bResult:
     empty_manifest: bool = False
 
     @property
-    def call_through_rate(self) -> float:
+    def call_through_rate(self) -> Optional[float]:
+        """Fraction of declared surfaces that answered.
+
+        Returns ``None`` when the adapter declares no harness manifest —
+        a "not measured" signal distinct from "every probe failed"
+        (which would be ``0.0``). Consumers reading the JSON should
+        treat ``null`` as "Cat 9b does not apply to this system" and
+        ``0.0`` as a measured floor.
+        """
+        if self.empty_manifest:
+            return None
         if self.total_probes == 0:
             return 0.0
         return self.successful_probes / self.total_probes
@@ -92,7 +103,10 @@ class Cat9bResult:
     def band(self) -> str:
         if self.empty_manifest:
             return "n/a"
-        return _band(self.call_through_rate, _CALL_THROUGH_HEALTHY, _CALL_THROUGH_WARN)
+        rate = self.call_through_rate
+        if rate is None:
+            return "n/a"
+        return _band(rate, _CALL_THROUGH_HEALTHY, _CALL_THROUGH_WARN)
 
 
 # --- Sub-test: 9b call-through success --------------------------------
@@ -202,7 +216,8 @@ def format_cat9b_report(result: Cat9bResult, *, source_label: str = "") -> str:
         )
         return "\n".join(lines) + "\n"
 
-    rate_pct = result.call_through_rate * 100
+    rate = result.call_through_rate
+    rate_pct = (rate * 100) if rate is not None else 0.0
     lines.append(
         f"  Probes: {result.total_probes} total — "
         f"{result.successful_probes} succeeded, "
