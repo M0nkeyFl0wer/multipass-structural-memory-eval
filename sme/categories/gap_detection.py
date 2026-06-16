@@ -81,6 +81,7 @@ class GapDetectionReport:
     betti_1_largest: int
     h1_max_persistence: float
     h1_skipped: bool = False
+    isolated_by_type: dict[str, int] = field(default_factory=dict)
     h1_skip_reason: str = ""
 
     # Candidate gaps across components (top-K by score, post-filter)
@@ -273,6 +274,11 @@ def score_gap_detection(
     components = sorted(components_raw, key=len, reverse=True)
 
     isolated = [c for c in components if len(c) == 1]
+    isolated_by_type: dict[str, int] = {}
+    for comp in isolated:
+        node_id = next(iter(comp))
+        etype = G.nodes[node_id].get("entity_type", "unknown")
+        isolated_by_type[etype] = isolated_by_type.get(etype, 0) + 1
     largest = components[0] if components else set()
 
     bridges = _structural_bridges(G)
@@ -344,6 +350,7 @@ def score_gap_detection(
         components=len(components),
         largest_component_size=len(largest),
         isolated_nodes=len(isolated),
+        isolated_by_type=isolated_by_type,
         bridges=bridges,
         betti_0_largest=betti_0,
         betti_1_largest=betti_1,
@@ -414,8 +421,15 @@ def format_report(report: GapDetectionReport) -> str:
         f"  Components:            {report.components:,}",
         f"  Largest component:     {report.largest_component_size:,}",
         f"  Isolated nodes:        {report.isolated_nodes:,}",
-        f"  Structural bridges:    {len(report.bridges):,}",
     ]
+    if report.isolated_by_type:
+        for etype, count in sorted(
+            report.isolated_by_type.items(), key=lambda kv: -kv[1]
+        ):
+            lines.append(f"      {etype}: {count}")
+    lines.append(
+        f"  Structural bridges:    {len(report.bridges):,}"
+    )
     if report.bridges and len(report.bridges) <= 10:
         for u, v in report.bridges[:10]:
             lines.append(f"    {u} — {v}")
