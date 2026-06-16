@@ -89,6 +89,8 @@ class GapDetectionReport:
     candidate_gaps: list[CandidateGap] = field(default_factory=list)
     # Pre-filter total, so a maintainer can tell "we filtered 21k → 20"
     candidate_gaps_considered: int = 0
+    component_size_distribution: dict[str, int] = field(default_factory=dict)
+    non_trivial_components: list[dict] = field(default_factory=list)
 
     # True when the rarity fallback fired (≤ 2 sized components, every
     # shared type weighted as 1.0). In this regime the score scales
@@ -282,6 +284,26 @@ def score_gap_detection(
         isolated_by_type[etype] = isolated_by_type.get(etype, 0) + 1
     largest = components[0] if components else set()
 
+    buckets: dict[str, int] = {"1": 0, "2-5": 0, "6-20": 0, ">20": 0}
+    non_trivial: list[dict] = []
+    for comp in components:
+        size = len(comp)
+        if size == 1:
+            buckets["1"] += 1
+        elif size <= 5:
+            buckets["2-5"] += 1
+        elif size <= 20:
+            buckets["6-20"] += 1
+        else:
+            buckets[">20"] += 1
+        if size > 1:
+            type_counts: dict[str, int] = {}
+            for node_id in comp:
+                etype = G.nodes[node_id].get("entity_type", "unknown")
+                type_counts[etype] = type_counts.get(etype, 0) + 1
+            non_trivial.append({"size": size, "types": type_counts})
+    non_trivial.sort(key=lambda c: c["size"], reverse=True)
+
     bridges = _structural_bridges(G)
 
     betti_0 = 0
@@ -372,6 +394,8 @@ def score_gap_detection(
         representative_cycles=representative_cycles,
         candidate_gaps=candidates,
         candidate_gaps_considered=considered,
+        component_size_distribution=buckets,
+        non_trivial_components=non_trivial,
         flat_rarity_mode=flat_rarity_mode,
         gap_recall=gap_recall,
         gap_precision=gap_precision,
@@ -432,6 +456,26 @@ def format_report(report: GapDetectionReport) -> str:
         f"  Nodes:                 {report.nodes:,}",
         f"  Edges:                 {report.edges:,}",
         f"  Components:            {report.components:,}",
+    ]
+    if report.component_size_distribution:
+        lines.append("  Component-size distribution:")
+        for bucket, count in report.component_size_distribution.items():
+            if count > 0:
+                lines.append(f"      {bucket}: {count}")
+    if report.non_trivial_components:
+        lines.append(
+            f"  Non-trivial components ({len(report.non_trivial_components)}):"
+        )
+        for comp in report.non_trivial_components[:5]:
+            types_str = ", ".join(
+                f"{t}:{n}" for t, n in sorted(comp["types"].items())
+            )
+            lines.append(f"      [{comp['size']} nodes] {types_str}")
+        if len(report.non_trivial_components) > 5:
+            lines.append(
+                f"      ... +{len(report.non_trivial_components) - 5} more"
+            )
+    lines += [
         f"  Largest component:     {report.largest_component_size:,}",
         f"  Isolated nodes:        {report.isolated_nodes:,}",
     ]

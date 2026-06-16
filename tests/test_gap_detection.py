@@ -226,3 +226,37 @@ def test_format_report_shows_cycles(gap_graph):
     rendered = format_report(report)
     assert "Representative cycles" in rendered
     assert "-cycle]" in rendered
+
+
+# --- Component-size distribution (#17) --------------------------------
+
+
+def test_component_size_distribution(gap_graph):
+    """Issue #17 — component-size distribution buckets."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    assert report.component_size_distribution["1"] == 1
+    assert report.component_size_distribution["2-5"] == 1
+    assert report.component_size_distribution["6-20"] == 1
+    assert report.component_size_distribution[">20"] == 0
+
+
+def test_non_trivial_components(gap_graph):
+    """Issue #17 — non-trivial components with type distributions."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    assert len(report.non_trivial_components) == 2
+    assert report.non_trivial_components[0]["size"] == 6
+    assert report.non_trivial_components[1]["size"] == 5
+    assert report.non_trivial_components[0]["types"]["topic"] == 5
+    assert report.non_trivial_components[0]["types"]["note"] == 1
+
+
+def test_format_report_shows_distribution(gap_graph):
+    """Issue #17 — format_report includes distribution and type breakdown."""
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, run_homology=False)
+    rendered = format_report(report)
+    assert "Component-size distribution" in rendered
+    assert "Non-trivial components" in rendered
+    assert "[6 nodes]" in rendered
