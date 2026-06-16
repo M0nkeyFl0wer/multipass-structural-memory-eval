@@ -1,5 +1,13 @@
 # Structural Memory Evaluation (SME) Framework — v8
 
+> **Status: this spec describes the target design.** Several CLI commands
+> referenced below are not yet implemented in `sme/cli.py`. The
+> implemented set (as of 2026-05-22) is: `analyze`, `retrieve`, `cat4`,
+> `cat5`, `cat8`, `cat2c`, `cat9`, and `check`. Commands marked 🚧 in
+> this document are planned but not built yet — call them out when
+> reviewing PRs that reference them. See the README's "Status" section
+> for the canonical list of shipped commands and adapters.
+>
 > **Version note.** Originally `sme_spec_v5.md`; content level matches v8
 > (Category 8 ontology coherence, multi-hop 2c sub-test, introspection/external
 > splits on Categories 4/5/8, operationalized claim library, use-case profiles,
@@ -280,11 +288,11 @@ Many embedded graph databases (LadybugDB among them) take a single-writer file l
 
 SME provides two paths around it:
 
-1. **`sme-eval snapshot --db-path PATH --output SNAPSHOT`** — copies the database file (and any sibling WAL / shadow files) to a specified output location, preserving any on-disk consistency guarantees the target DB provides. Produces a point-in-time backup suitable for benchmarking. Call this before `sme-eval run` when the target is in active use.
+1. 🚧 **`sme-eval snapshot --db-path PATH --output SNAPSHOT`** (not yet implemented) — copies the database file (and any sibling WAL / shadow files) to a specified output location, preserving any on-disk consistency guarantees the target DB provides. Produces a point-in-time backup suitable for benchmarking. Call this before `sme-eval run` when the target is in active use. Note: the daemon adapter has no file path; this command applies only to file-backed adapters like LadybugDB.
 
 2. **API-based adapters** — where the system under test exposes an HTTP search API, an adapter can read through the API rather than opening the file directly. Higher fidelity (reads the current live state) but requires the target's API to expose graph introspection endpoints.
 
-The reference LadybugDB adapter opens with `read_only=True` by default but will surface a clear error if the writer lock blocks access, pointing the user to `sme-eval snapshot`.
+The reference LadybugDB adapter opens with `read_only=True` by default but will surface a clear error if the writer lock blocks access, pointing the user to `sme-eval snapshot` (🚧 not yet implemented).
 
 ### Built-in Flat Baseline
 
@@ -398,7 +406,7 @@ class TopologyAnalyzer:
 
 ### Corpus Calibration (codetopo method)
 
-`sme-eval calibrate` verifies the seeded corpus against a frozen reference, not exploratory analysis. The reference ships as `sme/corpora/standard_v1/calibration.json`:
+🚧 `sme-eval calibrate` (not yet implemented) is intended to verify the seeded corpus against a frozen reference, not exploratory analysis. The reference would ship as `sme/corpora/standard_v1/calibration.json`:
 
 ```json
 {
@@ -417,14 +425,14 @@ class TopologyAnalyzer:
 }
 ```
 
-`sme-eval calibrate` first checks `corpus_sha256` against the actual corpus tree (YAML + vault). If the hash doesn't match, calibration is stale — someone edited the corpus without re-running calibration. The tool aborts with a specific diagnostic. Then it re-computes structural properties and diffs against the frozen reference. If any value drifts beyond threshold, calibration fails with a specific diagnostic. Calibration results are versioned with the corpus — anyone can reproduce.
+When implemented, `sme-eval calibrate` will first check `corpus_sha256` against the actual corpus tree (YAML + vault). If the hash doesn't match, calibration is stale — someone edited the corpus without re-running calibration. The tool aborts with a specific diagnostic. Then it re-computes structural properties and diffs against the frozen reference. If any value drifts beyond threshold, calibration fails with a specific diagnostic. Calibration results are versioned with the corpus — anyone can reproduce.
 
 **Thresholds:**
 - "Disconnected" = shortest path > 4 hops between gap communities (no accidental bridges)
 - Alias pairs must have Jaccard string similarity < 0.25 AND cosine semantic similarity > 0.78 (confirms testing canonicalization, not fuzzy match)
 - Runaway cluster must be in its own connected component
 
-**On failure:** `sme-eval calibrate --repair` attempts automated fixes (removing accidental bridge edges, adjusting defect placement). If repair fails, manual intervention required. The tool outputs exactly which property failed and why.
+**On failure (planned):** 🚧 `sme-eval calibrate --repair` (not yet implemented) is intended to attempt automated fixes (removing accidental bridge edges, adjusting defect placement). If repair fails, manual intervention required. The tool outputs exactly which property failed and why.
 
 ### Seeded Corpus: v0.1 Specification
 
@@ -652,7 +660,7 @@ calibration:
   # Report judge-human agreement for YOUR corpus, not just LongMemEval's
 ```
 
-`sme-eval run --dry-run` estimates judge cost across all categories × conditions × queries and aborts if it exceeds the budget. No surprise bills.
+🚧 `sme-eval run --dry-run` (not yet implemented) is intended to estimate judge cost across all categories × conditions × queries and abort if it exceeds the budget. No surprise bills.
 
 ---
 
@@ -675,12 +683,15 @@ The adapter's `get_ontology_source()` method returns whichever is available. The
 The extraction is a one-time tool, not part of the benchmark loop. Run it once, commit the result as `implied_ontology.yaml` in the adapter directory. SME reads the YAML during eval — no LLM call in the benchmark path.
 
 ```bash
+# 🚧 Not yet implemented — placeholder design.
 # One-time: extract implied ontology from README
 sme-eval extract-ontology --readme path/to/README.md --output implied_ontology.yaml
 
 # The LLM call is cached by sha256(readme + configs)
 # Re-running on identical input returns cached result
 ```
+
+For now, hand-author `implied_ontology.yaml` files (see `sme/corpora/implied_ontology_mempalace.yaml` for an example) and pass them to `sme-eval cat8 --implied-ontology …`.
 
 ```python
 @dataclass
@@ -942,6 +953,26 @@ Topology summary
 
 ## CLI
 
+### Implemented today
+
+```bash
+# Analyze a graph snapshot and print structural reading
+sme-eval analyze --adapter mempalace-daemon --api-url http://… --betti
+
+# Per-category readings
+sme-eval cat4  --adapter <name> …            # ingestion integrity
+sme-eval cat5  --adapter <name> …            # gap detection
+sme-eval cat8  --adapter <name> --implied-ontology …  # ontology coherence
+sme-eval cat9  --adapter <name> …            # harness integration (9b only)
+sme-eval cat2c --graph results.json …        # multi-hop scorecard
+
+# Retrieval probe + check shortcut
+sme-eval retrieve --adapter <name> --questions corpus.yaml --json out.json
+sme-eval check    --adapter <name> …         # cat4 + cat5 combined
+```
+
+### 🚧 Planned (not yet implemented)
+
 ```bash
 sme-eval run --config sme_config.yaml
 sme-eval run --config sme_config.yaml --category ingestion_integrity
@@ -949,7 +980,13 @@ sme-eval compare --configs ladybugdb.yaml mempalace.yaml flat.yaml --output repo
 sme-eval calibrate --corpus sme/corpora/standard_v1.yaml
 sme-eval viz --config sme_config.yaml --output report/graph_snapshot.html
 sme-eval report --scores report/raw_scores.json --output report/
+sme-eval snapshot --db-path PATH --output SNAPSHOT
+sme-eval extract-ontology --readme path/to/README.md --output implied_ontology.yaml
 ```
+
+These commands are referenced throughout this spec for the full target
+design. Tracking issues:
+[#6](https://github.com/techempower-org/multipass-structural-memory-eval/issues/6).
 
 ---
 
