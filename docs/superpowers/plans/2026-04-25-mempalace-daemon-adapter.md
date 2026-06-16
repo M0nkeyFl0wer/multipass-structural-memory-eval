@@ -34,7 +34,7 @@ The adapter is one file because the class is cohesive and not large enough to ju
 - **Test runner:** `pytest` (already installed via `pip install -e ".[dev]"`).
 - **Commit style:** Conventional commits (`feat:`, `fix:`, `docs:`, `test:`, `refactor:`, `chore:`). Each task ends with a single commit unless the task explicitly says otherwise.
 - **No `git add -A`.** Stage by exact path.
-- **Trailer:** every commit ends with `Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>` per CLAUDE.md.
+- **No AI attribution** in commits, code, or docs (per CLAUDE.md): no `Co-Authored-By`, no "Generated with" trailers.
 
 ---
 
@@ -146,10 +146,7 @@ Expected: collection succeeds, no ImportError.
 ```bash
 git add tests/conftest.py
 git commit -m "$(cat <<'EOF'
-test: add fake_urlopen_factory fixture for HTTP-mocking adapter tests
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+test: add fake_urlopen_factory fixture for HTTP-mocking adapter testsEOF
 )"
 ```
 
@@ -421,10 +418,7 @@ feat(adapters): scaffold MemPalaceDaemonAdapter with auth resolution
 
 Three-source auth resolution: kwargs > env file > process env. Raises
 ValueError at construction if nothing resolves. query() and
-get_graph_snapshot() raise NotImplementedError pending follow-on tasks.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+get_graph_snapshot() raise NotImplementedError pending follow-on tasks.EOF
 )"
 ```
 
@@ -705,10 +699,7 @@ feat(adapters): MemPalaceDaemonAdapter.query happy path
 
 GET /search builds context_string in the same format as the existing
 MemPalaceAdapter so tiktoken counts stay comparable across adapters.
-retrieval_path captures kind + scope counts for downstream scoring.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+retrieval_path captures kind + scope counts for downstream scoring.EOF
 )"
 ```
 
@@ -863,10 +854,7 @@ git commit -m "$(cat <<'EOF'
 test(adapters): lock MemPalaceDaemonAdapter query error/warning contract
 
 Covers WARN-with-results soft signal, NO_RESULTS, AUTH, HTTP 5xx,
-connection failures, and X-API-Key header propagation.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+connection failures, and X-API-Key header propagation.EOF
 )"
 ```
 
@@ -1182,10 +1170,7 @@ feat(adapters): MemPalaceDaemonAdapter /graph fast-path snapshot
 
 GET /graph in one call; projects to wings, rooms, member_of, tunnel,
 and KG layers. Mirrors the existing direct adapter's projection minus
-drawer-level surface (impractical to fetch at scale over HTTP).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+drawer-level surface (impractical to fetch at scale over HTTP).EOF
 )"
 ```
 
@@ -1485,10 +1470,7 @@ feat(adapters): MCP fallback path for MemPalaceDaemonAdapter snapshot
 When /graph is unavailable (older daemons or prefer_graph_endpoint=False),
 walk mempalace_list_wings, mempalace_list_rooms per wing, and
 mempalace_list_tunnels via POST /mcp. Per-wing failures degrade to a
-partial snapshot rather than aborting.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+partial snapshot rather than aborting.EOF
 )"
 ```
 
@@ -1583,10 +1565,7 @@ git commit -m "$(cat <<'EOF'
 feat(adapters): MemPalaceDaemonAdapter ontology + ingest error message
 
 Returns the same readme-typed ontology as the existing MemPalaceAdapter so
-Cat 8 readings are comparable across the direct-ChromaDB and HTTP paths.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+Cat 8 readings are comparable across the direct-ChromaDB and HTTP paths.EOF
 )"
 ```
 
@@ -1778,10 +1757,7 @@ feat(cli): wire mempalace-daemon adapter, --api-key, --kind
 
 Adds the mempalace-daemon branch to _load_adapter and threads
 --api-key / --kind through _load_adapter_from_args and the retrieve
-subparser.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+subparser.EOF
 )"
 ```
 
@@ -1892,10 +1868,7 @@ test(adapters): live-daemon smoke for MemPalaceDaemonAdapter (gated)
 Skipped when PALACE_DAEMON_URL is unset so CI without a daemon stays
 green. Asserts query() returns a QueryResult, snapshot returns >=1
 wing, and kind=all >= kind=content for total_before_filter (validates
-the README's filter claim).
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+the README's filter claim).EOF
 )"
 ```
 
@@ -1953,10 +1926,7 @@ that the CLI plumbing works end-to-end, not that retrieval is clean.
 ```bash
 git add tests/fixtures/tiny_questions.yaml
 git commit -m "$(cat <<'EOF'
-test(fixtures): tiny corpus for mempalace-daemon CLI smoke
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+test(fixtures): tiny corpus for mempalace-daemon CLI smokeEOF
 )"
 ```
 
@@ -2039,10 +2009,7 @@ git commit -m "$(cat <<'EOF'
 docs(readme): mempalace-daemon adapter — planned → shipped
 
 Replaces the fork-roadmap planning subsection with the wired-endpoint
-description, auth resolution rules, and invocation example.
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+description, auth resolution rules, and invocation example.EOF
 )"
 ```
 
@@ -2065,10 +2032,7 @@ Expected: clean. Fix any issues inline; if there are any, recommit:
 ```bash
 git add sme/adapters/mempalace_daemon.py tests/test_mempalace_daemon_adapter.py
 git commit -m "$(cat <<'EOF'
-chore: ruff fixes for mempalace_daemon adapter
-
-Co-Authored-By: Claude Opus 4.7 (1M context) <noreply@anthropic.com>
-EOF
+chore: ruff fixes for mempalace_daemon adapterEOF
 )"
 ```
 

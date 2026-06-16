@@ -63,7 +63,7 @@ entity_types:
 # --- Edge types with evidence rules --------------------------------
 #
 # Eleven types. Each registers an evidence rule for the phantom-edge
-# probe (Cat 10). Rationale and rejected alternatives in ONTOLOGY.md §3.
+# probe (Cat 4g). Rationale and rejected alternatives in ONTOLOGY.md §3.
 
 edge_types:
 
@@ -259,7 +259,7 @@ sme_category_coverage:
     uses: "the entire ontology declared here vs the graph that gets built from /vault"
     notes: "Cat 8 reads this file as the source-of-truth claim against the built graph"
 
-  cat_10_phantom_edges:
+  cat_4g_phantom_edges:
     uses: "evidence_rule field on every edge type"
     notes: >
       First worked example of per-edge-type evidence registration.

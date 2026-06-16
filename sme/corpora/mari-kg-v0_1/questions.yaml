@@ -1,0 +1,190 @@
+version: mari-kg-v0.1
+description: |
+  Ground-truth question set for MARI's personal knowledge graph.
+  Tests course content, money story concepts, anti-patterns, and
+  multi-hop reasoning across the Gentle Path to Prosperity and
+  Embodied Abundance Lab corpora.
+
+  Categories covered:
+    Cat 1  (factual retrieval / The Lookup)         - 6 questions
+    Cat 2c (multi-hop reasoning / The Stairway)     - 5 questions
+    Cat 3  (contradiction surfacing / The Dissonance) - 4 questions
+    Cat 4  (alias resolution / The Threshold 4a)    - 3 questions
+    Cat 8  (ontology coherence / The Blueprint)     - 2 questions
+
+  Each question's expected_sources are substrings verified present in
+  at least 1 source document. The substring matcher counts a hit if any
+  expected source appears in the retrieved context.
+
+questions:
+
+- id: q01_course_internalized_capitalism
+  text: "What course contains a module about internalized capitalism?"
+  expected_sources:
+    - Embodied Abundance Lab
+    - Internalized Capitalism
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q02_module_nervous_system
+  text: "Which module covers the nervous system relationship to money?"
+  expected_sources:
+    - Module 3
+    - Nervous System and Money
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q03_anti_pattern_worth_output
+  text: "What anti-pattern ties self-worth to productivity?"
+  expected_sources:
+    - Worth Equals Output
+    - Tying Self-Worth to Income
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q04_mari_course_author
+  text: "Who created the Embodied Abundance Lab?"
+  expected_sources:
+    - Mari
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q05_module_worthiness_rest
+  text: "Which module teaches that rest is not earned but required?"
+  expected_sources:
+    - Module 4
+    - Worthiness and Rest
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q06_gentle_path_modules
+  text: "What course includes Module 1 through Module 7?"
+  expected_sources:
+    - The Gentle Path to Prosperity
+  min_hops: 1
+  sme_category: cat_1
+
+- id: q07_mari_module_assets
+  text: "What assets did Mari produce for the Internalized Capitalism module?"
+  expected_sources:
+    - Mari
+    - Slide Deck
+    - Voice Note Script
+    - Workbook Exercises
+  min_hops: 2
+  sme_category: cat_2c
+
+- id: q08_worthiness_check_in_supports
+  text: "What concepts does The Worthiness Check-In support?"
+  expected_sources:
+    - The Worthiness Check-In
+    - Embodied Rest
+    - Worthiness Without Production
+  min_hops: 2
+  sme_category: cat_2c
+
+- id: q09_hustle_culture_origin
+  text: "What does hustle culture derive from?"
+  expected_sources:
+    - Hustle culture
+    - Colonial systems
+  min_hops: 1
+  sme_category: cat_2c
+
+- id: q10_module_3_exercises
+  text: "What exercises are included in Module 3?"
+  expected_sources:
+    - Module 3
+    - Body Scan for Money Triggers
+    - Nervous System Regulation Practice
+  min_hops: 2
+  sme_category: cat_2c
+
+- id: q11_human_being_contradicts
+  text: "What anti-patterns does Human Being Not Human Doing contradict?"
+  expected_sources:
+    - Human Being Not Human Doing
+    - Guilt When Resting
+    - Shame When Not Productive
+    - Burnout Called Growth
+  min_hops: 2
+  sme_category: cat_2c
+
+- id: q12_contradicting_anti_patterns
+  text: "What concept contradicts the anti-patterns around rest guilt and exhaustion?"
+  expected_sources:
+    - Human Being Not Human Doing
+    - Guilt When Resting
+    - Guilt for Rest and Play
+    - Confusing Exhaustion with Importance
+  min_hops: 2
+  sme_category: cat_3
+
+- id: q13_rest_anti_patterns
+  text: "What anti-patterns relate to withholding rest from yourself?"
+  expected_sources:
+    - Guilt When Resting
+    - Guilt for Rest and Play
+    - You Have to Earn the Right to Rest
+  min_hops: 1
+  sme_category: cat_3
+
+- id: q14_worth_output_belief
+  text: "What belief produces both burnout and rest guilt?"
+  expected_sources:
+    - Worth equals output belief
+    - Burnout
+    - Rest guilt
+  min_hops: 2
+  sme_category: cat_3
+
+- id: q15_patience_vs_shortsighted
+  text: "What concept counteracts short-sighted decision making?"
+  expected_sources:
+    - Patience and self-control
+    - Short-sighted decision making
+  min_hops: 1
+  sme_category: cat_3
+
+- id: q16_course_alias
+  text: "Are Embodied Abundance Lab and The Embodied Abundance Lab the same course?"
+  expected_sources:
+    - Embodied Abundance Lab
+    - The Embodied Abundance Lab
+  min_hops: 1
+  sme_category: cat_4
+
+- id: q17_module_alias
+  text: "Are Module 1 and Module 1 Internalized Capitalism the same module?"
+  expected_sources:
+    - Module 1
+    - "Module 1: Internalized Capitalism"
+  min_hops: 1
+  sme_category: cat_4
+
+- id: q18_person_alias
+  text: "Are Mari and Mari West the same person?"
+  expected_sources:
+    - Mari
+    - Mari West
+  min_hops: 1
+  sme_category: cat_4
+
+- id: q19_course_contains_modules
+  text: "Does The Gentle Path to Prosperity contain modules?"
+  expected_sources:
+    - The Gentle Path to Prosperity
+    - Module 1
+    - Module 2
+    - Module 3
+  min_hops: 2
+  sme_category: cat_8
+
+- id: q20_module_contains_assets
+  text: "Do modules contain material assets like worksheets and exercises?"
+  expected_sources:
+    - Module 4
+    - Rest audit
+    - Guilt-free rest practice
+  min_hops: 2
+  sme_category: cat_8

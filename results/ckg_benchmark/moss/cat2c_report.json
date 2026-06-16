@@ -1,0 +1,245 @@
+{
+  "conditions": {
+    "A": {
+      "label": "A: flat token-overlap",
+      "total": 176,
+      "full_recall": 146,
+      "partial_hits": 174,
+      "mean_recall": 0.8831907271704231,
+      "mean_tokens": 125.68181818181819,
+      "tokens_per_correct": 151.5068493150685,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.8183846769628754,
+          "hit_rate": 0.9841269841269841,
+          "mean_tokens": 119.34920634920636,
+          "correct_count": 49
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 0.9833333333333333,
+          "hit_rate": 0.9888888888888889,
+          "mean_tokens": 129.17777777777778,
+          "correct_count": 88
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 0.7777777777777777,
+          "hit_rate": 1.0,
+          "mean_tokens": 132.83333333333334,
+          "correct_count": 4
+        },
+        "3": {
+          "hops": 3,
+          "n": 9,
+          "mean_recall": 0.6388888888888888,
+          "hit_rate": 1.0,
+          "mean_tokens": 130.55555555555554,
+          "correct_count": 4
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.38888888888888884,
+          "hit_rate": 1.0,
+          "mean_tokens": 130.0,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 5,
+          "mean_recall": 0.76,
+          "hit_rate": 1.0,
+          "mean_tokens": 122.6,
+          "correct_count": 1
+        }
+      }
+    },
+    "B": {
+      "label": "B: 2-hop structured",
+      "total": 176,
+      "full_recall": 146,
+      "partial_hits": 165,
+      "mean_recall": 0.8984907387269828,
+      "mean_tokens": 1080.4772727272727,
+      "tokens_per_correct": 1302.4931506849316,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.8050429103060682,
+          "hit_rate": 0.8253968253968254,
+          "mean_tokens": 869.3015873015873,
+          "correct_count": 50
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1269.7111111111112,
+          "correct_count": 90
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1906.8333333333333,
+          "correct_count": 6
+        },
+        "3": {
+          "hops": 3,
+          "n": 9,
+          "mean_recall": 0.75,
+          "hit_rate": 1.0,
+          "mean_tokens": 276.8888888888889,
+          "correct_count": 0
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.5555555555555555,
+          "hit_rate": 1.0,
+          "mean_tokens": 1115.0,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 5,
+          "mean_recall": 0.6,
+          "hit_rate": 1.0,
+          "mean_tokens": 769.2,
+          "correct_count": 0
+        }
+      }
+    },
+    "C": {
+      "label": "C: same-nodes prose",
+      "total": 176,
+      "full_recall": 155,
+      "partial_hits": 165,
+      "mean_recall": 0.9192592793968392,
+      "mean_tokens": 715.3522727272727,
+      "tokens_per_correct": 812.2709677419355,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 63,
+          "mean_recall": 0.8067137540821752,
+          "hit_rate": 0.8253968253968254,
+          "mean_tokens": 578.6825396825396,
+          "correct_count": 50
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 835.2333333333333,
+          "correct_count": 90
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1240.1666666666667,
+          "correct_count": 6
+        },
+        "3": {
+          "hops": 3,
+          "n": 9,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 216.66666666666666,
+          "correct_count": 9
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.7222222222222222,
+          "hit_rate": 1.0,
+          "mean_tokens": 715.0,
+          "correct_count": 0
+        },
+        "4": {
+          "hops": 4,
+          "n": 5,
+          "mean_recall": 0.76,
+          "hit_rate": 1.0,
+          "mean_tokens": 547.6,
+          "correct_count": 0
+        }
+      }
+    }
+  },
+  "delta_B_minus_A": {
+    "0": {
+      "recall_delta_pp": -1.3341766656807197,
+      "tokens_delta": 749.952380952381
+    },
+    "1": {
+      "recall_delta_pp": 1.6666666666666718,
+      "tokens_delta": 1140.5333333333335
+    },
+    "2": {
+      "recall_delta_pp": 22.222222222222232,
+      "tokens_delta": 1774.0
+    },
+    "3": {
+      "recall_delta_pp": 11.111111111111116,
+      "tokens_delta": 146.33333333333337
+    },
+    "4": {
+      "recall_delta_pp": -16.000000000000004,
+      "tokens_delta": 646.6
+    },
+    "5": {
+      "recall_delta_pp": 16.666666666666664,
+      "tokens_delta": 985.0
+    }
+  },
+  "delta_B_minus_C": {
+    "0": {
+      "recall_delta_pp": -0.1670843776106934,
+      "tokens_delta": 290.6190476190477
+    },
+    "1": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 434.4777777777779
+    },
+    "2": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 666.6666666666665
+    },
+    "3": {
+      "recall_delta_pp": -25.0,
+      "tokens_delta": 60.22222222222226
+    },
+    "4": {
+      "recall_delta_pp": -16.000000000000004,
+      "tokens_delta": 221.60000000000002
+    },
+    "5": {
+      "recall_delta_pp": -16.666666666666675,
+      "tokens_delta": 400.0
+    }
+  },
+  "ratio_B_over_A": {
+    "0": 0.9836974383411966,
+    "1": 1.0169491525423728,
+    "2": 1.2857142857142858,
+    "3": 1.173913043478261,
+    "4": 0.7894736842105263,
+    "5": 1.4285714285714286
+  },
+  "verdict": "mixed: structure helps at some depths and hurts at others",
+  "verdict_details": [
+    "B - C is negative at hops 3,4,5 \u2014 structural routing is actively harmful"
+  ]
+}

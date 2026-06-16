@@ -16,7 +16,7 @@ from __future__ import annotations
 import logging
 import math
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Iterable
 
 import networkx as nx
@@ -40,11 +40,13 @@ class BettiReport:
     """Persistent homology result for a graph component.
 
     Betti-0 = number of connected components (H_0 features)
-    Betti-1 = number of independent loops / structural holes (H_1 features)
+    Betti-1 = number of independent loops / topological holes (H1 cycles)
 
     For Cat 5 gap detection, we care about long-persistence H_1 features —
-    loops that survive across a wide filtration range are stable structural
-    gaps in the knowledge layer.
+    loops that survive across a wide filtration range are stable
+    topological gaps in the knowledge layer. (These are topological holes
+    in the TDA sense, NOT Burt structural holes / brokerage — see
+    ``TopologyAnalyzer.brokerage``.)
     """
 
     component_size: int
@@ -60,6 +62,64 @@ class BettiReport:
     # should not be interpreted as real topology.
     skipped: bool = False
     skip_reason: str = ""
+
+
+@dataclass
+class Broker:
+    """A single entity scored for Burt brokerage."""
+
+    node: str
+    name: str
+    entity_type: str
+    # Burt's network constraint, ~(0, 1.125]. LOWER = more brokerage
+    # (the node spans more non-redundant, otherwise-disconnected contacts).
+    constraint: float
+    # Effective size: number of non-redundant neighbours.
+    effective_size: float
+    # Distinct Louvain community indices its neighbours fall into.
+    spans_communities: list[int]
+    degree: int
+    # Human-readable labels for spans_communities ("<dominant_type>:<hub>").
+    spans_labels: list[str] = field(default_factory=list)
+
+
+@dataclass
+class BrokerageReport:
+    """Burt structural-hole brokerage over the Louvain partition.
+
+    A *structural hole* (Burt 1992) is a missing tie between two of a
+    node's neighbours; the node bridging it holds a brokerage position.
+    Distinct from a *bridge* (a global cut edge) and a *topological hole*
+    (an H1 cycle). ``concentration`` is the top-1 share of cross-community
+    brokerage mass: ~1.0 means a single fragile broker carries the graph's
+    cross-domain reasoning; ~0.0 means brokerage is evenly distributed.
+    """
+
+    component_scope: str
+    n_nodes_scored: int  # cross-community candidate nodes scored (the frontier)
+    n_communities: int
+    n_cross_community_brokers: int
+    concentration: float  # top-1 share of cross-community brokerage mass [0,1]
+    gini: float  # Gini of brokerage mass across cross-community brokers
+    component_nodes: int = 0  # total nodes in the analysed component
+    top_brokers: list[Broker] = field(default_factory=list)
+    skipped: bool = False
+    skip_reason: str = ""
+
+
+def _gini(values: list[float]) -> float:
+    """Gini coefficient of a non-negative distribution.
+
+    0.0 = perfectly even, → 1.0 = all mass on one element. Returns 0.0 for
+    empty or all-zero input.
+    """
+    xs = sorted(v for v in values if v is not None and v >= 0)
+    n = len(xs)
+    total = sum(xs)
+    if n == 0 or total == 0:
+        return 0.0
+    cum = sum(i * x for i, x in enumerate(xs, start=1))
+    return (2 * cum) / (n * total) - (n + 1) / n
 
 
 class TopologyAnalyzer:
@@ -217,6 +277,154 @@ class TopologyAnalyzer:
             sizes=sizes,
             inter_community_edges=inter,
             inter_community_ratio=ratio,
+        )
+
+    # --- Brokerage / structural holes (Burt) ---------------------------
+
+    def brokerage(
+        self,
+        *,
+        top_k: int = 10,
+        component: str = "largest",
+        resolution: float = 1.0,
+        seed: int = 42,
+        max_nodes: int = 50000,
+    ) -> BrokerageReport:
+        """Burt structural-hole brokerage over the Louvain partition.
+
+        Burt's *structural hole* is the absence of a tie between two of a
+        node's neighbours; the node spanning it holds a brokerage
+        position, quantified by low network *constraint* and high
+        *effective size*. This is distinct from:
+
+          - a *bridge* — a global cut edge (Cat 5 ``_structural_bridges``);
+          - a *topological hole* — an H1 cycle (Cat 5 ``betti_numbers``).
+
+        Reports which entities broker across Louvain communities and how
+        concentrated that brokerage is. A single low-constraint broker
+        spanning two communities is a single point of structural failure
+        for cross-domain reasoning.
+
+        Computed on the undirected, simple, self-loop-free projection,
+        restricted by default to the largest connected component (the
+        knowledge core). Pure read — never mutates the graph.
+        """
+        # Undirected simple projection: collapse parallel edges, drop self loops.
+        H = nx.Graph()
+        H.add_nodes_from(self.G.nodes())
+        for u, v in self.G.edges():
+            if u != v:
+                H.add_edge(u, v)
+
+        if component == "largest" and H.number_of_nodes():
+            comps = sorted(nx.connected_components(H), key=len, reverse=True)
+            if comps:
+                H = H.subgraph(comps[0]).copy()
+
+        n = H.number_of_nodes()
+        if n == 0 or H.number_of_edges() == 0:
+            return BrokerageReport(
+                component_scope=component,
+                n_nodes_scored=0,
+                n_communities=0,
+                n_cross_community_brokers=0,
+                concentration=0.0,
+                gini=0.0,
+            )
+        if n > max_nodes:
+            return BrokerageReport(
+                component_scope=component,
+                n_nodes_scored=0,
+                n_communities=0,
+                n_cross_community_brokers=0,
+                concentration=0.0,
+                gini=0.0,
+                component_nodes=n,
+                skipped=True,
+                skip_reason=(
+                    f"component has {n:,} nodes > max_nodes={max_nodes:,}; "
+                    "Louvain over the whole component is the bottleneck at this "
+                    "scale. Raise max_nodes to force."
+                ),
+            )
+
+        from networkx.algorithms.community import louvain_communities
+
+        communities = louvain_communities(H, resolution=resolution, seed=seed)
+        node_to_comm: dict[str, int] = {}
+        for idx, comm in enumerate(communities):
+            for node in comm:
+                node_to_comm[node] = idx
+
+        # Per-community display labels: dominant entity_type + hub member,
+        # so output names *what* a broker bridges instead of "comm 0+1".
+        degree = dict(H.degree())
+        comm_label: dict[int, str] = {}
+        for idx, members in enumerate(communities):
+            types: Counter[str] = Counter(
+                self.G.nodes[m].get("entity_type", "<none>") for m in members
+            )
+            dom_type = types.most_common(1)[0][0]
+            hub = max(members, key=lambda m: degree.get(m, 0))
+            hub_name = self.G.nodes[hub].get("name", hub)
+            comm_label[idx] = f"{dom_type}:{hub_name}"
+
+        # Frontier-scoping (#5 — makes this tractable on large graphs): a node
+        # can only broker if its neighbours span >= 2 communities. That set is
+        # computable in O(E) by scanning neighbour communities, so we run the
+        # costly nx.constraint (~O(n*d^2)) ONLY over this frontier, not all n
+        # nodes. constraint/effective_size depend only on a node's ego network,
+        # which is fully present in H, so restricting `nodes` is exact — same
+        # values as the full computation, far less work.
+        candidate_spans: dict[str, list[int]] = {}
+        for node in H.nodes():
+            spans = sorted({node_to_comm[w] for w in H.neighbors(node)})
+            if len(spans) >= 2:
+                candidate_spans[node] = spans
+        candidates = list(candidate_spans)
+
+        constraint = nx.constraint(H, nodes=candidates) if candidates else {}
+        eff_size = nx.effective_size(H, nodes=candidates) if candidates else {}
+
+        brokers: list[Broker] = []
+        for node in candidates:
+            c = constraint.get(node)
+            if c is None or math.isnan(c):
+                continue
+            spans = candidate_spans[node]
+            data = self.G.nodes[node]
+            brokers.append(
+                Broker(
+                    node=node,
+                    name=data.get("name", node),
+                    entity_type=data.get("entity_type", "<none>"),
+                    constraint=float(c),
+                    effective_size=float(eff_size.get(node, 0.0)),
+                    spans_communities=spans,
+                    degree=H.degree(node),
+                    spans_labels=[comm_label[i] for i in spans],
+                )
+            )
+
+        # All candidates are cross-community by construction. Rank by
+        # constraint (rim nodes included; the apex broker sorts to the top).
+        cross = sorted(brokers, key=lambda b: (b.constraint, -b.effective_size))
+        # Brokerage mass = 1/constraint (lower constraint = more brokerage).
+        # NOT effective_size, which is degree-biased and can rank a
+        # high-degree rim node above the actual low-constraint broker.
+        masses = [1.0 / max(b.constraint, 1e-9) for b in cross]
+        total_mass = sum(masses)
+        concentration = (max(masses) / total_mass) if total_mass > 0 else 0.0
+
+        return BrokerageReport(
+            component_scope=component,
+            n_nodes_scored=len(brokers),
+            n_communities=len(communities),
+            n_cross_community_brokers=len(cross),
+            concentration=concentration,
+            gini=_gini(masses),
+            component_nodes=n,
+            top_brokers=cross[:top_k],  # cross-community only; empty if none
         )
 
     # --- Filtered subgraph (Cat 4c monoculture detection) --------------

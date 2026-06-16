@@ -1,4 +1,4 @@
-# Ingestigation — Cat 4 + Cat 8b expanded with primary-source-verified prior art
+# Ingestigation — Cat 4 (incl. sub-test 4g, the Phantom Wall) expanded with primary-source-verified prior art
 
 > *Ingestigation* (n.) — investigating the ingestion process. Portmanteau
 > coined accidentally 2026-05-01 and adopted because it captures what
@@ -36,7 +36,7 @@ display-name + spec section header + README pointer is what gets renamed.
 ## Existing tools — what we are NOT going to reinvent
 
 A focused 2026-05-01 research pass surfaced six existing tools or
-standards that already do parts of what Cat 4 / Cat 8b are reaching
+standards that already do parts of what Cat 4 / Cat 4g are reaching
 for. Citations are primary-source verified per the
 `feedback_cite_primary_source_first.md` discipline rule.
 
@@ -84,11 +84,11 @@ W3C-PROV ecosystem; queryable via SPARQL if desired. The
 `_created_by` field on edges should be paired with PROV-O `prov:Activity`
 references when the adapter exposes them.
 
-### 3. ProVe (Semantic Web Journal, accepted 2024-25) — Cat 8b's published reference implementation
+### 3. ProVe (Semantic Web Journal, accepted 2024-25) — Cat 4g's published reference implementation
 
 [ProVe — A Pipeline for Automated Provenance Verification of Knowledge
 Graphs Against Textual Sources](https://www.semantic-web-journal.net/content/prove-pipeline-automated-provenance-verification-knowledge-graphs-against-textual-sources-0)
-is **the published implementation of what SME proposed as Cat 8b /
+is **the published implementation of what SME proposed as Cat 4g /
 The Phantom Wall** in issue #4. Its 4-stage pipeline:
 
 1. **Text extraction** — retrieves and processes text from documented
@@ -106,7 +106,7 @@ pairs across 76 Wikidata properties).
 
 **Implication for SME:** the issue #4 phantom-edge proposal needs a
 follow-up comment **explicitly citing ProVe as prior art**. SME's
-distinctive contribution at the Cat 8b layer is no longer "introducing
+distinctive contribution at the Cat 4g layer is no longer "introducing
 the per-edge-type evidence-rule probe" — it's the **per-edge-type
 evidence-rule registration** at corpus-design time + the **
 substring-and-registry-rules-only fallback** for graphs that don't
@@ -119,7 +119,7 @@ catches *structural unsupportedness* (registry mismatches, evidence
 field absence); ProVe catches *semantic unsupportedness* (the source
 text doesn't actually entail the claim).
 
-The cleanest framing: Cat 8b operates at two tiers — a lightweight
+The cleanest framing: Cat 4g operates at two tiers — a lightweight
 SME-native registry/lexical check, and an optional ProVe-based
 semantic check for systems that can afford the LLM cost.
 
@@ -246,7 +246,7 @@ additions:
 | **4e (new)** | **Lineage event emission** | does the ingestion pipeline emit OpenLineage events Marquez can ingest? |
 | **4f (new)** | **Input-corpus validation** | did the corpus pass its own validate.py / verify.py / Great-Expectations suite *before* ingestion? |
 
-Plus the Cat 8b two-tier framing: lightweight SME registry/lexical
+Plus the Cat 4g two-tier framing: lightweight SME registry/lexical
 check + optional ProVe semantic check for systems that can afford the
 LLM cost.
 
@@ -257,7 +257,7 @@ leverage-per-LOC.
 
 | Priority | PR | Estimated effort |
 |---|---|---|
-| 1 | Cite ProVe in issue #4 + spec Cat 8b section as prior art; reframe SME contribution at that layer | 30 min — comment + spec edit |
+| 1 | Cite ProVe in issue #4 + spec Cat 4g section as prior art; reframe SME contribution at that layer | 30 min — comment + spec edit |
 | 2 | `--shacl-shapes` flag for `sme-eval cat4` + a small good-dog-corpus shapes file as worked example | half day |
 | 3 | OpenLineage event emission from cross-validation harness | half day |
 | 4 | PROV-O JSON emission alongside `_created_by` in adapter graph snapshots | 1 day |
