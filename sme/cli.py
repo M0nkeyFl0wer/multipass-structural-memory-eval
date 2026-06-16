@@ -88,6 +88,18 @@ def _karpathy_compiled_loader() -> type[SMEAdapter]:
     return KarpathyCompiledAdapter
 
 
+def _random_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.random_retrieval import RandomRetrievalAdapter
+
+    return RandomRetrievalAdapter
+
+
+def _oracle_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.oracle_retrieval import OracleRetrievalAdapter
+
+    return OracleRetrievalAdapter
+
+
 _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
     _AdapterSpec(
         aliases=("ladybugdb", "ladybug"),
@@ -141,6 +153,16 @@ _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
         loader=_karpathy_compiled_loader,
         accepts=frozenset({"compiled_dir", "include_wiki"}),
         rename={"db_path": "compiled_dir"},
+    ),
+    _AdapterSpec(
+        aliases=("random", "random-retrieval", "random_retrieval"),
+        loader=_random_retrieval_loader,
+        accepts=frozenset({"seed", "n_results"}),
+    ),
+    _AdapterSpec(
+        aliases=("oracle", "oracle-retrieval", "oracle_retrieval"),
+        loader=_oracle_retrieval_loader,
+        accepts=frozenset({"questions"}),
     ),
 )
 
