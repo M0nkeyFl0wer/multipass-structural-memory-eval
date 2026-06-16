@@ -53,6 +53,11 @@ from sme.topology.analyzer import TopologyAnalyzer
 
 log = logging.getLogger(__name__)
 
+# Max per-ID degree lines rendered inside a single collision group before
+# the formatter truncates with a footer. Pathological groups (10+ IDs on the
+# same canonical key) would otherwise blow up the report.
+COLLISION_GROUP_ID_RENDER_LIMIT = 10
+
 
 # --- Canonicalization -------------------------------------------------
 
@@ -111,6 +116,11 @@ class CollisionGroup:
     ids: list[str]
     names: list[str]
     entity_type: str
+    # Total degree (in + out edges) per entity ID in the group. When
+    # deduplicating, the highest-degree ID is usually the "real" one —
+    # the canonical entity that other extractions converged on, while
+    # low-degree duplicates are stragglers that missed canonicalization.
+    id_degrees: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -164,6 +174,13 @@ def score_ingestion_integrity(
 
     # --- 4a canonical-collision dedup --------------------------------
 
+    # Degree counter per entity ID — surfaced on collision groups so
+    # operators can tell which ID is the "real" one when deduplicating.
+    degree_by_id: Counter[str] = Counter()
+    for edge in edges:
+        degree_by_id[edge.source_id] += 1
+        degree_by_id[edge.target_id] += 1
+
     key_to_ids: dict[str, list[str]] = defaultdict(list)
     key_to_names: dict[str, list[str]] = defaultdict(list)
     key_to_type: dict[str, str] = {}
@@ -186,6 +203,7 @@ def score_ingestion_integrity(
                     ids=ids,
                     names=key_to_names[key],
                     entity_type=key_to_type[key],
+                    id_degrees={eid: degree_by_id.get(eid, 0) for eid in ids},
                 )
             )
     collision_groups.sort(key=lambda g: len(g.ids), reverse=True)
@@ -267,8 +285,24 @@ def format_report(report: IngestionIntegrityReport) -> str:
             names_preview += f", +{len(group.names) - 4} more"
         lines.append(
             f"    [{group.entity_type}] {names_preview} → "
-            f"{len(group.ids)} distinct IDs"
+            f"{len(group.ids)} distinct IDs:"
         )
+        if group.id_degrees:
+            max_degree = max(group.id_degrees.values())
+            # Deterministic keeper: among IDs tied at max degree, keep the
+            # lexicographically smallest ID so the marker is unique and
+            # stable across runs on the same graph.
+            keeper_id = min(
+                eid for eid, deg in group.id_degrees.items() if deg == max_degree
+            )
+            # Sort by descending degree, tie-broken by ID for determinism.
+            ranked = sorted(group.id_degrees.items(), key=lambda kv: (-kv[1], kv[0]))
+            for eid, deg in ranked[:COLLISION_GROUP_ID_RENDER_LIMIT]:
+                marker = "   ← keep" if eid == keeper_id else ""
+                lines.append(f"                  {eid}  (deg={deg}){marker}")
+            hidden = len(ranked) - COLLISION_GROUP_ID_RENDER_LIMIT
+            if hidden > 0:
+                lines.append(f"                  ... and {hidden} more")
     if len(report.collision_groups) > 5:
         lines.append(
             f"    ... +{len(report.collision_groups) - 5} more collision groups"
