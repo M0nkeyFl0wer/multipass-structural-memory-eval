@@ -6,30 +6,33 @@ calls, slash commands, custom actions). Every other SME category
 measures offline retrieval — this category measures the layer between
 retrieval and a running model.
 
-Current scope (minimum viable):
+Implemented:
 
-  9b  Call-through success
-      For each ``HarnessDescriptor`` returned by the adapter, invoke
-      ``probe_fn`` once and report whether the call completed. A low
-      9b means the integration is broken (bad schema, timeout, wrong
-      parameters, tool not registered, MCP server unreachable). A high
-      9b means the surface is live — it says nothing about whether the
-      model will actually invoke it, which is what 9a measures and
-      needs a real model runtime.
+  9a  Invocation rate       — run_cat9a + sme/harness/runner.py. MockRunner
+                              (no cost), AnthropicRunner (real Claude), and
+                              OllamaRunner (free local gemma/qwen).
+  9b  Call-through success  — run_cat9b: for each ``HarnessDescriptor``,
+                              invoke ``probe_fn`` once and report whether the
+                              call completed. A low 9b means the integration
+                              is broken (bad schema, timeout, tool not
+                              registered, MCP server unreachable); it says
+                              nothing about whether a model would invoke it.
+  9c  Result usage          — Cat9aResult.result_use_rate (substring proxy;
+                              upgradeable to an LLM judge).
+  9d  Negative-control rate — Cat9aResult.unnecessary_invocation_rate over a
+                              held-out no-answer set.
 
-Planned (not implemented here; see spec v8 § Category 9):
+Planned (see spec v8 § Category 9):
 
-  9a  Invocation rate       — needs real model API
-  9c  Result usage          — needs real model API + Cat 1 matcher
-  9d  Negative-control rate — needs real model API + held-out set
-  9e  Per-model sensitivity — needs multi-model API access
-  9f  Per-harness portability — needs per-harness runners
+  9e  Per-model sensitivity — loop runners over models (cheap now).
+  9f  Per-harness portability — needs per-harness runners.
   9g  Hook-driven access    — needs per-harness shims (Claude Code,
-                               Cursor, LangGraph, etc.)
+                               Cursor, LangGraph, etc.).
 
-9b being implemented first is deliberate: per the spec, it's the one
-sub-test that "can be measured against a mock model that always invokes
-the tool." No API keys, no cost, no per-harness shim. A clean floor.
+Caveat: 9a's in-harness recall matches the model's (often terse) final
+reply, while offline recall matches the full retrieved context — so the
+integration_gap is sensitive to the match threshold and is directional
+unless a judge-based matcher is used. See run_cat9a / format_cat9a_report.
 """
 
 from __future__ import annotations
@@ -423,7 +426,7 @@ def run_cat9a(
     questions: list[dict],
     *,
     negative_questions: list[dict] | None = None,
-    match_threshold: float = 1.0,
+    match_threshold: float = 0.5,
 ) -> Cat9aResult:
     """Run Category 9a against an adapter using ``runner`` as the model.
 
@@ -433,6 +436,16 @@ def run_cat9a(
     in-harness recall from the model's reply via ``runner.run()``. Both
     use the same substring matcher, so the difference is purely the
     harness layer — that difference is the integration gap.
+
+    ``match_threshold`` is the fraction of a question's ``expected_sources``
+    that must appear for it to count as a hit. The default is 0.5 (partial
+    credit), NOT 1.0: ``expected_sources`` often includes entities drawn
+    from the *question* itself, so a correct-but-terse generative answer
+    ("opened in July 2018") should not be failed for omitting "FDA"/"DCM".
+    IMPORTANT: offline recall matches the full retrieved *context* while
+    in-harness recall matches the model's short *final reply*, so the
+    integration_gap is sensitive to this threshold — treat it as
+    directional unless you raise the bar with a judge-based matcher.
 
     ``negative_questions`` (optional) is the held-out no-answer set for
     9d: how often the model invokes when it shouldn't.
@@ -551,7 +564,15 @@ def format_cat9a_report(result: Cat9aResult, *, source_label: str = "") -> str:
     for hops in sorted(result.per_hop):
         h = result.per_hop[hops]
         used_pct = (h.result_used / h.call_through) if h.call_through else 0.0
-        flag = "  <- agent gives up" if h.integration_gap > _GAP_WARN else ""
+        # Flag on the trustworthy signals (invocation, result-use), NOT the
+        # raw gap — the gap is matcher-sensitive (offline matches retrieved
+        # context, in-harness matches a terse reply) and would mislabel.
+        if h.invocation_rate < _INVOKE_WARN:
+            flag = "  <- under-invoked"
+        elif h.invoked and used_pct < 0.5:
+            flag = "  <- result ignored"
+        else:
+            flag = ""
         lines.append(
             f"    {hops:>3} {h.n:>3}   {h.invocation_rate:>5.2f}     "
             f"{(h.call_through / h.n if h.n else 0):>5.2f}    {used_pct:>4.2f}  "
@@ -580,5 +601,11 @@ def format_cat9a_report(result: Cat9aResult, *, source_label: str = "") -> str:
     lines.append(
         "  Note: in-harness recall is matched against the model's FINAL reply, not the "
         "raw tool response. A result the model ignores does not count as retrieval."
+    )
+    lines.append(
+        "  Caveat: integration_gap is matcher-sensitive — offline recall matches the "
+        "full retrieved context, in-harness recall matches a terse generative reply. "
+        "Read the gap as directional; invocation% and used% are the trustworthy signals "
+        "until a judge-based matcher lands."
     )
     return "\n".join(lines) + "\n"
