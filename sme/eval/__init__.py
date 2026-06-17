@@ -14,7 +14,7 @@ SME's own measurements; this one wraps *other people's* measurements so
 SME numbers can be calibrated against them).
 """
 
-from sme.eval.longmemeval_judge import grade_answer
+from sme.eval.longmemeval_judge import grade_answer, grade_answer_replicated
 from sme.eval.niah import (
     NIAHReport,
     NeedleResult,
@@ -26,6 +26,7 @@ from sme.eval.niah import (
 
 __all__ = [
     "grade_answer",
+    "grade_answer_replicated",
     "NIAHReport",
     "NeedleResult",
     "generate_distractor_corpus",
