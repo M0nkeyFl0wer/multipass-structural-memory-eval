@@ -35,14 +35,26 @@ dependencies = [
 [project.optional-dependencies]
 topology = [
     "ripser>=0.6",
-    "python-louvain>=0.16",
+    # NOTE: community detection uses networkx's native
+    # `louvain_communities` (nx>=3.2, already a core dep), NOT the
+    # `python-louvain`/`community` package. Do not re-add python-louvain:
+    # `community.best_partition` has different default resolution and
+    # tie-breaking, so a reviewer running it would get different
+    # communities than the modularity numbers SME reports.
 ]
 viz = [
     "matplotlib>=3.8",
     "pyvis>=0.3",
 ]
+# The LadybugDB Python binding. The distribution was published as
+# `real_ladybug` (e.g. 0.15.3, the version this adapter is tested
+# against) and renamed `ladybug` in the 2026-04-25 source build. The
+# adapter imports `ladybug` first and falls back to `real_ladybug`, so
+# either resolves at runtime. We pin the legacy name here because it is
+# the one verified installable; switch to `ladybug` once that name is
+# the canonical published distribution.
 ladybugdb = [
-    "ladybugdb",
+    "real_ladybug",
 ]
 neo4j = [
     "neo4j>=5.0",
@@ -50,6 +62,18 @@ neo4j = [
 latency = [
     "hdrhistogram>=0.10",
 ]
+anthropic = [
+    "anthropic>=0.40",
+]
+openai = [
+    "openai>=1.40",
+]
+# [all] keeps the *infra* extras only — topology, viz, graph-db
+# bindings (including latency's hdrhistogram). LLM-provider SDKs
+# (anthropic, openai) stay opt-in: most users running SME against
+# their own graph never need them, and they pull in a non-trivial
+# dependency tree. Install explicitly via
+# `pip install sme-eval[anthropic,openai]` when you need them.
 all = [
     "sme-eval[topology,viz,ladybugdb,neo4j,latency]",
 ]
@@ -57,6 +81,10 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "ruff>=0.5",
+    # test-only: the Cat 8f SHACL ValidationReport conformance test
+    # parses the emitted report through a real JSON-LD/RDF reader. NOT a
+    # runtime dep — SME never projects to RDF or runs a SHACL engine.
+    "rdflib>=7.0",
 ]
 
 [project.scripts]
@@ -69,6 +97,11 @@ Issues = "https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval/issue
 [tool.setuptools.packages.find]
 include = ["sme*"]
 exclude = ["tests*", "docs*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: marks tests that call live LLM APIs and should be skipped in fast CI runs",
+]
 
 [tool.ruff]
 line-length = 100

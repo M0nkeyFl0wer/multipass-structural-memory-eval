@@ -14,6 +14,8 @@ from types import SimpleNamespace
 
 import pytest
 
+from sme.eval.judge_cache import clear_cache
+
 # scripts/ isn't a package — pull the harness in directly.
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 _SCRIPTS = _REPO_ROOT / "scripts"
@@ -21,6 +23,14 @@ if str(_SCRIPTS) not in sys.path:
     sys.path.insert(0, str(_SCRIPTS))
 
 import cross_validate_longmemeval as harness  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _isolate_judge_cache():
+    """Cross-validation tests reuse prompts with different fake judges."""
+    clear_cache()
+    yield
+    clear_cache()
 
 
 FIXTURE = [

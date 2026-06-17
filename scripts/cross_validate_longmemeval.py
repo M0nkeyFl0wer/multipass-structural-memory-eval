@@ -139,12 +139,12 @@ def _make_karpathy_compiled_adapter(per_q_vault: Path) -> SMEAdapter:
     PR (it requires per-question compilation to amortize across the
     LongMemEval haystack architecture).
     """
-    from sme.cli import _StubLLMClient
+    from sme.eval.llm_clients import StubLLMClient
     from sme.conditions.karpathy_compiled import KarpathyCompiledAdapter
     from sme.conditions.wiki_compiler import compile_vault
 
     compiled_dir = per_q_vault.parent / f".compiled_{per_q_vault.name}"
-    compile_vault(per_q_vault, compiled_dir, _StubLLMClient())
+    compile_vault(per_q_vault, compiled_dir, StubLLMClient())
     return KarpathyCompiledAdapter(compiled_dir)
 
 

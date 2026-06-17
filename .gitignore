@@ -45,18 +45,50 @@ htmlcov/
 .DS_Store
 Thumbs.db
 
+# Secrets / credentials (defense-in-depth — keys live in the system
+# keyring, never the repo, but guard against accidental drops)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.crt
+id_rsa
+id_ed25519
+id_*.pub
+credentials.json
+service-account*.json
+*.kdbx
+
 # SME eval outputs
 report/
 results/
 *.parquet
 *.ldb/
 *.duckdb
+*.sqlite3
+cross_validation_*.json
 
 # Local corpora caches
 sme/corpora/*/.cache/
+
+# External benchmark data (downloaded, not checked in)
+data/
 
 # Private corpora (authored against personal content — build your own
 # via sme/corpora/standard_v0_1/AUTHORING.md)
 sme/corpora/climate_research_v01/
 sme/corpora/personal_kg_pkm_v01/
 sme/corpora/canadian_politics_v01/
+
+# Local working artifacts — kept local, not for the public repo:
+#  - HANDOFF.md: per-session durable status / next-steps notes
+#  - .archive/: retired/archival session handoffs
+#  - docs/related_work/wip/: drafts with unverified (training-data)
+#    citations; must be primary-source-verified before publishing
+HANDOFF.md
+.archive/
+docs/related_work/wip/
+
+# Internal cross-repo commit journal — never publish (see 54f54ac)
+commits/

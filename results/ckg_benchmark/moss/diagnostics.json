@@ -1,0 +1,104 @@
+{
+  "domain": "moss",
+  "n_concepts": 400,
+  "n_edges": 671,
+  "cat1_ontology_coherence": {
+    "n_taxonomies": 13,
+    "tax_distribution": {
+      "XCUT": 55,
+      "FOUND": 38,
+      "GARD": 38,
+      "PRACT": 36,
+      "INDOOR": 35,
+      "ADV": 32,
+      "ARCH": 29,
+      "TYPES": 27,
+      "ECOL": 26,
+      "ART": 22,
+      "FUTURE": 22,
+      "WATER": 20,
+      "EDUC": 20
+    },
+    "tax_entropy_bits": 3.6362900897375168,
+    "tax_entropy_norm": 0.9826643228130194,
+    "tax_dominant_share": 0.1375,
+    "n_edge_types": 1,
+    "edge_type_distribution": {
+      "DEPENDS_ON": 671
+    },
+    "edge_type_entropy_bits": -0.0
+  },
+  "cat2_ingestion_integrity": {
+    "phantom_edge_errors": [],
+    "duplicate_id_warnings": [],
+    "orphan_concepts": 0,
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "cat7_abacus": {
+    "A": {
+      "n": 176,
+      "mean_tokens": 125.68181818181819,
+      "full_recall": 146,
+      "tokens_per_correct": 151.5068493150685,
+      "mean_recall": 0.8831907271704231
+    },
+    "B": {
+      "n": 176,
+      "mean_tokens": 1080.4772727272727,
+      "full_recall": 146,
+      "tokens_per_correct": 1302.4931506849316,
+      "mean_recall": 0.8984907387269828
+    },
+    "C": {
+      "n": 176,
+      "mean_tokens": 715.3522727272727,
+      "full_recall": 155,
+      "tokens_per_correct": 812.2709677419355,
+      "mean_recall": 0.9192592793968392
+    },
+    "available": true
+  },
+  "cat8_schema_vs_shape": {
+    "declared_fields": [
+      "ConceptID",
+      "ConceptLabel",
+      "Dependencies",
+      "TaxonomyID"
+    ],
+    "declared_edge_types": [
+      "DEPENDS_ON"
+    ],
+    "observed_distinct_taxonomy_pairs": 75,
+    "top_pairs": [
+      {
+        "child_tax": "FOUND",
+        "parent_tax": "FOUND",
+        "count": 61
+      },
+      {
+        "child_tax": "GARD",
+        "parent_tax": "GARD",
+        "count": 48
+      },
+      {
+        "child_tax": "INDOOR",
+        "parent_tax": "INDOOR",
+        "count": 45
+      },
+      {
+        "child_tax": "XCUT",
+        "parent_tax": "XCUT",
+        "count": 40
+      },
+      {
+        "child_tax": "ARCH",
+        "parent_tax": "ARCH",
+        "count": 37
+      }
+    ],
+    "max_parents_per_child": 5,
+    "max_children_per_parent": 63,
+    "multi_parent_share": 0.665
+  }
+}

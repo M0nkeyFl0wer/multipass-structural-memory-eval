@@ -59,6 +59,23 @@ class ImpliedOntology:
     retrieval_claims: list[dict] = field(default_factory=list)
     raw: dict = field(default_factory=dict)  # full YAML for future fields
 
+    @staticmethod
+    def _ids(seq: Any) -> list[str]:
+        """Normalize a declared type/edge list to plain string ids.
+
+        Two ontology shapes exist in the repo: a flat list of strings
+        (``implied_ontology_mempalace.yaml``) and a rich list of dicts
+        with an ``id`` key plus metadata (``good-dog-corpus/ontology.yaml``).
+        Reduce both to ids so downstream set() operations don't crash on
+        unhashable dicts (#53)."""
+        out: list[str] = []
+        for item in seq or []:
+            if isinstance(item, str):
+                out.append(item)
+            elif isinstance(item, dict) and item.get("id"):
+                out.append(item["id"])
+        return out
+
     @classmethod
     def load(cls, path: str | Path) -> "ImpliedOntology":
         with open(path) as f:
@@ -66,8 +83,8 @@ class ImpliedOntology:
         return cls(
             version=data.get("version", "?"),
             source=data.get("source", "inferred"),
-            entity_types=data.get("entity_types", []) or [],
-            edge_types=data.get("edge_types", []) or [],
+            entity_types=cls._ids(data.get("entity_types", [])),
+            edge_types=cls._ids(data.get("edge_types", [])),
             hall_vocabulary=data.get("hall_vocabulary", []) or [],
             structural_claims=data.get("structural_claims", []) or [],
             vocabulary_claims=data.get("vocabulary_claims", []) or [],
@@ -130,6 +147,9 @@ class Cat8Report:
     introspection_available: list[str] = field(default_factory=list)
     introspection_score: float = 0.0
 
+    # 8f: external-standard fit + auto-generated audit (see external_fit.py)
+    external_fit: Optional[dict] = None
+
     def to_dict(self) -> dict:
         return {
             "8a_type_coverage": {
@@ -176,6 +196,7 @@ class Cat8Report:
                     for c in self.claims
                 ],
             },
+            "8f_external_fit": self.external_fit,
             "introspection": {
                 "available": self.introspection_available,
                 "score": self.introspection_score,
@@ -558,6 +579,20 @@ def score_cat8(
     report.claims_pass_rate = (
         len(passed) / len(tested) if tested else 0.0
     )
+
+    # --- 8f: external-standard fit + auto-generated audit ------
+
+    # Additive: align the declared ontology against a published-standard
+    # reference set (Phase 1: PROV-O + OWL-Time) and emit a confidence-
+    # gated, SHACL-shaped conformance audit. Failure here must never break
+    # the rest of Cat 8, so it is best-effort.
+    try:
+        from sme.categories.external_fit import score_external_fit
+
+        report.external_fit = score_external_fit(implied, entities, edges)
+    except Exception as e:  # pragma: no cover - defensive
+        log.warning("external_fit (8f) skipped: %s", e)
+        report.external_fit = None
 
     # --- Introspection --------------------------------------
 

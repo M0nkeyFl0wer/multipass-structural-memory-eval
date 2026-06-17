@@ -1,0 +1,246 @@
+{
+  "conditions": {
+    "A": {
+      "label": "A: flat token-overlap",
+      "total": 175,
+      "full_recall": 135,
+      "partial_hits": 166,
+      "mean_recall": 0.8293216809612305,
+      "mean_tokens": 114.01142857142857,
+      "tokens_per_correct": 147.7925925925926,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 62,
+          "mean_recall": 0.80695635755186,
+          "hit_rate": 0.9032258064516129,
+          "mean_tokens": 100.29032258064517,
+          "correct_count": 49
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 0.9555555555555556,
+          "hit_rate": 0.9666666666666667,
+          "mean_tokens": 122.17777777777778,
+          "correct_count": 85
+        },
+        "4": {
+          "hops": 4,
+          "n": 6,
+          "mean_recall": 0.26666666666666666,
+          "hit_rate": 1.0,
+          "mean_tokens": 119.33333333333333,
+          "correct_count": 0
+        },
+        "3": {
+          "hops": 3,
+          "n": 8,
+          "mean_recall": 0.5,
+          "hit_rate": 1.0,
+          "mean_tokens": 118.875,
+          "correct_count": 0
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 0.4444444444444444,
+          "hit_rate": 1.0,
+          "mean_tokens": 119.0,
+          "correct_count": 1
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.27777777777777773,
+          "hit_rate": 1.0,
+          "mean_tokens": 119.0,
+          "correct_count": 0
+        }
+      }
+    },
+    "B": {
+      "label": "B: 2-hop structured",
+      "total": 175,
+      "full_recall": 151,
+      "partial_hits": 175,
+      "mean_recall": 0.940415503061811,
+      "mean_tokens": 1066.3142857142857,
+      "tokens_per_correct": 1235.794701986755,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 62,
+          "mean_recall": 0.9116566618680148,
+          "hit_rate": 1.0,
+          "mean_tokens": 1579.3225806451612,
+          "correct_count": 52
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 774.2222222222222,
+          "correct_count": 90
+        },
+        "4": {
+          "hops": 4,
+          "n": 6,
+          "mean_recall": 0.6333333333333334,
+          "hit_rate": 1.0,
+          "mean_tokens": 1175.5,
+          "correct_count": 0
+        },
+        "3": {
+          "hops": 3,
+          "n": 8,
+          "mean_recall": 0.84375,
+          "hit_rate": 1.0,
+          "mean_tokens": 365.875,
+          "correct_count": 3
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 1421.3333333333333,
+          "correct_count": 6
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.5,
+          "hit_rate": 1.0,
+          "mean_tokens": 166.33333333333334,
+          "correct_count": 0
+        }
+      }
+    },
+    "C": {
+      "label": "C: same-nodes prose",
+      "total": 175,
+      "full_recall": 159,
+      "partial_hits": 175,
+      "mean_recall": 0.9604765795739513,
+      "mean_tokens": 674.9714285714285,
+      "tokens_per_correct": 742.8930817610063,
+      "by_hop": {
+        "0": {
+          "hops": 0,
+          "n": 62,
+          "mean_recall": 0.9174742165393787,
+          "hit_rate": 1.0,
+          "mean_tokens": 962.983870967742,
+          "correct_count": 52
+        },
+        "1": {
+          "hops": 1,
+          "n": 90,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 513.1333333333333,
+          "correct_count": 90
+        },
+        "4": {
+          "hops": 4,
+          "n": 6,
+          "mean_recall": 0.8666666666666667,
+          "hit_rate": 1.0,
+          "mean_tokens": 732.3333333333334,
+          "correct_count": 3
+        },
+        "3": {
+          "hops": 3,
+          "n": 8,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 275.5,
+          "correct_count": 8
+        },
+        "2": {
+          "hops": 2,
+          "n": 6,
+          "mean_recall": 1.0,
+          "hit_rate": 1.0,
+          "mean_tokens": 880.6666666666666,
+          "correct_count": 6
+        },
+        "5": {
+          "hops": 5,
+          "n": 3,
+          "mean_recall": 0.6666666666666666,
+          "hit_rate": 1.0,
+          "mean_tokens": 117.0,
+          "correct_count": 0
+        }
+      }
+    }
+  },
+  "delta_B_minus_A": {
+    "0": {
+      "recall_delta_pp": 10.470030431615474,
+      "tokens_delta": 1479.032258064516
+    },
+    "1": {
+      "recall_delta_pp": 4.444444444444439,
+      "tokens_delta": 652.0444444444444
+    },
+    "2": {
+      "recall_delta_pp": 55.55555555555556,
+      "tokens_delta": 1302.3333333333333
+    },
+    "3": {
+      "recall_delta_pp": 34.375,
+      "tokens_delta": 247.0
+    },
+    "4": {
+      "recall_delta_pp": 36.66666666666668,
+      "tokens_delta": 1056.1666666666667
+    },
+    "5": {
+      "recall_delta_pp": 22.222222222222225,
+      "tokens_delta": 47.33333333333334
+    }
+  },
+  "delta_B_minus_C": {
+    "0": {
+      "recall_delta_pp": -0.5817554671363911,
+      "tokens_delta": 616.3387096774193
+    },
+    "1": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 261.08888888888885
+    },
+    "2": {
+      "recall_delta_pp": 0.0,
+      "tokens_delta": 540.6666666666666
+    },
+    "3": {
+      "recall_delta_pp": -15.625,
+      "tokens_delta": 90.375
+    },
+    "4": {
+      "recall_delta_pp": -23.33333333333333,
+      "tokens_delta": 443.16666666666663
+    },
+    "5": {
+      "recall_delta_pp": -16.666666666666664,
+      "tokens_delta": 49.33333333333334
+    }
+  },
+  "ratio_B_over_A": {
+    "0": 1.1297471707562896,
+    "1": 1.0465116279069766,
+    "2": 2.25,
+    "3": 1.6875,
+    "4": 2.3750000000000004,
+    "5": 1.8000000000000003
+  },
+  "verdict": "structure earns complexity (scales with depth)",
+  "verdict_details": [
+    "B - C is negative at hops 3,4,5 \u2014 structural routing is actively harmful",
+    "B/A ratio grows with hop depth as the spec predicts \u2014 multi-hop traversal is working"
+  ]
+}

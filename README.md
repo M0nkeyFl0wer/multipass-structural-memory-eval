@@ -7,9 +7,8 @@ personal knowledge bases, conversational memory — that tests what the
 system knows about its own structure, not just whether it can retrieve
 memories.
 
-> *"Multipass!"* — Leeloo, *The Fifth Element*. The name is a nod to a
-> joke from an earlier MemPalace issue thread (visual reference above),
-> and also to what the framework actually does: **multiple passes**
+> *"Multipass!"* — Leeloo, *The Fifth Element*. The name is a nod to
+> this projects roots in a MemPalace issue thread https://github.com/MemPalace/mempalace/issues/101 (much respect to https://github.com/milla-jovovich). The name also captures what the framework actually does: **multiple passes**
 > over every memory system under test, across multiple corpus shapes
 > and multiple retrieval conditions (A / B / C), so brittle default
 > behaviours that hide on any single pass become visible when the
@@ -17,7 +16,8 @@ memories.
 
 ## Contents
 
-[What this is](#what-this-is) · [Status](#status) · [Install](#install) ·
+[What this is](#what-this-is) · [Status](#status) ·
+[In production](#in-production) · [Install](#install) ·
 [Next steps](#next-steps) · [Adapters](#adapters)
 
 ## What this is
@@ -56,6 +56,57 @@ before/after deltas under identical conditions and within-system
 A/B/C ablations. See the [spec](docs/sme_spec_v8.md) and the
 [onboarding guide](docs/ideas.md) for the full honest-limitations
 discussion.
+
+## In production
+
+**Built with it, maintained by it.** SME started in the [MemPalace
+issue thread](https://github.com/MemPalace/mempalace/issues/101) that
+proposed it (hence *Multipass* — make multiple passes over a
+memory system and compare), and it's the instrument the author **built
+a live LadybugDB knowledge graph with**. That graph is a working
+testbed for a **mix of ingestion methodologies** on unstructured data —
+different extractors and enrichment passes, run as bake-offs to see
+which leaves the structure healthier. SME is the measurement layer for
+that experiment: not a post-hoc audit of a finished graph, but the
+readout that shows, run after run, what each methodology costs
+structurally and what still needs doing.
+
+It runs **nightly via a systemd timer**, reading a snapshot copy so it
+never fights the graph's writers. The before/after delta across dated
+readings is the product, and the trend is the point:
+
+| Reading | Entities | In largest component | Isolates |
+|---|---|---|---|
+| 2026-05-11 | 161,312 | 4.9% | 94.8% |
+| 2026-05-16 | 176,854 | 5.6% | 94.2% |
+| 2026-05-24 | 188,535 | 7.0% | 92.7% |
+| 2026-05-28 | 206,330 | 11.6% | 87.4% |
+
+Connectivity more than doubled and the isolate fraction fell ~7 points
+**while the graph grew by more than a quarter** — structure improving
+faster than the graph accretes, as the ingestion methodology gets tuned against
+SME's readings. The absolute levels are still high: a graph mixing
+extraction methods carries orphans until the methodology settles.
+That's the honest state, and the trend is the signal.
+
+Its job has shifted from construction toward upkeep — three roles,
+every night:
+
+- **Hold the pattern** — confirm the ontology and edge discipline
+  haven't quietly regressed as new content and new extractors land.
+- **Find knowledge gaps to fill** — Cat 5 surfaces candidate "missing
+  rooms": pairs of populated regions that share a rare entity type but
+  have no edge between them — a connection the graph *should* have and
+  doesn't.
+- **Prevent drift** — a metric moving the wrong way is an early warning,
+  long before retrieval quality visibly degrades.
+
+(One signal still being worked: ~50% canonical ID collisions —
+duplicate IDs from un-normalized name hashing — newly instrumented this
+week, so no trend line yet; the next methodology iteration targets it.)
+
+These are structural signals that pure retrieval metrics (Recall@K)
+can't see — and the kind a graph owner can act on.
 
 ## Install
 
@@ -219,6 +270,37 @@ sme-eval retrieve --adapter mempalace-daemon     --api-url http://your-daemon:80
 
 The `--api-url`, `--mock`/`--no-mock`, and `--familiar-timeout` flags
 work on `cat4`, `cat5`, `check`, and `retrieve` subcommands.
+
+### `ladybugdb` — embedded graph databases
+
+`sme/adapters/ladybugdb.py` reads any
+[LadybugDB](https://github.com/LadybugDB) `.ldb` graph, and it's
+**schema-agnostic** by design: point it at a graph and it introspects
+the node and relationship tables (`SHOW_TABLES`, `TABLE_INFO`,
+`SHOW_CONNECTION`) and builds the projection queries on the fly — no
+per-graph configuration, whatever ontology the graph happens to use. It
+auto-detects both edge-table styles seen in the wild:
+
+- **Consolidated** — a few rel tables (e.g. `ENTITY_TO_ENTITY`) with an
+  `edge_type` property discriminating the semantic type.
+- **Per-type** — many rel tables, one per semantic type, where the
+  table name *is* the edge type.
+
+Two independent access paths: **file mode** (`--db path/to/graph.ldb`,
+read-only, required for `get_graph_snapshot()` and the structural
+probes) and **API mode** (`--api-url`, wires `query()` to a running
+`/search` endpoint for systems with writer-lock contention on the file).
+Because file mode takes a read-only open, point it at a **backup or
+snapshot copy** when a live writer (a daemon, an enrich pass) holds the
+graph — a direct open will otherwise block on the writer lock.
+
+```bash
+# Structural health check on a LadybugDB graph (entity↔entity slice)
+sme-eval check --adapter ladybugdb \
+    --db /path/to/graph.ldb \
+    --edge-tables ENTITY_TO_ENTITY \
+    --json reading.json
+```
 
 ## License
 

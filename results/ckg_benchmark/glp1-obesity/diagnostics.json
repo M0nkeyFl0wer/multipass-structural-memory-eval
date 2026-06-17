@@ -1,0 +1,104 @@
+{
+  "domain": "glp1-obesity",
+  "n_concepts": 146,
+  "n_edges": 271,
+  "cat1_ontology_coherence": {
+    "n_taxonomies": 13,
+    "tax_distribution": {
+      "TRIAL": 25,
+      "DRUG": 17,
+      "SPEC": 17,
+      "FOUND": 14,
+      "PATH": 12,
+      "PIPELINE": 11,
+      "COMBO": 10,
+      "COMPL": 9,
+      "ACCESS": 9,
+      "NEURO": 8,
+      "MGMT": 5,
+      "MARKET": 5,
+      "APPROVAL": 4
+    },
+    "tax_entropy_bits": 3.525827161667283,
+    "tax_entropy_norm": 0.9528130249986817,
+    "tax_dominant_share": 0.17123287671232876,
+    "n_edge_types": 1,
+    "edge_type_distribution": {
+      "DEPENDS_ON": 271
+    },
+    "edge_type_entropy_bits": -0.0
+  },
+  "cat2_ingestion_integrity": {
+    "phantom_edge_errors": [],
+    "duplicate_id_warnings": [],
+    "orphan_concepts": 0,
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "cat7_abacus": {
+    "A": {
+      "n": 170,
+      "mean_tokens": 208.13529411764705,
+      "full_recall": 130,
+      "tokens_per_correct": 272.17692307692306,
+      "mean_recall": 0.8687206891532151
+    },
+    "B": {
+      "n": 170,
+      "mean_tokens": 1587.9764705882353,
+      "full_recall": 133,
+      "tokens_per_correct": 2029.7443609022557,
+      "mean_recall": 0.8952211341138676
+    },
+    "C": {
+      "n": 170,
+      "mean_tokens": 1115.4117647058824,
+      "full_recall": 136,
+      "tokens_per_correct": 1394.264705882353,
+      "mean_recall": 0.9211482404561989
+    },
+    "available": true
+  },
+  "cat8_schema_vs_shape": {
+    "declared_fields": [
+      "ConceptID",
+      "ConceptLabel",
+      "Dependencies",
+      "TaxonomyID"
+    ],
+    "declared_edge_types": [
+      "DEPENDS_ON"
+    ],
+    "observed_distinct_taxonomy_pairs": 49,
+    "top_pairs": [
+      {
+        "child_tax": "TRIAL",
+        "parent_tax": "TRIAL",
+        "count": 32
+      },
+      {
+        "child_tax": "PATH",
+        "parent_tax": "PATH",
+        "count": 19
+      },
+      {
+        "child_tax": "DRUG",
+        "parent_tax": "DRUG",
+        "count": 19
+      },
+      {
+        "child_tax": "FOUND",
+        "parent_tax": "FOUND",
+        "count": 17
+      },
+      {
+        "child_tax": "SPEC",
+        "parent_tax": "PATH",
+        "count": 15
+      }
+    ],
+    "max_parents_per_child": 4,
+    "max_children_per_parent": 24,
+    "multi_parent_share": 0.6643835616438356
+  }
+}

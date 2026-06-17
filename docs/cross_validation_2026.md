@@ -11,7 +11,7 @@ for SME's category readings against the most-cited industry benchmarks.
 
 ---
 
-## Status (as of 2026-05-01)
+## Status (as of 2026-05-29)
 
 ### Done
 
@@ -41,9 +41,11 @@ for SME's category readings against the most-cited industry benchmarks.
 
 ### Pending (this document plans them)
 
-- Cross-validation harness — `scripts/cross_validate_longmemeval.py`
+_Update (2026-05-29): the harness and condition D have since shipped; only MemoryBench and the first-reading writeup remain._
+
+- ~~Cross-validation harness — `scripts/cross_validate_longmemeval.py`~~ **Done** (with `tests/test_cross_validate_longmemeval.py`)
 - MemoryBench provider registration (TypeScript bridge + adapter shim)
-- Karpathy-baseline condition D (full-corpus-in-context)
+- ~~Karpathy-baseline condition D (full-corpus-in-context)~~ **Done** — D1 `sme/conditions/full_context.py`, D2 `sme/conditions/karpathy_compiled.py` + `wiki_compiler.py`; CLI `full-context` adapter + `compile-wiki` subcommand
 - First reading writeup once the harness has produced numbers
 
 ---

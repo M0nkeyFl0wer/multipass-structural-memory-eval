@@ -1,0 +1,103 @@
+{
+  "domain": "theory-of-knowledge",
+  "n_concepts": 275,
+  "n_edges": 490,
+  "cat1_ontology_coherence": {
+    "n_taxonomies": 12,
+    "tax_distribution": {
+      "METH": 55,
+      "THEM": 47,
+      "MISN": 25,
+      "ARGU": 25,
+      "FOUND": 18,
+      "SKEP": 18,
+      "BIAS": 17,
+      "EVID": 15,
+      "AOK": 15,
+      "ETHC": 15,
+      "ASMT": 13,
+      "THEO": 12
+    },
+    "tax_entropy_bits": 3.3841140583702334,
+    "tax_entropy_norm": 0.9439747438611925,
+    "tax_dominant_share": 0.2,
+    "n_edge_types": 1,
+    "edge_type_distribution": {
+      "DEPENDS_ON": 490
+    },
+    "edge_type_entropy_bits": -0.0
+  },
+  "cat2_ingestion_integrity": {
+    "phantom_edge_errors": [],
+    "duplicate_id_warnings": [],
+    "orphan_concepts": 0,
+    "n_errors": 0,
+    "n_warnings": 0
+  },
+  "cat7_abacus": {
+    "A": {
+      "n": 175,
+      "mean_tokens": 114.01142857142857,
+      "full_recall": 135,
+      "tokens_per_correct": 147.7925925925926,
+      "mean_recall": 0.8293216809612305
+    },
+    "B": {
+      "n": 175,
+      "mean_tokens": 1066.3142857142857,
+      "full_recall": 151,
+      "tokens_per_correct": 1235.794701986755,
+      "mean_recall": 0.940415503061811
+    },
+    "C": {
+      "n": 175,
+      "mean_tokens": 674.9714285714285,
+      "full_recall": 159,
+      "tokens_per_correct": 742.8930817610063,
+      "mean_recall": 0.9604765795739513
+    },
+    "available": true
+  },
+  "cat8_schema_vs_shape": {
+    "declared_fields": [
+      "ConceptID",
+      "ConceptLabel",
+      "Dependencies",
+      "TaxonomyID"
+    ],
+    "declared_edge_types": [
+      "DEPENDS_ON"
+    ],
+    "observed_distinct_taxonomy_pairs": 72,
+    "top_pairs": [
+      {
+        "child_tax": "METH",
+        "parent_tax": "METH",
+        "count": 55
+      },
+      {
+        "child_tax": "THEM",
+        "parent_tax": "THEM",
+        "count": 45
+      },
+      {
+        "child_tax": "FOUND",
+        "parent_tax": "FOUND",
+        "count": 31
+      },
+      {
+        "child_tax": "MISN",
+        "parent_tax": "MISN",
+        "count": 30
+      },
+      {
+        "child_tax": "ARGU",
+        "parent_tax": "ARGU",
+        "count": 26
+      }
+    ],
+    "max_parents_per_child": 3,
+    "max_children_per_parent": 26,
+    "multi_parent_share": 0.7163636363636363
+  }
+}
