@@ -44,6 +44,10 @@ entities:
 # Edges introduced or strengthened by this note.
 edges:
   - from: pub_watowich_2020_cognition_lifespan
+    type: mentions
+    to: concept_dog_aging_project
+    evidence: "The study draws on large-scale citizen-science cognitive data (Dognition / Dog Aging Project cohorts) as the basis for its uniform-aging-trajectory analysis."
+  - from: pub_watowich_2020_cognition_lifespan
     type: authored_by
     to: person_marina_watowich
     evidence: "First author byline; Watowich is a researcher in the EvoAmy lab at University of Arizona per the PMC record."

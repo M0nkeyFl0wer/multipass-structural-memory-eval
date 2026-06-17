@@ -57,6 +57,10 @@ entities:
 
 # Edges introduced by this note.
 edges:
+  - from: pub_aurora_v_acf
+    type: mentions
+    to: concept_bsl
+    evidence: "American Canine Foundation v. City of Aurora challenged Aurora's breed-specific ordinance; the case publication mentions breed-specific legislation as its subject matter, mirroring the other BSL challenge cases in this note."
   - from: pub_colorado_dog_fanciers_v_denver_1991
     type: subject_of
     to: event_colorado_dog_fanciers_decision

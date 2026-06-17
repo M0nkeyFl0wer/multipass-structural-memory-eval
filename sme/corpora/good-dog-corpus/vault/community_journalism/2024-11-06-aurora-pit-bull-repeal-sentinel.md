@@ -4,6 +4,10 @@ source_url: "https://sentinelcolorado.com/metro/aurora-voters-leaning-toward-rep
 source_date: "2024-11-06"
 license: "fair_use_excerpt"
 accessed_on: "2026-05-03"
+note_id: "cj_2024_11_aurora_pitbull_repeal"
+source_title: "Aurora Voters Approve Question 3A, Repealing 20-Year Pit Bull Ban"
+source_publisher: "Sentinel Colorado"
+domain: "community_journalism"
 mentions_entities:
   - "location: Aurora, Colorado"
   - "organization: Aurora City Council"
