@@ -49,10 +49,10 @@ edges:
     type: subject_of
     to: concept_gdv
     evidence: "Primary topic: perioperative mortality in surgically managed GDV in 137 dogs"
-  - - from: pub_brourman_1996_gdv_mortality
-      type: mentions
-      to: concept_gastric_necrosis
-      evidence: "Gastric necrosis identified as the factor most strongly associated with mortality (46% vs baseline)"
+  - from: pub_brourman_1996_gdv_mortality
+    type: mentions
+    to: concept_gastric_necrosis
+    evidence: "Gastric necrosis identified as the factor most strongly associated with mortality (46% vs baseline)"
   - from: pub_brourman_1996_gdv_mortality
     type: mentions
     to: concept_prophylactic_gastropexy

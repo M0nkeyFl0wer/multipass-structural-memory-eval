@@ -127,6 +127,15 @@ def validate_note(
         note_entity_ids.add(eid)
 
     for edge in fm.get("edges", []):
+        if not isinstance(edge, dict):
+            # Defensive: a doubled-dash YAML slip ("  - - from:") nests an
+            # edge inside a one-element list. Report clearly instead of
+            # crashing with AttributeError, and keep validating the rest.
+            report.fail(
+                f"{rel}: malformed edge (not a mapping) {edge!r} — likely a "
+                f"doubled '- -' in the YAML edges list"
+            )
+            continue
         etype = edge.get("type")
         src = edge.get("from")
         dst = edge.get("to")

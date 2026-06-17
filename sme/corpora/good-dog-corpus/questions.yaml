@@ -984,3 +984,73 @@ questions:
     search.
 
     '
+- id: q37_akc_fss_ungrouped
+  text: Which breeds are recorded by the AKC but not assigned to any of the seven breed groups?
+  expected_sources:
+  - FSS® breeds are not eligible for AKC registration
+  - Foundation Stock Service
+  min_hops: 1
+  sme_category: cat_5
+- id: q38_akc_miscellaneous_status
+  text: What status sits between FSS enrollment and full AKC group recognition, and which breeds currently
+    occupy it?
+  expected_sources:
+  - FSS® enrollment is maintained until the AKC Board of Directors accepts the breed for regular status
+  - Miscellaneous
+  min_hops: 2
+  sme_category: cat_5
+- id: q39_dadis_coverage_gap
+  text: Which dog populations are recorded in DAD-IS as present in one country (local) but absent from
+    transboundary records?
+  expected_sources:
+  - More than 15 000 national breed populations
+  - DAD-IS
+  min_hops: 2
+  sme_category: cat_5
+- id: q40_vbo_sources_absent_registry
+  text: Which breed registries does the Vertebrate Breed Ontology ingest as dog-breed sources, and which
+    major standards body is absent from its dog-breed source list?
+  expected_sources:
+  - 265 AKC breeds, 32 CKC breeds, 111 UKC breeds, 38 FCI breeds
+  - Vertebrate Breed Ontology
+  min_hops: 2
+  sme_category: cat_5
+- id: q41_akc_seven_groups
+  text: Under the AKC taxonomy, which group does the Rottweiler belong to, and how many breed groups exist?
+  expected_sources:
+  - The Herding Group, created in 1983, is the newest AKC classification
+  - Working Group
+  min_hops: 2
+  sme_category: cat_8
+- id: q42_fci_vs_akc_cardinality
+  text: How many breed groups does the FCI recognize versus the AKC, and which body places the Dachshund
+    in its own group?
+  expected_sources:
+  - Group 4 - Dachshunds
+  - ten
+  min_hops: 2
+  sme_category: cat_8
+- id: q43_ukc_label_mapping
+  text: Which group name does the UK (Royal) Kennel Club use for the herding breeds that the AKC files
+    under "Herding"?
+  expected_sources:
+  - hounds, toys, pastoral, utility, terriers, working and gundogs
+  - Pastoral
+  min_hops: 2
+  sme_category: cat_8
+- id: q44_vbo_naming_convention
+  text: What naming convention does the Vertebrate Breed Ontology use for breed term labels, and how are
+    high-level grouping terms logically defined?
+  expected_sources:
+  - high-level grouping terms, such as 'dog breed', 'cattle breed'
+  - Vertebrate Breed Ontology
+  min_hops: 1
+  sme_category: cat_8
+- id: q45_aafco_life_stage_profiles
+  text: What two life-stage nutrient profiles does AAFCO define, and what minimum crude protein (dry-matter
+    basis) applies to adult cat maintenance?
+  expected_sources:
+  - Dog or Cat Food Nutrient Profiles established by the Association of American Feed Control Officials
+  - 26%
+  min_hops: 2
+  sme_category: cat_8

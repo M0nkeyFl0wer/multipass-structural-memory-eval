@@ -46,10 +46,10 @@ edges:
     type: authored_by
     to: person_jane_sykes
     evidence: "First author Jane E. Sykes, BVSc (Hons) PhD MBA MPH FNAP DACVIM; ACVIM consensus statement published November 2023"
-  - - from: pub_acvim_leptospirosis_consensus_2023
-      type: subject_of
-      to: concept_leptospirosis
-      evidence: "Consensus statement covers diagnosis, treatment, prevention, and control of canine leptospirosis"
+  - from: pub_acvim_leptospirosis_consensus_2023
+    type: subject_of
+    to: concept_leptospirosis
+    evidence: "Consensus statement covers diagnosis, treatment, prevention, and control of canine leptospirosis"
   - from: pub_acvim_leptospirosis_consensus_2023
     type: subject_of
     to: concept_leptospirosis_vaccine
