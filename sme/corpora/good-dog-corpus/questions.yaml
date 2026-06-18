@@ -1054,3 +1054,47 @@ questions:
   - 26%
   min_hops: 2
   sme_category: cat_8
+- id: q46_alpha_wolf_self_contradiction
+  text: Within L. David Mech's own work, how does his 1999 paper's account of the 'alpha wolf' contradict the dominance-hierarchy
+    framing he popularized in his 1970 book?
+  expected_sources:
+  - calling a wolf an alpha is usually no more appropriate than referring to a human parent
+  - One of the outdated pieces of information is the concept of the alpha wolf
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: alpha_wolf_dominance
+- id: q47_jack_parson_russell_identity
+  text: Are the Jack Russell Terrier and the Parson Russell Terrier the same breed under a name change, or two distinct breeds
+    — and which body holds each position?
+  expected_sources:
+  - the name of the breed was changed from Jack Russell Terrier to Parson Russell Terrier
+  - made into separate breeds by the AKC
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: jack_parson_russell_identity
+- id: q48_grain_free_dcm_causation
+  text: Does the corpus record any dispute that the over-representation of grain-free/pulse diets among reported canine DCM
+    cases reflects a real diet signal rather than how the cases were collected?
+  expected_sources:
+  - many labeled as "grain-free," which contained a high proportion of peas, lentils
+  - veterinarians who prompted the FDA to consider diet have financial and other ties
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: grain_free_dcm_causation
+- id: q49_raw_diet_relative_risk
+  text: Do the AVMA raw-diet policy and its consumer-advocacy critique agree on the relative human-health risk of commercial
+    raw pet diets?
+  expected_sources:
+  - The AVMA discourages feeding any raw or undercooked animal-sourced proteins
+  - no confirmed cases of human salmonellosis have been associated with these diets
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: raw_diet_relative_risk
+- id: q50_breed_predicts_bite_risk
+  text: Does breed predict a dog's fatal-bite risk? Contrast the JAVMA fatality data with the AVMA's breed-neutral position.
+  expected_sources:
+  - Any dog can bite, regardless of its breed
+  - Pit bull-type dogs and Rottweilers were involved in more than half of these deaths
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: breed_predicts_bite_risk

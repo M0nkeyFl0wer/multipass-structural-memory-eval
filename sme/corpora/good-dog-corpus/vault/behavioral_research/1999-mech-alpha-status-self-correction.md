@@ -33,6 +33,15 @@ entities:
 # contradiction pair is bound here.
 edges:
   - from: pub_mech_1999_alpha_status
+    type: contradicts
+    to: pub_mech_1970_the_wolf
+    evidence: "Same-author self-contradiction. Mech's 1970 book The Wolf popularized the strength/contest 'alpha' dominance hierarchy; this 1999 paper makes the incompatible claim that 'calling a wolf an alpha is usually no more appropriate than referring to a human parent', holding that wild packs are families with dominance contests rare if they exist at all. Shared subject (the alpha/dominance claim), opposed predicates."
+  - from: pub_mech_1999_alpha_status
+    type: supersedes
+    to: pub_mech_1970_the_wolf
+    needs_grounding: true
+    evidence: "Temporal replacement within one author: the 1999 paper post-dates the 1970 book by 29 years and replaces its captive-derived alpha-hierarchy model with a wild-pack family model. Mech's own later statement calls the alpha-wolf concept 'one of the outdated pieces of information' in the 1970 book."
+  - from: pub_mech_1999_alpha_status
     type: authored_by
     to: person_l_david_mech
     evidence: "Sole author byline on the Canadian Journal of Zoology article; confirmed by USGS Digital Commons record for the same paper (citation: Mech, L. David. 1999. CJZ 77:1196-1203)."
