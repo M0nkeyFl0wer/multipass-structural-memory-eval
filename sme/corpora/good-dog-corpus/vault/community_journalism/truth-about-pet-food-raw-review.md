@@ -6,7 +6,7 @@ source_date: "2012"
 source_publisher: "Truth About Pet Food (truthaboutpetfood.com)"
 source_author: "James K. Russell, Ph.D."
 source_tier: other
-license: fair_use
+license: fair_use_excerpt
 license_note: "Consumer-advocacy commentary quoted under fair use for research/diagnostic corpus. Truth About Pet Food (Susan Thixton) holds copyright; guest review authored by James K. Russell, Ph.D., advisor to The Pawsitive Packleader, Inc."
 accessed_on: "2026-06-17"
 domain: community_journalism

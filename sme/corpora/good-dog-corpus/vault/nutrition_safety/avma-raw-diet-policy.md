@@ -4,7 +4,7 @@ source_url: https://www.avma.org/resources-tools/avma-policies/raw-or-undercooke
 source_title: "Raw or Undercooked Animal-Source Protein in Cat and Dog Diets"
 source_date: "2012"
 source_publisher: "American Veterinary Medical Association"
-license: fair_use
+license: fair_use_excerpt
 license_note: "AVMA policy text quoted under fair use for research/diagnostic corpus; AVMA holds copyright. Policy originally adopted 2012, periodically reaffirmed; see source page for current revision date."
 accessed_on: "2026-06-17"
 domain: nutrition_safety
