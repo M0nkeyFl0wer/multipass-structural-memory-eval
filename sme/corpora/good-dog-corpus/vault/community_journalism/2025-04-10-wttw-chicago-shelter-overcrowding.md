@@ -114,9 +114,9 @@ The note also reinforces the **organization-diversity / entity-resolution** stre
 
 ## Provenance and limitations
 
-The live URL (news.wttw.com) sits behind a Cloudflare JavaScript challenge. In this authoring session both WebFetch and direct shell `curl` (with browser, Googlebot, and facebookexternalhit user agents) returned HTTP 403, so the page could not be fetched and the verbatim wording on the live page could not be confirmed. This note is therefore authored from the pre-vetted, fact-checked manifest facts supplied with the task, not from a fetched HTTP 200; `expected_source_verified` is set to `false`.
+The live URL (news.wttw.com) sits behind a Cloudflare JavaScript challenge: automated fetchers (WebFetch and direct shell `curl` with browser, Googlebot, and facebookexternalhit user agents) all return HTTP 403, and no archive.org snapshot exists, so the page's verbatim wording cannot be machine-captured. The article itself was confirmed live in a human browser on 2026-06-19 (the page title matches the cited `source_title`), establishing that the URL resolves to the correct article; the numeric figures below trace to the pre-vetted, fact-checked source manifest supplied with the task.
 
-The specific numeric claims — "owner surrenders increased by 265% in the first quarter" and "2,455 animals euthanized the prior year (60% dogs)" — should be re-verified against the live WTTW page or an archive.org snapshot before either is treated as load-bearing for evaluation purposes. Per corpus discipline, this note does not assert any settled causal claim beyond what the source supports: it reports an association between rising owner surrenders, overcrowding, and climbing euthanasia, not a single proven cause.
+The specific numeric claims — "owner surrenders increased by 265% in the first quarter" and "2,455 animals euthanized the prior year (60% dogs)" — come from that manifest; the article (titled for the owner-surrender spike) is human-confirmed as the correct source, though the exact on-page strings were not machine-matched because of the Cloudflare gate. Per corpus discipline, this note does not assert any settled causal claim beyond what the source supports: it reports an association between rising owner surrenders, overcrowding, and climbing euthanasia, not a single proven cause.
 
 ## Sources
 
