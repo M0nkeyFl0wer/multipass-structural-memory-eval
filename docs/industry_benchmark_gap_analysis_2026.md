@@ -66,6 +66,47 @@ Similarly, SME's conversational-memory coverage is **longitudinally thin** — w
 
 **Verdict:** SME has one strong domain-specific integration (CKG) but no others. The framework is designed to be adapter-agnostic — adding new domain-specific benchmark adapters is the intended extension pattern. No structural changes needed; the gap is corpus coverage.
 
+### 2.5 Performance / Latency Benchmarks
+
+> Added 2026-06-20. Full note: `docs/related_work/graph-benchmark.md`.
+
+| Benchmark | SME Equivalent | Status | Notes |
+|---|---|---|---|
+| **prrao87/graph-benchmark** (engine latency on a synthetic graph) | *None — and intentionally so* | **Orthogonal** | Pure latency benchmark: Faker generates a fixed-schema 100K-person graph (correct by construction), a 9-query suite is timed in ms across four engines (Neo4j 2025.12.1, Kuzu 0.11.3, **Ladybug 0.15.3**, lance-graph 0.5.4 — 0.15.3 is *not* current; PyPI is at 0.17.1). Correctness is an *assumption*, not a variable. Numbers verified against the live README 2026-06-20; we also re-ran 0.15.3 vs 0.17.1 on one machine (see `docs/related_work/graph-benchmark.md`) — **latency unchanged, on-disk size ~10% smaller on 0.17.1**. |
+| **LadybugDB "ball" optimization post** (space/latency tuning) | N/A | **Reference** | Vendor-self-reported storage tuning (hash-index-off, forward-only rels). Informs production-graph footprint, not the test surface. |
+
+**Verdict:** This is a **fifth benchmark family** the rest of this doc does not
+cover, and the relationship to SME is **orthogonal**, not a gap to close. A
+performance benchmark asks "given a *correct* graph, how fast does the engine
+answer?"; SME asks "given an engine, is the graph correct/complete/coherent?"
+The performance genre defines away precisely what SME measures, because its
+harness shape — bulk-load ground-truth-clean data, run read-only timed queries —
+is *structurally blind* to **construction-quality** failures: fabricated edges,
+fragmented/duplicate entities, ontology drift. These are properties of the
+*pipeline that populates the graph*, not of the engine, so the framing is
+complementary, not a criticism of any DB.
+
+Two things to *take* from it rather than cover:
+
+1. **Method to borrow (separate feature):** the generative dataset with known
+   ground truth (`generate_data.sh N`). A defect-injecting corpus generator
+   (`generate_corpus.sh N --fabrication-rate ...`) would let Cat 4/5/8 be scored
+   as detection precision/recall against planted defects — turning SME from a
+   test suite into a scored benchmark. Tracked as future work, not in this
+   doc's roadmap.
+2. **Bridge to write up (research thread, parked in `ideas.md`):** the
+   benchmark's result table is driven by graph *topology* (planted super-nodes /
+   cliques cause the path-query explosions that discriminate engines), which is
+   exactly what SME's Cat 5 instruments measure. "Structural signature as a
+   workload-cost predictor" is unclaimed, paper-shaped ground.
+
+**Do not** instantiate the blind-spot with any storage-corruption claim. The
+earlier LadybugDB incremental-write corruption story is unconfirmed on the latest
+build (a standalone per-edge repro on 0.17.1 found zero corruption; the earlier
+observation is best explained as a mis-measured dedup-merge effect). It must not
+appear in any founder-facing or public writeup. The construction-quality framing
+above is stronger and does not need it.
+
 ---
 
 ## 3. Where SME Reinvents the Wheel (And Whether That's OK)

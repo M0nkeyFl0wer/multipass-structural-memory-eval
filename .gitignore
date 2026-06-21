@@ -89,3 +89,6 @@ sme/corpora/canadian_politics_v01/
 HANDOFF.md
 .archive/
 docs/related_work/wip/
+#  - docs/gists/: founder-bound explainer drafts, not yet public-ready.
+#    Kept local until edited & explicitly published by the maintainer.
+docs/gists/
