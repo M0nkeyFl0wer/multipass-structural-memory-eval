@@ -5,7 +5,7 @@ source_title: "Dave Mech — Wolf News and Information (statement on his 1970 bo
 source_date: "1970"
 source_publisher: "davemech.org (the author's own site, documenting the outdated 1970 alpha-wolf claim from his book The Wolf: Ecology and Behavior of an Endangered Species)"
 source_tier: other
-license: all_rights_reserved
+license: fair_use_excerpt
 license_note: "Author's personal website (davemech.org). Tier 'other': this is the author's own statement documenting his outdated 1970 popular claim, not a peer-reviewed primary. Quoted for the contradiction pair only."
 accessed_on: "2026-06-17"
 domain: behavioral_research
