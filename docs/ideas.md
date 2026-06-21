@@ -499,6 +499,21 @@ about a retriever in isolation.
 
 ---
 
+### Topology as a workload-cost predictor (research thread, 2026-06-20)
+
+Performance benchmarks (e.g. `prrao87/graph-benchmark`) have result tables
+driven entirely by graph *structure*: planted super-nodes and cliques are why
+the n-hop path queries explode and discriminate engines. That hub
+density / degree distribution / fanout is exactly what SME's Cat 5 instruments
+measure. A latency benchmark *observes* the explosion; SME's topology layer could
+*predict* it from the structural signature. **Unclaimed, paper-shaped:**
+structural / persistent-homology signature as a predictor of query workload cost.
+Not a test — an experiment. See `docs/related_work/graph-benchmark.md`. Pairs
+with the defect-injecting corpus generator (the other reusable move from that
+benchmark family).
+
+---
+
 ## Prior art
 
 SME builds on and cites work from:
