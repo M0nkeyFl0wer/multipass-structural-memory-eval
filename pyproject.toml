@@ -46,15 +46,15 @@ viz = [
     "matplotlib>=3.8",
     "pyvis>=0.3",
 ]
-# The LadybugDB Python binding. The distribution was published as
-# `real_ladybug` (e.g. 0.15.3, the version this adapter is tested
-# against) and renamed `ladybug` in the 2026-04-25 source build. The
-# adapter imports `ladybug` first and falls back to `real_ladybug`, so
-# either resolves at runtime. We pin the legacy name here because it is
-# the one verified installable; switch to `ladybug` once that name is
-# the canonical published distribution.
+# The LadybugDB Python binding. Originally `real_ladybug` (0.15.3 = storage
+# version 40), renamed `ladybug` (0.17.x = storage version 41, now on PyPI —
+# what vault-rag writes). The adapter imports `ladybug` first, falls back to
+# `real_ladybug`. PIN `ladybug>=0.17` (2026-06-24): leaving this on the legacy
+# v40 name silently downgraded a venv rebuild to a reader that can't open the
+# v41 graph — `vault-rag-sme.service` was blind ~9 nights because the upgrade
+# lived as a manual `pip install`, not a constraint here. Constraint, not memory.
 ladybugdb = [
-    "real_ladybug",
+    "ladybug>=0.17,<0.18",
 ]
 neo4j = [
     "neo4j>=5.0",
