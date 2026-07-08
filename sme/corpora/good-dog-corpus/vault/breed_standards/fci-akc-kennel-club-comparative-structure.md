@@ -51,7 +51,7 @@ entities:
 edges:
   - from: org_fci
     type: regulates
-    to: concept_breed_group_fci_system
+    to: breed_group_fci_system
     evidence: "FCI publishes and maintains the official breed group taxonomy (10 groups) for all breeds recognized by its 98 member national clubs. The nomenclature page at fci.be/nomenclature.aspx lists every breed under its assigned group and section."
   - from: org_akc
     type: regulates

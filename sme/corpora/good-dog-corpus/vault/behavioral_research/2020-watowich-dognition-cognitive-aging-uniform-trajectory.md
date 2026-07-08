@@ -73,6 +73,11 @@ edges:
     to: concept_breed_lifespan_cognitive_tradeoff
     evidence: "By testing and rejecting the lifespan-compression hypothesis with >4000 dogs across 66 breeds, Watowich 2020 supersedes the prior assumption (documented in the primate and comparative aging literature) that faster life histories produce compressed cognitive trajectories. The study provides the first large-scale empirical test of this hypothesis in companion dogs."
     needs_grounding: true
+  - from: pub_watowich_2020_cognition_lifespan
+    type: mentions
+    to: concept_dog_aging_project
+    evidence: "The note's 'Connection to the Dog Aging Project' section cites the DAP (McDuffie et al. 2022, Scientific Reports), a separate NIH-funded initiative (n>15,000 companion dogs), to contextualize the Watowich finding as a dual evidence base on canine cognitive aging."
+    needs_grounding: true
 
 tags: [behavioral_research, cognitive_aging, Dognition, breed_lifespan, citizen_science, cross-sectional_study, empirical_study, companion_dogs, quadratic_trajectory]
 ---

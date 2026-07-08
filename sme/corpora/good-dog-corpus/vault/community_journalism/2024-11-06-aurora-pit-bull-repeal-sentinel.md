@@ -1,5 +1,9 @@
 ---
 title: "Aurora Voters Approve Question 3A, Repealing 20-Year Pit Bull Ban"
+note_id: cj_2024_sentinel_aurora_pit_bull_repeal
+source_title: "Aurora Voters Approve Question 3A, Repealing 20-Year Pit Bull Ban"
+source_publisher: "Sentinel Colorado"
+domain: community_journalism
 source_url: "https://sentinelcolorado.com/metro/aurora-voters-leaning-toward-repealing-20-year-old-ban-on-pit-bull-dogs/"
 source_date: "2024-11-06"
 license: "fair_use_excerpt"

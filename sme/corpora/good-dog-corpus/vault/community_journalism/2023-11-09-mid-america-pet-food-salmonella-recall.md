@@ -1,5 +1,9 @@
 ---
 title: "Salmonella Kiambu Outbreak Linked to Mid America Pet Food Dry Dog Food Brands, 2023"
+note_id: cj_2023_mid_america_salmonella_recall
+source_title: "Salmonella Kiambu Outbreak Linked to Mid America Pet Food Dry Dog Food Brands, 2023"
+source_publisher: "U.S. Centers for Disease Control and Prevention (CDC)"
+domain: community_journalism
 source_url: "https://www.cdc.gov/salmonella/outbreaks/dog-food-10-23/index.html"
 source_date: "2023-11-09"
 license: "fair_use_excerpt"

@@ -96,6 +96,10 @@ edges:
     type: mentions
     to: product_performance_dog_raw
     evidence: "Performance Dog frozen raw pet food is explicitly named as the product associated with the 2019 Bravo Packing recall and the FDA's advisory against raw pet food"
+  - from: pub_fda_raw_pet_food_factsheet_2018
+    type: mentions
+    to: event_performance_dog_recall_2019
+    evidence: "The factsheet references the 2019 Bravo Packing / Performance Dog recall as a concrete example of ongoing risk; per this note the recall is mentioned (the publication's subject_of is the 2010-2012 study, not the recall)."
 
 tags: [nutrition_safety, raw_food, salmonella, listeria, fda, pathogen_study, guidance, supersedes_chain]
 ---

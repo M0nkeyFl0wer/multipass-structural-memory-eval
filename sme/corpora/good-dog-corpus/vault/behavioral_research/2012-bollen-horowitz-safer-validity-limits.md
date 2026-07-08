@@ -69,6 +69,10 @@ edges:
     to: pub_avsab_2008_dominance_position
     evidence: "Not directly related. This study concerns assessment instrument validity, not training methodology. The contradicts edge here is to the broader conceptual claim that standardized short-format behavior tests can reliably predict long-term behavioral prognosis in shelter dogs."
     needs_grounding: true
+  - from: pub_bollen_horowitz_2012_safer_validity
+    type: mentions
+    to: org_aspca
+    evidence: "The study evaluates the ASPCA's SAFER (Safety Assessment for Evaluating Rehoming) instrument; the contradicts-edge rationale cites the ASPCA's own later position statement that assessment results are not predictive of home behavior."
 
 tags: [behavioral_research, shelter_behavior, SAFER, validity, C-BARQ, aggression_prediction, assessment_instruments, applied_animal_behaviour]
 ---

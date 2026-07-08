@@ -117,6 +117,10 @@ edges:
     type: located_in
     to: loc_denver_co
     evidence: "The Colorado Supreme Court decision was issued in Denver, CO."
+  - from: pub_aurora_v_acf
+    type: mentions
+    to: concept_bsl
+    evidence: "American Canine Foundation v. City of Aurora (D. Colo. 2020) challenged Aurora City Code § 14-75 regulating possession of pit bulls and other restricted breeds — a breed-specific-legislation ordinance upheld on takings, substantive due process, and equal protection grounds."
 
 tags: [municipal_policy, court_challenges, bsl, pit_bull, constitutional_law, due_process, equal_protection, vagueness, rational_basis, multi_jurisdiction]
 ---
