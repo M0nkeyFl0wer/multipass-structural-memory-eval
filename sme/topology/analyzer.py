@@ -17,7 +17,7 @@ import logging
 import math
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Iterable
+from typing import Iterable, Optional
 
 import networkx as nx
 
@@ -62,6 +62,34 @@ class BettiReport:
     # should not be interpreted as real topology.
     skipped: bool = False
     skip_reason: str = ""
+
+
+@dataclass
+class BettiNullReport:
+    """Significance of an observed H1 persistence against a degree-matched
+    (configuration-model) null distribution. See ``TopologyAnalyzer.betti_null``.
+
+    The point: a persistent H1 loop is only evidence of a *real* structural
+    gap if it's more persistent than what a random graph with the same
+    degree sequence produces by chance. Without this, a Betti-1 reading
+    asserts a gap it hasn't earned — a near-2-regular graph is almost
+    obligated to contain a cycle, so the cycle is expected, not a finding.
+    """
+
+    n_samples: int = 0
+    observed_persistence: float = 0.0
+    # Mean / 95th-percentile max-H1-persistence across the null samples.
+    null_mean_persistence: float = 0.0
+    null_p95_persistence: float = 0.0
+    # Monte-Carlo tail p-value (1 + #{null >= observed}) / (n_samples + 1);
+    # None when the null was not run.
+    p_value: Optional[float] = None
+    skipped: bool = False
+    skip_reason: str = ""
+
+    def significant(self, alpha: float = 0.05) -> bool:
+        """True when the observed loop is more persistent than chance."""
+        return self.p_value is not None and self.p_value <= alpha
 
 
 @dataclass
@@ -476,9 +504,6 @@ class TopologyAnalyzer:
                 count, but this is more expensive.
             max_dim: maximum homology dimension. Default 1 (H_0 + H_1).
         """
-        import numpy as np
-        from ripser import ripser  # local import — heavy dep
-
         undirected = self.G.to_undirected(as_view=False)
         if undirected.number_of_nodes() == 0:
             return BettiReport(0, 0, 0, [], [], 0.0)
@@ -533,30 +558,61 @@ class TopologyAnalyzer:
                 seed,
             )
 
-        nodes = list(sub.nodes())
-        idx = {node: i for i, node in enumerate(nodes)}
-
-        # Build shortest-path distance matrix (unweighted hop count).
-        # Disconnected pairs within a component shouldn't happen; we
-        # guard by setting unreachable entries to a large finite value
-        # so Ripser treats them as "very late birth" rather than NaN.
-        INF = float(n + 1)
-        dmat = np.full((n, n), INF, dtype=np.float32)
-        np.fill_diagonal(dmat, 0.0)
-        # nx.all_pairs_shortest_path_length is a generator of (node, dict)
-        for src, lengths in nx.all_pairs_shortest_path_length(sub):
-            i = idx[src]
-            for dst, d in lengths.items():
-                dmat[i, idx[dst]] = float(d)
-
         log.info(
             "persistent homology on %d-node component (distance matrix %dx%d)",
             n,
             n,
             n,
         )
-        result = ripser(dmat, distance_matrix=True, maxdim=max_dim)
-        diagrams = result["dgms"]  # list per dimension
+        betti_0, betti_1, h0, finite_h1, max_h1_persistence = (
+            self._h1_persistence_stats(sub, max_dim=max_dim)
+        )
+        return BettiReport(
+            component_size=n,
+            betti_0=betti_0,
+            betti_1=betti_1,
+            h0_bars=h0,
+            h1_bars=finite_h1,
+            max_h1_persistence=max_h1_persistence,
+        )
+
+    @staticmethod
+    def _h1_persistence_stats(
+        sub: "nx.Graph", *, max_dim: int = 1
+    ) -> tuple[int, int, list, list, float]:
+        """Vietoris-Rips H0/H1 on a prepared (already size-gated) graph.
+
+        Builds the unweighted shortest-path (hop-count) distance matrix on
+        ``sub`` and runs Ripser. Returns
+        ``(betti_0, betti_1, h0_bars, h1_bars, max_h1_persistence)`` where
+        each ``*_bars`` entry is ``(birth, death, persistence)`` and
+        ``h1_bars`` is sorted by persistence descending.
+
+        Shared by ``betti_numbers`` (the observed reading) and ``betti_null``
+        (each degree-matched null sample) so both compute H1 identically —
+        the null is only a fair comparison if it's the *same* statistic on
+        the *same* filtration.
+        """
+        import numpy as np
+        from ripser import ripser  # local import — heavy dep
+
+        n = sub.number_of_nodes()
+        nodes = list(sub.nodes())
+        idx = {node: i for i, node in enumerate(nodes)}
+
+        # Build shortest-path distance matrix (unweighted hop count).
+        # Unreachable pairs (possible in a null sample whose component we
+        # didn't pre-trim) get a large finite value so Ripser treats them
+        # as "very late birth" rather than NaN.
+        INF = float(n + 1)
+        dmat = np.full((n, n), INF, dtype=np.float32)
+        np.fill_diagonal(dmat, 0.0)
+        for src, lengths in nx.all_pairs_shortest_path_length(sub):
+            i = idx[src]
+            for dst, d in lengths.items():
+                dmat[i, idx[dst]] = float(d)
+
+        diagrams = ripser(dmat, distance_matrix=True, maxdim=max_dim)["dgms"]
 
         def _bars(dgm) -> list[tuple[float, float, float]]:
             out: list[tuple[float, float, float]] = []
@@ -570,37 +626,137 @@ class TopologyAnalyzer:
         h0 = _bars(diagrams[0]) if len(diagrams) > 0 else []
         h1 = _bars(diagrams[1]) if len(diagrams) > 1 else []
 
-        # Betti_0 = count of H_0 classes that are still alive at the
-        # end of the filtration (essential classes). For a distance
-        # matrix with unreachable pairs at INF, any H_0 with death >= INF
-        # is an essential class. For a single connected component this
-        # should be exactly 1.
-        betti_0 = sum(
-            1
-            for _, d, _ in h0
-            if math.isinf(d) or d >= INF - 1e-6
-        )
+        # Betti_0 = H_0 classes still alive at the end of the filtration
+        # (death >= INF). For a single connected component this is 1.
+        betti_0 = sum(1 for _, d, _ in h0 if math.isinf(d) or d >= INF - 1e-6)
         # All finite-death H_1 bars are real loops.
         finite_h1 = [
             (b, d, p) for (b, d, p) in h1 if not math.isinf(d) and d < INF - 1e-6
         ]
         betti_1 = len(finite_h1)
+        max_h1_persistence = max((p for _, _, p in finite_h1), default=0.0)
 
-        max_h1_persistence = max(
-            (p for _, _, p in finite_h1), default=0.0
-        )
-
-        # Sort bars by persistence descending for the report
         finite_h1.sort(key=lambda t: t[2], reverse=True)
         h0.sort(key=lambda t: (0 if math.isinf(t[1]) else t[2]), reverse=True)
+        return betti_0, betti_1, h0, finite_h1, max_h1_persistence
 
-        return BettiReport(
-            component_size=n,
-            betti_0=betti_0,
-            betti_1=betti_1,
-            h0_bars=h0,
-            h1_bars=finite_h1,
-            max_h1_persistence=max_h1_persistence,
+    def betti_null(
+        self,
+        *,
+        observed_persistence: float,
+        n_samples: int = 99,
+        max_nodes: int = 2000,
+        subsample: bool = False,
+        seed: int = 42,
+    ) -> "BettiNullReport":
+        """Significance of the observed H1 against a degree-preserving null.
+
+        Answers the standing objection to topological gap-detection: *is a
+        persistent H1 loop a real structural gap, or just what a graph of
+        this size and degree distribution produces by chance?* We hold the
+        largest component's degree sequence fixed and rewire it at random
+        (the configuration model) ``n_samples`` times, recompute the max H1
+        persistence on each null, and report where the observed value sits
+        in that null distribution.
+
+        p-value is the Monte-Carlo tail probability
+        ``(1 + #{null >= observed}) / (n_samples + 1)`` — the standard
+        +1-corrected estimator (never exactly zero). A small p-value means
+        the observed loop is *more* persistent than degree-matched chance,
+        i.e. a real gap rather than sparse-sampling noise.
+
+        Returns a skipped report when the component is empty / smaller than
+        3 nodes / larger than ``max_nodes`` (running ``n_samples`` Ripser
+        passes on a huge component is prohibitive — raise ``max_nodes`` or
+        set ``subsample`` to force it).
+        """
+        import random
+
+        undirected = self.G.to_undirected(as_view=False)
+        comps = sorted(nx.connected_components(undirected), key=len, reverse=True)
+        if not comps:
+            return BettiNullReport(skipped=True, skip_reason="empty graph")
+        sub = undirected.subgraph(comps[0])
+        n = sub.number_of_nodes()
+        if n < 3:
+            return BettiNullReport(
+                skipped=True, skip_reason="largest component < 3 nodes"
+            )
+        if n > max_nodes and not subsample:
+            return BettiNullReport(
+                skipped=True,
+                skip_reason=(
+                    f"largest component has {n} nodes > max_nodes={max_nodes}; "
+                    f"{n_samples} null Ripser passes would be prohibitive — "
+                    f"raise max_nodes or enable subsample to force it."
+                ),
+            )
+
+        # Collapse to a simple undirected graph: the configuration model is
+        # defined on a degree sequence, and the distance matrix treats the
+        # graph as simple anyway (parallel edges / self-loops don't change
+        # hop distance). Matching the observed measurement, we work on the
+        # largest component.
+        simple = nx.Graph()
+        simple.add_nodes_from(sub.nodes())
+        for u, v in sub.edges():
+            if u != v:
+                simple.add_edge(u, v)
+        if subsample and simple.number_of_nodes() > max_nodes:
+            keep = random.Random(seed).sample(list(simple.nodes()), max_nodes)
+            simple = simple.subgraph(keep).copy()
+
+        degree_sequence = [d for _, d in simple.degree()]
+
+        null_persistences: list[float] = []
+        for k in range(n_samples):
+            rng = random.Random(seed + k)
+            # configuration_model preserves the degree sequence exactly;
+            # we then simplify (drop the parallel edges / self-loops it
+            # introduces) and analyse its largest component — the same kind
+            # of object the observed value was measured on.
+            mg = nx.configuration_model(
+                degree_sequence, seed=rng.randint(0, 2**31 - 1)
+            )
+            null_simple = nx.Graph()
+            null_simple.add_nodes_from(mg.nodes())
+            for u, v in mg.edges():
+                if u != v:
+                    null_simple.add_edge(u, v)
+            if null_simple.number_of_edges() == 0:
+                null_persistences.append(0.0)
+                continue
+            ncomps = sorted(
+                nx.connected_components(null_simple), key=len, reverse=True
+            )
+            null_lcc = null_simple.subgraph(ncomps[0]).copy()
+            if null_lcc.number_of_nodes() < 3:
+                null_persistences.append(0.0)
+                continue
+            _, _, _, _, null_pers = self._h1_persistence_stats(null_lcc)
+            null_persistences.append(null_pers)
+
+        n_ge = sum(
+            1 for p in null_persistences if p >= observed_persistence - 1e-9
+        )
+        p_value = (1 + n_ge) / (n_samples + 1)
+        null_mean = (
+            sum(null_persistences) / len(null_persistences)
+            if null_persistences
+            else 0.0
+        )
+        srt = sorted(null_persistences)
+        p95 = (
+            srt[min(len(srt) - 1, int(math.ceil(0.95 * len(srt)) - 1))]
+            if srt
+            else 0.0
+        )
+        return BettiNullReport(
+            n_samples=n_samples,
+            observed_persistence=observed_persistence,
+            null_mean_persistence=null_mean,
+            null_p95_persistence=p95,
+            p_value=p_value,
         )
 
     # --- Convenience ---------------------------------------------------

@@ -83,6 +83,17 @@ class GapDetectionReport:
     h1_skipped: bool = False
     h1_skip_reason: str = ""
 
+    # Null-model significance for the H1 reading (configuration-model /
+    # degree-preserving). Populated only when score_gap_detection is called
+    # with null_samples > 0; until then a Betti-1 reading is "observed but
+    # not validated" — a loop is not evidence of a real gap until it beats
+    # a degree-matched null. h1_significant is None when the null was not run.
+    h1_null_samples: int = 0
+    h1_null_p_value: Optional[float] = None
+    h1_null_mean_persistence: Optional[float] = None
+    h1_null_p95_persistence: Optional[float] = None
+    h1_significant: Optional[bool] = None
+
     # Candidate gaps across components (top-K by score, post-filter)
     candidate_gaps: list[CandidateGap] = field(default_factory=list)
     # Pre-filter total, so a maintainer can tell "we filtered 21k → 20"
@@ -232,6 +243,8 @@ def score_gap_detection(
     seeded_missing_edges: Optional[list[tuple[str, str]]] = None,
     run_homology: bool = True,
     betti_max_nodes: int = 2000,
+    null_samples: int = 0,
+    null_alpha: float = 0.05,
     min_component_size: int = 3,
     max_type_prevalence: float = 0.5,
     top_k: int = 20,
@@ -247,6 +260,16 @@ def score_gap_detection(
         betti_max_nodes: forwarded to ``TopologyAnalyzer.betti_numbers``
             — components larger than this are skipped to avoid Ripser
             blowing up on dense graphs.
+        null_samples: if > 0, validate the H1 reading against this many
+            degree-preserving (configuration-model) null graphs and report a
+            significance p-value. Default 0 (off) — significance is opt-in
+            because each sample is another Ripser pass, and the standing
+            nightly run is timeout-sensitive. A Betti-1 reading without the
+            null is labelled "not validated": a loop is not evidence of a
+            real gap until it beats a degree-matched null. 99 is a good
+            value (p-granularity 0.01) for a few-hundred-node graph.
+        null_alpha: significance threshold for ``h1_significant``. Default
+            0.05.
         min_component_size: candidate gaps only consider component
             pairs where both sides have at least this many nodes.
             Filters out orphan-pair noise. Default 3.
@@ -274,6 +297,11 @@ def score_gap_detection(
     h1_max_persistence = 0.0
     h1_skipped = False
     h1_skip_reason = ""
+    h1_null_samples = 0
+    h1_null_p_value: Optional[float] = None
+    h1_null_mean_persistence: Optional[float] = None
+    h1_null_p95_persistence: Optional[float] = None
+    h1_significant: Optional[bool] = None
 
     if run_homology and largest:
         try:
@@ -285,6 +313,21 @@ def score_gap_detection(
             h1_max_persistence = betti.max_h1_persistence
             h1_skipped = betti.skipped
             h1_skip_reason = betti.skip_reason
+
+            # Significance: is the observed H1 more persistent than a
+            # degree-matched null would produce? Opt-in (extra Ripser passes).
+            if not h1_skipped and null_samples > 0:
+                null = analyzer.betti_null(
+                    observed_persistence=h1_max_persistence,
+                    n_samples=null_samples,
+                    max_nodes=betti_max_nodes,
+                )
+                if not null.skipped:
+                    h1_null_samples = null.n_samples
+                    h1_null_p_value = null.p_value
+                    h1_null_mean_persistence = null.null_mean_persistence
+                    h1_null_p95_persistence = null.null_p95_persistence
+                    h1_significant = null.significant(null_alpha)
         except ImportError:
             h1_skipped = True
             h1_skip_reason = (
@@ -342,6 +385,11 @@ def score_gap_detection(
         h1_max_persistence=h1_max_persistence,
         h1_skipped=h1_skipped,
         h1_skip_reason=h1_skip_reason,
+        h1_null_samples=h1_null_samples,
+        h1_null_p_value=h1_null_p_value,
+        h1_null_mean_persistence=h1_null_mean_persistence,
+        h1_null_p95_persistence=h1_null_p95_persistence,
+        h1_significant=h1_significant,
         candidate_gaps=candidates,
         candidate_gaps_considered=considered,
         gap_recall=gap_recall,
@@ -419,6 +467,19 @@ def format_report(report: GapDetectionReport) -> str:
     )
     if report.h1_skipped:
         lines.append(f"    (homology skipped: {report.h1_skip_reason})")
+    elif report.h1_null_samples:
+        verdict = "significant" if report.h1_significant else "not significant"
+        lines.append(
+            f"  H1 null model:         {report.h1_null_samples} samples, "
+            f"p={report.h1_null_p_value:.3f} ({verdict}); "
+            f"null mean {report.h1_null_mean_persistence:.2f}, "
+            f"p95 {report.h1_null_p95_persistence:.2f}"
+        )
+    elif report.betti_1_largest > 0:
+        lines.append(
+            "  H1 null model:         not run — Betti-1 is observed but not "
+            "validated (pass null_samples>0 to test significance)"
+        )
 
     lines.append("")
     lines.append(
@@ -553,11 +614,26 @@ def format_report(report: GapDetectionReport) -> str:
             f"persistent H1 feature(s) on the largest component "
             f"(max persistence {report.h1_max_persistence:.2f} hops)."
         )
-        lines.append(
-            "      Loops in the knowledge core that don't fill in under "
-            "the Vietoris-Rips filtration. Long-persistence H1 bars usually "
-            "mark real gaps where an enriching edge would close the loop."
-        )
+        if report.h1_significant:
+            lines.append(
+                "      Loops MORE persistent than a degree-matched null "
+                f"(p={report.h1_null_p_value:.3f}): a real structural gap "
+                "where an enriching edge would close the loop."
+            )
+        elif report.h1_null_samples:
+            lines.append(
+                "      A random graph with this degree sequence produces "
+                f"loops this persistent by chance (p={report.h1_null_p_value:.3f}). "
+                "Not evidence of a missing edge on its own — expected for a "
+                "graph of this size and degree distribution."
+            )
+        else:
+            lines.append(
+                "      Loops in the knowledge core that don't fill in under "
+                "the Vietoris-Rips filtration. NOT yet validated: run with "
+                "null_samples>0 to check whether this beats a degree-matched "
+                "null before treating it as a real gap."
+            )
     elif report.h1_skipped:
         lines.append(
             "  ● Topological holes (H1 cycles): not measured "

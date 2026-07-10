@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import pytest
 
+from sme.adapters.base import Edge, Entity
 from sme.categories.gap_detection import score_gap_detection
 
 ripser = pytest.importorskip  # alias for readability below
@@ -140,6 +141,66 @@ def test_homology_gracefully_skipped_when_disabled(gap_graph):
     assert report.betti_1_largest == 0
     assert report.h1_max_persistence == 0.0
     assert report.h1_skipped is False  # we opted out, not "skipped by policy"
+
+
+# --- H1 null model / significance (requires ripser) -------------------
+
+
+def test_null_model_off_by_default(gap_graph):
+    """A Betti-1 reading ships 'observed but not validated' until the
+    caller opts into the null model. No p-value, no significance verdict."""
+    ripser("ripser", reason="Ripser not installed")
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges)  # null_samples defaults to 0
+    assert report.betti_1_largest == 1
+    assert report.h1_null_samples == 0
+    assert report.h1_null_p_value is None
+    assert report.h1_significant is None
+
+
+def test_null_model_runs_and_is_deterministic(gap_graph):
+    """With null_samples>0 the scorer reports a Monte-Carlo p-value, and a
+    fixed seed makes it reproducible (a benchmark number must re-run equal)."""
+    ripser("ripser", reason="Ripser not installed")
+    entities, edges, _ = gap_graph
+
+    r1 = score_gap_detection(entities, edges, null_samples=25)
+    r2 = score_gap_detection(entities, edges, null_samples=25)
+
+    assert r1.h1_null_samples == 25
+    assert r1.h1_null_p_value is not None
+    assert 0.0 < r1.h1_null_p_value <= 1.0
+    assert r1.h1_significant is not None
+    # Deterministic under the fixed default seed.
+    assert r1.h1_null_p_value == r2.h1_null_p_value
+
+
+def test_lone_cycle_in_near_regular_graph_is_not_significant(gap_graph):
+    """The fixture's largest component is a near-2-regular 6-node graph; a
+    graph with that degree sequence is almost obliged to contain a cycle,
+    so the 5-cycle should NOT beat a degree-matched null. This is the whole
+    point of the null model — it stops a structurally-inevitable loop from
+    being reported as a 'real gap'."""
+    ripser("ripser", reason="Ripser not installed")
+    entities, edges, _ = gap_graph
+    report = score_gap_detection(entities, edges, null_samples=99)
+    assert report.betti_1_largest == 1
+    # Not distinguishable from chance for a graph of this size/degree.
+    assert report.h1_significant is False
+
+
+def test_tree_has_zero_persistence_and_is_not_significant():
+    """A path (tree) has no H1 loop: observed persistence 0, so the
+    Monte-Carlo tail p-value is exactly 1.0 and the reading is not
+    significant. Guards the 'no loop → no false gap' end of the scale."""
+    ripser("ripser", reason="Ripser not installed")
+    entities = [Entity(id=c, name=c, entity_type="topic") for c in "ABCD"]
+    edges = [Edge("A", "B", "RELATED"), Edge("B", "C", "RELATED"), Edge("C", "D", "RELATED")]
+    report = score_gap_detection(entities, edges, null_samples=25)
+    assert report.betti_1_largest == 0
+    assert report.h1_max_persistence == 0.0
+    assert report.h1_null_p_value == pytest.approx(1.0)
+    assert report.h1_significant is False
 
 
 # --- Empty-graph guardrail -------------------------------------------
