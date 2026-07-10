@@ -88,6 +88,18 @@ def _karpathy_compiled_loader() -> type[SMEAdapter]:
     return KarpathyCompiledAdapter
 
 
+def _corpus_loader() -> type[SMEAdapter]:
+    from sme.adapters.corpus import CorpusAdapter
+
+    return CorpusAdapter
+
+
+def _duckdb_interests_loader() -> type[SMEAdapter]:
+    from sme.adapters.duckdb_interests import DuckDBInterestsAdapter
+
+    return DuckDBInterestsAdapter
+
+
 _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
     _AdapterSpec(
         aliases=("ladybugdb", "ladybug"),
@@ -141,6 +153,20 @@ _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
         loader=_karpathy_compiled_loader,
         accepts=frozenset({"compiled_dir", "include_wiki"}),
         rename={"db_path": "compiled_dir"},
+    ),
+    _AdapterSpec(
+        # Backend-free adapter: reads a markdown vault's answer-key
+        # frontmatter directly. `--db <vault>` -> corpus_dir. Enables the
+        # turnkey demo: `sme-eval cat5 --adapter corpus --db <corpus>/vault`.
+        aliases=("corpus", "good-dog", "vault-corpus"),
+        loader=_corpus_loader,
+        accepts=frozenset({"corpus_dir", "read_only"}),
+        rename={"db_path": "corpus_dir"},
+    ),
+    _AdapterSpec(
+        aliases=("duckdb-interests", "duckdb_interests"),
+        loader=_duckdb_interests_loader,
+        accepts=frozenset({"db_path", "read_only", "default_query_mode"}),
     ),
 )
 
@@ -963,6 +989,7 @@ def cmd_cat5(args: argparse.Namespace) -> int:
         seeded_missing_edges=seeded,
         run_homology=not args.no_homology,
         betti_max_nodes=args.betti_max_nodes,
+        null_samples=args.null_samples,
         min_component_size=args.min_component_size,
         max_type_prevalence=args.max_type_prevalence,
         top_k=args.top_k,
@@ -1898,6 +1925,16 @@ def main(argv: list[str] | None = None) -> int:
         default=2000,
         help="skip homology when the largest component exceeds this size. "
         "Default: 2000.",
+    )
+    c5.add_argument(
+        "--null-samples",
+        type=int,
+        default=0,
+        help="validate each Betti-1 reading against this many "
+        "degree-preserving (configuration-model) null graphs and report a "
+        "significance p-value. 0 = off (default): a loop is reported as "
+        "'observed but not validated'. 99 is a good value for a "
+        "few-hundred-node graph. Each sample is another Ripser pass.",
     )
     c5.add_argument(
         "--min-component-size",
