@@ -127,6 +127,16 @@ def validate_note(
         note_entity_ids.add(eid)
 
     for edge in fm.get("edges", []):
+        # Guard against a malformed entry (e.g. the `edges: [[ {...} ]]`
+        # double-nesting slip): report it as a failure instead of crashing
+        # with AttributeError on `.get`.
+        if not isinstance(edge, dict):
+            report.fail(
+                f"{rel}: malformed edge entry {edge!r} — expected a mapping "
+                f"with from/type/to (check for a stray '- ' double-nesting "
+                f"the edges list)"
+            )
+            continue
         etype = edge.get("type")
         src = edge.get("from")
         dst = edge.get("to")

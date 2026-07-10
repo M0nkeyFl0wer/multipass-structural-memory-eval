@@ -47,10 +47,10 @@ edges:
     type: subject_of
     to: concept_brucellosis_canis
     evidence: "Full article addresses B. canis prevalence, transmission, regulations, and public health risk"
-  - - from: pub_cdc_brucellosis_canis_2018
-      type: mentions
-      to: concept_brucellosis_testing
-      evidence: "Article reviews diagnostic methods including culture (gold standard), serology (RSAT, AGID), and PCR; notes that B. canis is the primary serovar in US dogs and culture requires up to 9 days"
+  - from: pub_cdc_brucellosis_canis_2018
+    type: mentions
+    to: concept_brucellosis_testing
+    evidence: "Article reviews diagnostic methods including culture (gold standard), serology (RSAT, AGID), and PCR; notes that B. canis is the primary serovar in US dogs and culture requires up to 9 days"
   - from: pub_cdc_brucellosis_canis_2018
     type: mentions
     to: concept_brucellosis_treatment
