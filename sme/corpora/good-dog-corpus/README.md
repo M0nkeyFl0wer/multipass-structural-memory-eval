@@ -4,6 +4,34 @@ A real-world evaluation corpus for structural memory systems, built ontology-fir
 
 ---
 
+## Run it (no database needed)
+
+The frontmatter in every note *is* the answer-key graph. SME's `corpus`
+adapter reads it directly, so you can run the structural categories against
+this corpus with no graph DB to stand up:
+
+```bash
+pip install -e ".[topology]"            # from the repo root
+V=sme/corpora/good-dog-corpus/vault
+
+sme-eval cat5 --adapter corpus --db $V --null-samples 99   # gap detection + null-model significance
+sme-eval cat4 --adapter corpus --db $V                     # ingestion integrity
+sme-eval cat8 --adapter corpus --db $V --implied-ontology sme/corpora/good-dog-corpus/ontology.yaml
+```
+
+Check the corpus itself is internally consistent (alias chains, edge
+evidence rules, registered types):
+
+```bash
+python sme/corpora/good-dog-corpus/validate.py
+```
+
+These run against the *authored* graph — the hand-curated ground truth. A
+real ingestion pipeline's output is then measured against these same
+readings.
+
+---
+
 ## What this is for
 
 Every memory system — vector store, knowledge graph, hybrid retriever, structural palace — encodes assumptions about what kind of questions it expects to answer. Those assumptions are usually invisible until a corpus stress-tests them. **good-dog-corpus is a deliberately-shaped corpus designed to surface those assumptions** when run through the [SME (multipass-structural-memory-eval)](https://github.com/M0nkeyFl0wer/multipass-structural-memory-eval) framework.

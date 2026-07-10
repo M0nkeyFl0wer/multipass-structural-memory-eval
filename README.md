@@ -127,6 +127,29 @@ the documentation and code.
 [onboarding guide](docs/ideas.md#quickstart-your-first-diagnostic-run).
 Need the spec? Start at [docs/sme_spec_v8.md](docs/sme_spec_v8.md).
 
+### Try it on the demo corpus (no database needed)
+
+The `corpus` adapter reads a corpus vault's answer-key frontmatter directly,
+so you can run the structural categories against the shipped
+[good-dog-corpus](sme/corpora/good-dog-corpus/) with no graph DB to set up:
+
+```bash
+pip install -e ".[topology]"
+V=sme/corpora/good-dog-corpus/vault
+
+sme-eval cat5 --adapter corpus --db $V                     # gap detection (topology)
+sme-eval cat5 --adapter corpus --db $V --null-samples 99   # + significance vs a degree-matched null
+sme-eval cat4 --adapter corpus --db $V                     # ingestion integrity (collisions, field coverage)
+sme-eval cat8 --adapter corpus --db $V \
+    --implied-ontology sme/corpora/good-dog-corpus/ontology.yaml   # ontology coherence
+```
+
+This reads the *authored* graph (the ground-truth answer key that ships with
+the corpus) — the reference point a real ingestion pipeline is later measured
+against. To run the same categories on **your own** graph, point `--adapter`
+at a live store (`ladybugdb`, `mempalace`, `flat`) instead — see the
+[onboarding guide](docs/ideas.md).
+
 ## Next steps
 
 - **[`docs/ideas.md`](docs/ideas.md) — onboarding guide.** Start here

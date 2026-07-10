@@ -89,6 +89,9 @@ sme/corpora/canadian_politics_v01/
 HANDOFF.md
 .archive/
 docs/related_work/wip/
+#  - docs/drafts/: sibling-project contract drafts (PUBLIC_API / INTEROP),
+#    not yet reviewed/ratified — private raw material.
+docs/drafts/
 #  - docs/gists/: founder-bound explainer drafts, not yet public-ready.
 #    Kept local until edited & explicitly published by the maintainer.
 docs/gists/
