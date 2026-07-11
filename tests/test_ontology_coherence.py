@@ -26,6 +26,7 @@ from sme.categories.ontology_coherence import (
     ImpliedOntology,
     _score_claim,
     _score_hall_usage,
+    _tally_claims,
     is_untestable,
     load_claim_library,
     match_claim_pattern,
@@ -755,3 +756,78 @@ def test_to_dict_claim_detail_round_trip(empty_claim_library):
     assert detail["id"] == "x"
     assert detail["status"] == "pass"
     assert detail["metrics"]["m"] == 1.0
+
+
+# ── 8e claim accounting: skipped is first-class, partition is complete (A2) ──
+#
+# Regression guard for the pre-A2 "lie by omission": a `skipped` claim (a
+# testable claim whose evidence source wasn't supplied, e.g. a retrieval claim
+# run without --cat7-results) used to be counted in no bucket and vanish from
+# every reported number. These tests pin the four-way partition and its
+# reporting.
+
+
+def _c(status: str, cid: str = "c") -> ClaimResult:
+    return ClaimResult(
+        claim_id=cid, claim_text="t", status=status, operational_definition=""
+    )
+
+
+def test_tally_partitions_every_status_bucket():
+    claims = [
+        _c("pass", "p"),
+        _c("fail", "f"),
+        _c("untestable", "u"),
+        _c("skipped", "s"),
+    ]
+    t = _tally_claims(claims)
+    assert t["tested"] == 2          # pass + fail
+    assert t["passed"] == 1
+    assert t["untestable"] == 1
+    assert t["skipped"] == 1
+    assert t["unaccounted"] == 0
+    # buckets partition the whole set
+    assert t["tested"] + t["untestable"] + t["skipped"] + t["unaccounted"] == len(claims)
+
+
+def test_tally_pass_rate_excludes_skipped_and_untestable():
+    # 1 pass, 1 fail, plus 2 non-evaluated claims that must NOT dilute the rate
+    claims = [_c("pass"), _c("fail"), _c("untestable"), _c("skipped")]
+    t = _tally_claims(claims)
+    # denominator is the 2 tested claims only -> 1/2, not 1/4
+    assert t["pass_rate"] == pytest.approx(0.5)
+
+
+def test_tally_surfaces_unknown_status_instead_of_dropping_it():
+    # The partition guard: a status value we don't bucket must appear in
+    # `unaccounted`, never silently disappear (that was the pre-A2 bug).
+    claims = [_c("pass"), _c("weird_new_state")]
+    t = _tally_claims(claims)
+    assert t["unaccounted"] == 1
+    assert t["tested"] + t["untestable"] + t["skipped"] + t["unaccounted"] == len(claims)
+
+
+def test_skipped_claim_is_counted_and_reported_end_to_end():
+    # A retrieval claim with no Cat 7 data comes back `skipped`; it must be
+    # counted and surfaced in the serialized summary, not dropped.
+    ont = ImpliedOntology(
+        version="t",
+        source="declared",
+        retrieval_claims=[{"id": "r1", "text": "Structure improves retrieval"}],
+    )
+    report = score_cat8(ont, [], [], {})  # cat7_results=None -> skipped
+    assert any(c.status == "skipped" for c in report.claims)
+    assert report.claims_skipped >= 1
+    # partition holds on the real scorer's output
+    assert (
+        report.claims_tested
+        + report.claims_untestable
+        + report.claims_skipped
+        + report.claims_unaccounted
+        == len(report.claims)
+    )
+    assert report.claims_unaccounted == 0
+    # and the skipped count is visible in the serialized 8e block
+    block = report.to_dict()["8e_claims"]
+    assert block["skipped"] == report.claims_skipped
+    assert block["unaccounted"] == 0

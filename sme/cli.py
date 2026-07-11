@@ -612,7 +612,16 @@ def cmd_cat8(args: argparse.Namespace) -> int:
     print(f"   tested:      {report.claims_tested}")
     print(f"   passed:      {report.claims_passed}")
     print(f"   untestable:  {report.claims_untestable}")
-    print(f"   pass rate:   {report.claims_pass_rate:.1%}")
+    # skipped = testable claim whose evidence source wasn't supplied (e.g. a
+    # retrieval claim run without --cat7-results). Reported separately so it
+    # can't hide: pass rate is over testable claims only, and a run with
+    # skipped claims says so instead of quietly shrinking the claim set.
+    print(f"   skipped:     {report.claims_skipped}")
+    if report.claims_unaccounted:
+        # Should always be 0; a non-zero value is a partition bug (a status
+        # value we don't bucket), surfaced loudly rather than dropped.
+        print(f"   UNACCOUNTED: {report.claims_unaccounted}  (partition bug — a claim status is not being counted)")
+    print(f"   pass rate:   {report.claims_pass_rate:.1%}  (of {report.claims_tested} testable)")
     print()
     for c in report.claims:
         marker = {

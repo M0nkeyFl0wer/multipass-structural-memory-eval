@@ -142,6 +142,17 @@ class Cat8Report:
     claims_tested: int = 0
     claims_passed: int = 0
     claims_untestable: int = 0
+    # A claim can also come back "skipped" (a testable claim whose evidence
+    # source wasn't supplied — e.g. a retrieval claim with no --cat7-results).
+    # It is NOT untestable (the test exists; the input didn't), so it must be
+    # its own reported count, not folded into untestable or dropped. Before
+    # this field, skipped claims were counted in no bucket and vanished from
+    # the summary entirely — the pre-A2 "lie by omission".
+    claims_skipped: int = 0
+    # Partition guard: every claim must land in exactly one of
+    # tested / untestable / skipped. If a future status value is added and not
+    # bucketed below, it surfaces here instead of silently disappearing.
+    claims_unaccounted: int = 0
 
     # Introspection (usually 0 — most systems don't self-report)
     introspection_available: list[str] = field(default_factory=list)
@@ -184,6 +195,8 @@ class Cat8Report:
                 "tested": self.claims_tested,
                 "passed": self.claims_passed,
                 "untestable": self.claims_untestable,
+                "skipped": self.claims_skipped,
+                "unaccounted": self.claims_unaccounted,
                 "detail": [
                     {
                         "id": c.claim_id,
@@ -354,6 +367,43 @@ def _compute_modularity(
         return modularity(G, communities)
     except Exception:
         return 0.0
+
+
+# ── 8e claim accounting ────────────────────────────────────────────
+
+
+def _tally_claims(claims: list[ClaimResult]) -> dict[str, Any]:
+    """Partition claims by status into the reported 8e buckets.
+
+    Every claim lands in exactly one bucket:
+      - tested     = pass | fail  (the pass rate is computed over these ONLY)
+      - untestable = the test does not apply (e.g. a UX/scalability claim)
+      - skipped    = the test applies but its evidence source wasn't supplied
+                     (e.g. a retrieval claim run without --cat7-results)
+
+    `unaccounted` counts any claim whose status is none of the above. It is
+    always 0 today; if a new status value is introduced and not added here it
+    surfaces loudly instead of vanishing from the summary. That silent-drop is
+    exactly the pre-A2 bug: `skipped` claims were counted in no bucket and
+    disappeared from every reported number.
+
+    Pass rate deliberately excludes untestable AND skipped from the
+    denominator, so a claim that was never actually evaluated can neither
+    inflate nor deflate the rate.
+    """
+    tested = [c for c in claims if c.status in ("pass", "fail")]
+    passed = [c for c in tested if c.status == "pass"]
+    untestable = [c for c in claims if c.status == "untestable"]
+    skipped = [c for c in claims if c.status == "skipped"]
+    n_tested = len(tested)
+    return {
+        "tested": n_tested,
+        "passed": len(passed),
+        "untestable": len(untestable),
+        "skipped": len(skipped),
+        "unaccounted": len(claims) - n_tested - len(untestable) - len(skipped),
+        "pass_rate": len(passed) / n_tested if n_tested else 0.0,
+    }
 
 
 # ── Main scoring function ──────────────────────────────────────────
@@ -569,16 +619,13 @@ def score_cat8(
             )
         report.claims.append(res)
 
-    tested = [c for c in report.claims if c.status in ("pass", "fail")]
-    passed = [c for c in tested if c.status == "pass"]
-    untestable = [c for c in report.claims if c.status == "untestable"]
-
-    report.claims_tested = len(tested)
-    report.claims_passed = len(passed)
-    report.claims_untestable = len(untestable)
-    report.claims_pass_rate = (
-        len(passed) / len(tested) if tested else 0.0
-    )
+    tally = _tally_claims(report.claims)
+    report.claims_tested = tally["tested"]
+    report.claims_passed = tally["passed"]
+    report.claims_untestable = tally["untestable"]
+    report.claims_skipped = tally["skipped"]
+    report.claims_unaccounted = tally["unaccounted"]
+    report.claims_pass_rate = tally["pass_rate"]
 
     # --- 8f: external-standard fit + auto-generated audit ------
 
