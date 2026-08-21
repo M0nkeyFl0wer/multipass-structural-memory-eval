@@ -1,0 +1,110 @@
+# standard_v0_1 — reference questions
+#
+# Minimal example questions for the v0.1 starter corpus. Use this file
+# as a template when authoring your own questions.yaml against the
+# `standard_v0_1/vault/` content described in AUTHORING.md.
+#
+# Schema (matches `sme-eval retrieve` consumer):
+#   - id:                stable identifier for per-question reporting
+#   - text:              the prompt sent to the adapter's query()
+#   - expected_sources:  substrings that should appear in the adapter's
+#                        QueryResult.context_string when retrieval works
+#   - min_hops:          ground-truth hop depth in the corpus graph
+#                        (0 = direct, 1+ = multi-hop reasoning required)
+#
+# These nine questions are pulled from the chains documented in
+# `AUTHORING.md` (auth_engineering, infrastructure, temporal,
+# alias-pair, contradiction). Once you've hand-authored the vault
+# notes called out in AUTHORING.md, every `expected_sources` substring
+# below should be present in the corresponding markdown file.
+#
+# `sme-eval retrieve --questions sme/corpora/standard_v0_1/questions.yaml \`
+# `    --adapter <your-adapter> --json out.json`
+
+version: standard-v0.1
+description: |
+  Reference questions for the v0.1 starter corpus. Multi-hop chain A
+  (Kai → OAuth → Driftwood), the infrastructure temporal evolution
+  (PostgreSQL → SQLite → PostgreSQL), one auth contradiction pair
+  (Clerk vs Auth0), and one alias pair (ZK proof / zero-knowledge).
+  Expand to the full 50-question set described in AUTHORING.md as
+  you author the corpus.
+
+questions:
+  # --- Cat 1: direct factual retrieval (1 hop) ---
+
+  - id: q01_kai_oauth_debug
+    text: "What did Kai debug?"
+    expected_sources:
+      - Kai
+      - OAuth token refresh
+    min_hops: 1
+
+  - id: q02_oauth_spec_topic
+    text: "What is the OAuth token refresh spec about?"
+    expected_sources:
+      - OAuth
+      - token refresh
+    min_hops: 1
+
+  # --- Cat 2c: multi-hop chain A (team → Kai → OAuth → Driftwood) ---
+
+  - id: q03_driftwood_debugger
+    text: "Who debugged the system that blocked the Driftwood migration?"
+    expected_sources:
+      - Kai
+      - Driftwood
+      - OAuth
+    min_hops: 2
+
+  - id: q04_team_member_project
+    text: "What project was affected by the issue debugged by someone on the infrastructure team?"
+    expected_sources:
+      - Driftwood
+      - Kai
+      - infrastructure
+    min_hops: 3
+
+  # --- Cat 3: contradiction detection (auth system) ---
+
+  - id: q05_auth_decision
+    text: "What auth system did the team decide to use?"
+    expected_sources:
+      - Clerk
+      - Auth0
+    min_hops: 1
+
+  # --- Cat 6: temporal evolution (PostgreSQL → SQLite → PostgreSQL) ---
+
+  - id: q06_current_database
+    text: "What database are we using now?"
+    expected_sources:
+      - PostgreSQL
+      - back-to-postgresql
+    min_hops: 1
+
+  - id: q07_database_history
+    text: "What database were we using in session 25?"
+    expected_sources:
+      - SQLite
+      - sqlite-migration
+    min_hops: 1
+
+  # --- Cat 2b: canonicalization (alias pair: ZK proof / zero-knowledge) ---
+
+  - id: q08_privacy_technology
+    text: "What privacy technology is used in identity verification?"
+    expected_sources:
+      - zero-knowledge
+      - ZK proof
+    min_hops: 1
+
+  # --- Cat 5: gap detection (cross-domain token-based identity) ---
+
+  - id: q09_token_identity_cross_domain
+    text: "What topics span auth_engineering and privacy_research?"
+    expected_sources:
+      - token-based identity
+      - privacy
+      - auth
+    min_hops: 2

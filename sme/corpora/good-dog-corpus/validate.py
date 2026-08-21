@@ -127,14 +127,13 @@ def validate_note(
         note_entity_ids.add(eid)
 
     for edge in fm.get("edges", []):
-        # Guard against a malformed entry (e.g. the `edges: [[ {...} ]]`
-        # double-nesting slip): report it as a failure instead of crashing
-        # with AttributeError on `.get`.
         if not isinstance(edge, dict):
+            # Defensive: a doubled-dash YAML slip ("  - - from:") nests an
+            # edge inside a one-element list. Report clearly instead of
+            # crashing with AttributeError, and keep validating the rest.
             report.fail(
-                f"{rel}: malformed edge entry {edge!r} — expected a mapping "
-                f"with from/type/to (check for a stray '- ' double-nesting "
-                f"the edges list)"
+                f"{rel}: malformed edge (not a mapping) {edge!r} — likely a "
+                f"doubled '- -' in the YAML edges list"
             )
             continue
         etype = edge.get("type")

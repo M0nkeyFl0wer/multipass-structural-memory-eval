@@ -39,10 +39,6 @@ entities:
     type: concept
     canonical: "Open registry"
     notes: "A breed registry system that allows dogs to be registered without documented pedigree ancestry, based on conformation or performance evaluation. Associated with health-improvement goals through genetic diversity. Pioneer: Swedish open registry (1970s), credited with reducing hip dysplasia incidence by 50% over 13 years in Swedish breeding stock."
-  - id: breed_group_fci_system
-    type: concept
-    canonical: "FCI breed group taxonomy"
-    notes: "FCI divides its 356 recognized breeds into 10 groups. Differs from AKC (7 groups) and KC (7 groups). FCI groups: (1) Sheepdogs and Cattledogs, (2) Pinscher and Schnauzer and Molossoid, (3) Terriers, (4) Dachshunds, (5) Spitz and Primitive Types, (6) Scent Hounds and Related Breeds, (7) Pointing Dogs, (8) Retrievers and Flushing Dogs and Water Dogs, (9) Companion and Toy Dogs, (10) Sighthounds."
   - id: breed_group_akc_system
     type: concept
     canonical: "AKC breed group taxonomy"

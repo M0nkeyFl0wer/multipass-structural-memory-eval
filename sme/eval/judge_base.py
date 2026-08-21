@@ -122,10 +122,18 @@ class RubricJudge:
         provider: str = "openai",
         model: Optional[str] = None,
         client: Optional[Any] = None,
+        temperature: float = 0.0,
     ):
         self.provider = provider
         self.model = model or PROVIDER_DEFAULT_MODEL.get(provider)
         self.client = client
+        # Sampling temperature. 0.0 (default) reproduces the LongMemEval
+        # paper's deterministic single-call setting. A value > 0 is used
+        # by the K-replicate variance path (grade_answer_replicated) to
+        # draw independent judge samples — and disables caching (see
+        # judge()), since cached dedup would collapse the variance the
+        # replicate run is trying to measure.
+        self.temperature = temperature
 
     def _resolve_client(self) -> Optional[Any]:
         if self.client is not None:
@@ -186,7 +194,7 @@ class RubricJudge:
                 messages=[
                     {"role": "user", "content": combined},
                 ],
-                temperature=0.0,
+                temperature=self.temperature,
             )
             choice = resp.choices[0]
             content = getattr(choice.message, "content", "") or ""
@@ -228,6 +236,7 @@ class RubricJudge:
             resp = self.client.messages.create(
                 model=self.model,
                 max_tokens=max_tokens,
+                temperature=self.temperature,
                 system=[
                     {
                         "type": "text",
@@ -301,8 +310,14 @@ class RubricJudge:
                 ),
             }
 
+        # Sampling (temperature > 0) must never hit the cache: the cache
+        # key omits temperature, and dedup would collapse the very
+        # variance a K-replicate run is measuring. Force-disable here so
+        # callers can't accidentally cache stochastic samples.
+        effective_cache = use_cache and self.temperature == 0.0
+
         # -- Cache read -------------------------------------------------
-        if use_cache:
+        if effective_cache:
             try:
                 from sme.eval.judge_cache import get_cached
 
@@ -344,7 +359,7 @@ class RubricJudge:
             }
 
         # -- Cache write ------------------------------------------------
-        if use_cache:
+        if effective_cache:
             try:
                 from sme.eval.judge_cache import set_cache
 

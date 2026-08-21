@@ -102,7 +102,7 @@ edges:
     to: loc_united_kingdom
     evidence: "DEFRA is a department of the United Kingdom government."
 
-tags: [municipal_policy, united_kingdom, dda_1991, bsl, xl_bully, pit_bull, cat_6_temporal_chain, cross_jurisdiction_anchor, national_level]
+tags: [municipal_policy, united_kingdom, dda_1991, bsl, xl_bully, pit_bull, cat_6_temporal_chain, cat_3_contradiction, cross_jurisdiction_anchor, national_level]
 ---
 
 # UK Dangerous Dogs Act 1991, Section 1 — banned types and the XL Bully amendment
@@ -131,7 +131,7 @@ The XL Bully is designated as a **"type"** under s.1(1)(c) — defined by confor
 This note serves two SME categories:
 
 - **Cat 6 (temporal supersession / The Archive):** The banned-type list is a multi-event temporal chain on a single statute — 1991 primary text → 1991 subordinate designations → 2023 E&W XL Bully designation → 2024 ownership offence → 2024 Scotland extension. The `supersedes` edge from the 2023 Designation Order to the 1991 Act, plus the `subject_of` edge to the dated designation event, make the "what was added, and when" question a graph traversal rather than a single-note lookup. A flat retriever that reads only the 1991 text would miss that the XL Bully is now in scope.
-- **Cat 3 (contradiction surfacing / The Dissonance):** The UK's national type-ban posture stands in direct tension with the behaviour-based, anti-BSL postures elsewhere in the corpus — the repealed Montreal bylaw (`vault/municipal_policy/montreal-bsl-2018-repeal.md`), the Calgary responsible-pet-ownership model (`vault/municipal_policy/calgary-rpob-47m2021.md`), and the Aurora repeal (`vault/community_journalism/2024-11-06-aurora-pit-bull-repeal-cpr.md`). Where several North American jurisdictions were *narrowing or repealing* breed-specific legislation, the UK was *expanding* it (the XL Bully addition). Both bind to the shared `concept_bsl` and `breed_american_pit_bull_terrier` entities, so the opposed-direction policy signal is queryable as a single cross-jurisdiction comparison.
+- **Cat 3 (contradiction surfacing / The Dissonance):** The UK's national type-ban posture stands in direct tension with the behaviour-based, anti-BSL postures elsewhere in the corpus — the repealed Montreal bylaw (`vault/municipal_policy/montreal-bsl-2018-repeal.md`) and the Calgary responsible-pet-ownership model (`vault/municipal_policy/calgary-rpob-47m2021.md`). Where several North American jurisdictions were *narrowing or repealing* breed-specific legislation, the UK was *expanding* it (the XL Bully addition). Both bind to the shared `concept_bsl` and `breed_american_pit_bull_terrier` entities, so the opposed-direction policy signal is queryable as a single cross-jurisdiction comparison.
 
 It is also a **cross-jurisdiction anchor at the national level**, complementing the province-level (Ontario DOLA) and municipal-level (Montreal, Calgary, Denver) instances already in the corpus.
 

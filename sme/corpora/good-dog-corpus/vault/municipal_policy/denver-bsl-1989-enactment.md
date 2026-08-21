@@ -4,7 +4,7 @@ source_url: https://www.animallaw.info/local/louscodenver8_55.htm
 source_title: "CO - Denver - Breed - Sec. 8-55. Pit bulls prohibited."
 source_date: "1989"
 source_publisher: "Animal Legal & Historical Center (archived)"
-license: fair_use_research
+license: fair_use_excerpt
 license_note: "Animal Legal & Historical Center is a public legal education resource; ordinance text excerpted for factual attestation of bylaw content and date."
 accessed_on: "2026-05-03"
 domain: municipal_policy

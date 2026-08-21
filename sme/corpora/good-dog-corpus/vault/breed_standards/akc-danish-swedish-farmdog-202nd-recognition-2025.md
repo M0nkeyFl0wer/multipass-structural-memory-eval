@@ -45,11 +45,11 @@ entities:
 # Edges introduced by this note (the GROUND TRUTH the graph is measured against).
 edges:
   - from: breed_danish_swedish_farmdog
-    type: member_of
+    type: grouped_under
     to: breed_group_working
     evidence: "The American Kennel Club's 202nd recognized breed and newest member of the Working Group is eligible to start competing in AKC events on January 1, 2025."
   - from: breed_lancashire_heeler
-    type: member_of
+    type: grouped_under
     to: breed_group_herding
     evidence: "Manifest-verified fact: the Lancashire Heeler (AKC's 201st breed, Stud Book January 1, 2024) was assigned to the Herding Group. (Cross-registry group taxonomy documented in fci-akc-kennel-club-comparative-structure.md.)"
   - from: event_dsf_recognition_2025

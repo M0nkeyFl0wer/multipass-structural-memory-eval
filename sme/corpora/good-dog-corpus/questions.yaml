@@ -984,3 +984,247 @@ questions:
     search.
 
     '
+- id: q37_akc_fss_ungrouped
+  text: Which breeds are recorded by the AKC but not assigned to any of the seven breed groups?
+  expected_sources:
+  - FSS® breeds are not eligible for AKC registration
+  - Foundation Stock Service
+  min_hops: 1
+  sme_category: cat_5
+- id: q38_akc_miscellaneous_status
+  text: What status sits between FSS enrollment and full AKC group recognition, and which breeds currently
+    occupy it?
+  expected_sources:
+  - FSS® enrollment is maintained until the AKC Board of Directors accepts the breed for regular status
+  - Miscellaneous
+  min_hops: 2
+  sme_category: cat_5
+- id: q39_dadis_coverage_gap
+  text: Which dog populations are recorded in DAD-IS as present in one country (local) but absent from
+    transboundary records?
+  expected_sources:
+  - More than 15 000 national breed populations
+  - DAD-IS
+  min_hops: 2
+  sme_category: cat_5
+- id: q40_vbo_sources_absent_registry
+  text: Which breed registries does the Vertebrate Breed Ontology ingest as dog-breed sources, and which
+    major standards body is absent from its dog-breed source list?
+  expected_sources:
+  - 265 AKC breeds, 32 CKC breeds, 111 UKC breeds, 38 FCI breeds
+  - Vertebrate Breed Ontology
+  min_hops: 2
+  sme_category: cat_5
+- id: q41_akc_seven_groups
+  text: Under the AKC taxonomy, which group does the Rottweiler belong to, and how many breed groups exist?
+  expected_sources:
+  - The Herding Group, created in 1983, is the newest AKC classification
+  - Working Group
+  min_hops: 2
+  sme_category: cat_8
+- id: q42_fci_vs_akc_cardinality
+  text: How many breed groups does the FCI recognize versus the AKC, and which body places the Dachshund
+    in its own group?
+  expected_sources:
+  - Group 4 - Dachshunds
+  - ten
+  min_hops: 2
+  sme_category: cat_8
+- id: q43_ukc_label_mapping
+  text: Which group name does the UK (Royal) Kennel Club use for the herding breeds that the AKC files
+    under "Herding"?
+  expected_sources:
+  - hounds, toys, pastoral, utility, terriers, working and gundogs
+  - Pastoral
+  min_hops: 2
+  sme_category: cat_8
+- id: q44_vbo_naming_convention
+  text: What naming convention does the Vertebrate Breed Ontology use for breed term labels, and how are
+    high-level grouping terms logically defined?
+  expected_sources:
+  - high-level grouping terms, such as 'dog breed', 'cattle breed'
+  - Vertebrate Breed Ontology
+  min_hops: 1
+  sme_category: cat_8
+- id: q45_aafco_life_stage_profiles
+  text: What two life-stage nutrient profiles does AAFCO define, and what minimum crude protein (dry-matter
+    basis) applies to adult cat maintenance?
+  expected_sources:
+  - Dog or Cat Food Nutrient Profiles established by the Association of American Feed Control Officials
+  - 26%
+  min_hops: 2
+  sme_category: cat_8
+- id: q46_alpha_wolf_self_contradiction
+  text: Within L. David Mech's own work, how does his 1999 paper's account of the 'alpha wolf' contradict the dominance-hierarchy
+    framing he popularized in his 1970 book?
+  expected_sources:
+  - calling a wolf an alpha is usually no more appropriate than referring to a human parent
+  - One of the outdated pieces of information is the concept of the alpha wolf
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: alpha_wolf_dominance
+- id: q47_jack_parson_russell_identity
+  text: Are the Jack Russell Terrier and the Parson Russell Terrier the same breed under a name change, or two distinct breeds
+    — and which body holds each position?
+  expected_sources:
+  - the name of the breed was changed from Jack Russell Terrier to Parson Russell Terrier
+  - made into separate breeds by the AKC
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: jack_parson_russell_identity
+- id: q48_grain_free_dcm_causation
+  text: Does the corpus record any dispute that the over-representation of grain-free/pulse diets among reported canine DCM
+    cases reflects a real diet signal rather than how the cases were collected?
+  expected_sources:
+  - many labeled as "grain-free," which contained a high proportion of peas, lentils
+  - veterinarians who prompted the FDA to consider diet have financial and other ties
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: grain_free_dcm_causation
+- id: q49_raw_diet_relative_risk
+  text: Do the AVMA raw-diet policy and its consumer-advocacy critique agree on the relative human-health risk of commercial
+    raw pet diets?
+  expected_sources:
+  - The AVMA discourages feeding any raw or undercooked animal-sourced proteins
+  - no confirmed cases of human salmonellosis have been associated with these diets
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: raw_diet_relative_risk
+- id: q50_breed_predicts_bite_risk
+  text: Does breed predict a dog's fatal-bite risk? Contrast the JAVMA fatality data with the AVMA's breed-neutral position.
+  expected_sources:
+  - Any dog can bite, regardless of its breed
+  - Pit bull-type dogs and Rottweilers were involved in more than half of these deaths
+  min_hops: 2
+  sme_category: cat_3
+  contradiction_pair_id: breed_predicts_bite_risk
+- id: q_avma_breed_sole_predictor
+  text: What does the 2014 AVMA literature review conclude about whether a dog's breed predicts its bite risk?
+  expected_sources:
+  - breed is a poor sole predictor
+  - American Veterinary Medical Association
+  - dog bite risk
+  min_hops: 1
+  sme_category: cat_7
+- id: q_avma_cdc_bsl_multihop
+  text: Which organization authored a 2014 review that draws on CDC fatality data and bears on breed-specific legislation, and what breed did some prevalence-referenced studies in it associate with higher bite risk?
+  expected_sources:
+  - American Veterinary Medical Association
+  - CDC
+  - breed-specific legislation
+  - higher risk to the German Shepherd Dog and crosses
+  min_hops: 3
+  sme_category: cat_2c
+- id: q_aafco_tryptophan_growth_minimum
+  text: Did the AAFCO CNES change the tryptophan minimum in the Dog Food Nutrient Profile for Growth and Reproduction, and what evidence did they cite?
+  expected_sources:
+  - minimum requirement for tryptophan in Labrador retriever puppies
+  - did not elect to change the tryptophan concentration
+  - 25% safety margin
+  min_hops: 1
+  sme_category: cat_7
+- id: q_aafco_nrc_yardstick
+  text: Which prior publication's recommended-allowance values did the AAFCO CNES use as its yardstick for revising the nutrient profiles?
+  expected_sources:
+  - 2006 NRC
+  - recommended-allowance
+  - Nutrient Requirements of Dogs and Cats
+  min_hops: 1
+  sme_category: cat_1
+- id: q_parker_clades_count
+  text: How many well-supported clades did the 2017 Cell Reports cladogram of dog breeds display, and how large was the underlying dataset?
+  expected_sources:
+  - 23 well-supported clades
+  - 1,346 dogs representing 161 breeds
+  min_hops: 1
+  sme_category: cat_7
+- id: q_parker_authors_affiliation
+  text: Which institute were the lead authors of the 2017 dog breed cladogram paper affiliated with, and who were those authors?
+  expected_sources:
+  - Heidi G. Parker
+  - Elaine A. Ostrander
+  - National Human Genome Research Institute
+  min_hops: 2
+  sme_category: cat_2c
+- id: q_wsava_fifth_vital_assessment
+  text: How do the WSAVA Nutritional Assessment Guidelines frame nutritional assessment in the standard clinical examination, and on whose prior guidelines did WSAVA base them?
+  expected_sources:
+  - 5th Vital Assessment
+  - American Animal Hospital Association
+  - fifth vital sign
+  min_hops: 2
+  sme_category: cat_7
+- id: q_wsava_bcs_goal_range
+  text: What body condition score scale do the WSAVA guidelines use, and what is the goal BCS for most pets?
+  expected_sources:
+  - 9-point
+  - BCS 4-5 of 9
+  min_hops: 1
+  sme_category: cat_7
+- id: q_nut_xylitol_alias_wood_sugar
+  text: A dog owner sees 'wood sugar' on a peanut butter label. Is that ingredient dangerous for dogs, and what is it actually?
+  expected_sources:
+  - birch sugar or wood sugar
+  - toxic to dogs
+  - some peanut and nut butters
+  min_hops: 2
+  sme_category: cat_4
+- id: q_nut_xylitol_lookup_products
+  text: According to the FDA, which common household products may contain xylitol that is dangerous to dogs?
+  expected_sources:
+  - sugar-free gum
+  - baked goods
+  - some peanut and nut butters
+  min_hops: 1
+  sme_category: cat_1
+- id: q_uk_dda_xl_bully_when_added
+  text: Under the UK Dangerous Dogs Act 1991, when was the XL Bully type added to the list of banned/restricted dog types, and through what instrument?
+  expected_sources:
+  - type of dog known as XL Bully designated
+  - The Dangerous Dogs (Designated Types) (England and Wales) Order 2023
+  - 31 December 2023
+  min_hops: 2
+  sme_category: cat_6
+  contradiction_pair_id: uk_expanding_vs_north_america_repealing_bsl
+- id: q_uk_dda_vs_repeals_direction
+  text: How does the UK's policy direction on breed/type-specific legislation around 2023-2024 compare with the direction taken by Montreal and the Calgary model in the same corpus?
+  expected_sources:
+  - the UK was *expanding* it
+  - narrowing or repealing
+  - concept_bsl
+  min_hops: 3
+  sme_category: cat_3
+  contradiction_pair_id: uk_expanding_vs_north_america_repealing_bsl
+- id: q_dsf_working_group_eligibility
+  text: When did the Danish-Swedish Farmdog, the AKC's 202nd recognized breed and newest member of the Working Group, become eligible to compete in AKC events?
+  expected_sources:
+  - newest member of the Working Group is eligible to start competing in AKC events on January 1, 2025
+  - 202nd recognized breed
+  min_hops: 1
+  sme_category: cat_6
+- id: q_dsf_fss_pipeline_progression
+  text: Trace the Danish-Swedish Farmdog's progression through the AKC recognition pipeline from Foundation Stock Service to full recognition, with dates.
+  expected_sources:
+  - Foundation Stock Service (FSS) in 2011
+  - Miscellaneous Class in 2021
+  - full recognition in 2025
+  - FSS -> Miscellaneous -> full-recognition sequence
+  min_hops: 2
+  sme_category: cat_6
+  contradiction_pair_id: null
+- id: q_wttw_chicago_owner_surrender_rate
+  text: By how much did owner surrenders rise at Chicago's city animal shelter in the first quarter, according to WTTW's 2025 reporting?
+  expected_sources:
+  - owner surrenders increased by 265% in the first quarter
+  - Chicago Animal Care and Control
+  min_hops: 1
+  sme_category: cat_1
+- id: q_wttw_chicago_overcrowding_actors_chain
+  text: 'Trace the Chicago shelter overcrowding story: which municipal shelter is overcrowded, in which city, and which local rescue and person does the article connect to the response?'
+  expected_sources:
+  - Chicago Animal Care and Control
+  - Chicago
+  - Mission Compassion Paw Rescue
+  - Armando Tejeda
+  min_hops: 2
+  sme_category: cat_2c

@@ -53,6 +53,11 @@ from sme.topology.analyzer import TopologyAnalyzer
 
 log = logging.getLogger(__name__)
 
+# Max per-ID degree lines rendered inside a single collision group before
+# the formatter truncates with a footer. Pathological groups (10+ IDs on the
+# same canonical key) would otherwise blow up the report.
+COLLISION_GROUP_ID_RENDER_LIMIT = 10
+
 
 # --- Canonicalization -------------------------------------------------
 
@@ -85,6 +90,11 @@ _COVERAGE_WARN = 0.95       # 95-99.5% warning
 _NORM_ENTROPY_HEALTHY = 0.80
 _NORM_ENTROPY_WARN = 0.50
 
+# Edge types with fewer than this many edges are flagged "sparse" in the
+# 4c monoculture render — their per-type component counts are too noisy
+# to read as a monoculture signal.
+_SPARSE_EDGE_THRESHOLD = 5
+
 
 def _band(value: float, healthy: float, warn: float, *, lower_is_better: bool) -> str:
     if lower_is_better:
@@ -111,6 +121,11 @@ class CollisionGroup:
     ids: list[str]
     names: list[str]
     entity_type: str
+    # Total degree (in + out edges) per entity ID in the group. When
+    # deduplicating, the highest-degree ID is usually the "real" one —
+    # the canonical entity that other extractions converged on, while
+    # low-degree duplicates are stragglers that missed canonicalization.
+    id_degrees: dict[str, int] = field(default_factory=dict)
 
 
 @dataclass
@@ -136,6 +151,7 @@ class IngestionIntegrityReport:
     dominant_edge_type: Optional[str] = None
     dominant_edge_type_fraction: float = 0.0
     per_edge_type_components: dict[str, int] = field(default_factory=dict)
+    per_edge_type_edge_counts: dict[str, int] = field(default_factory=dict)
 
 
 # --- Scorer -----------------------------------------------------------
@@ -164,6 +180,13 @@ def score_ingestion_integrity(
 
     # --- 4a canonical-collision dedup --------------------------------
 
+    # Degree counter per entity ID — surfaced on collision groups so
+    # operators can tell which ID is the "real" one when deduplicating.
+    degree_by_id: Counter[str] = Counter()
+    for edge in edges:
+        degree_by_id[edge.source_id] += 1
+        degree_by_id[edge.target_id] += 1
+
     key_to_ids: dict[str, list[str]] = defaultdict(list)
     key_to_names: dict[str, list[str]] = defaultdict(list)
     key_to_type: dict[str, str] = {}
@@ -186,6 +209,7 @@ def score_ingestion_integrity(
                     ids=ids,
                     names=key_to_names[key],
                     entity_type=key_to_type[key],
+                    id_degrees={eid: degree_by_id.get(eid, 0) for eid in ids},
                 )
             )
     collision_groups.sort(key=lambda g: len(g.ids), reverse=True)
@@ -242,6 +266,7 @@ def score_ingestion_integrity(
         dominant_edge_type=dominant_type,
         dominant_edge_type_fraction=dominant_fraction,
         per_edge_type_components=per_type_components,
+        per_edge_type_edge_counts=dict(type_counts),
     )
 
 
@@ -267,8 +292,24 @@ def format_report(report: IngestionIntegrityReport) -> str:
             names_preview += f", +{len(group.names) - 4} more"
         lines.append(
             f"    [{group.entity_type}] {names_preview} → "
-            f"{len(group.ids)} distinct IDs"
+            f"{len(group.ids)} distinct IDs:"
         )
+        if group.id_degrees:
+            max_degree = max(group.id_degrees.values())
+            # Deterministic keeper: among IDs tied at max degree, keep the
+            # lexicographically smallest ID so the marker is unique and
+            # stable across runs on the same graph.
+            keeper_id = min(
+                eid for eid, deg in group.id_degrees.items() if deg == max_degree
+            )
+            # Sort by descending degree, tie-broken by ID for determinism.
+            ranked = sorted(group.id_degrees.items(), key=lambda kv: (-kv[1], kv[0]))
+            for eid, deg in ranked[:COLLISION_GROUP_ID_RENDER_LIMIT]:
+                marker = "   ← keep" if eid == keeper_id else ""
+                lines.append(f"                  {eid}  (deg={deg}){marker}")
+            hidden = len(ranked) - COLLISION_GROUP_ID_RENDER_LIMIT
+            if hidden > 0:
+                lines.append(f"                  ... and {hidden} more")
     if len(report.collision_groups) > 5:
         lines.append(
             f"    ... +{len(report.collision_groups) - 5} more collision groups"
@@ -307,11 +348,27 @@ def format_report(report: IngestionIntegrityReport) -> str:
 
     if report.per_edge_type_components:
         lines.append("")
-        lines.append("  Per-edge-type component count (4c monoculture signal):")
-        for etype, ncomp in sorted(
-            report.per_edge_type_components.items(), key=lambda kv: -kv[1]
-        )[:10]:
-            lines.append(f"    {etype:30s} {ncomp:>6,}  components")
+        lines.append("  Per-edge-type edges + components (4c monoculture signal):")
+        combined = sorted(
+            report.per_edge_type_components.items(),
+            key=lambda kv: (
+                -report.per_edge_type_edge_counts.get(kv[0], 0),
+                kv[0],
+            ),
+        )
+        for etype, ncomp in combined[:10]:
+            ne = report.per_edge_type_edge_counts.get(etype, 0)
+            edge_word = "edge" if ne == 1 else "edges"
+            comp_word = "component" if ncomp == 1 else "components"
+            annotation = (
+                f"  [sparse — <{_SPARSE_EDGE_THRESHOLD} edges]"
+                if ne < _SPARSE_EDGE_THRESHOLD
+                else ""
+            )
+            lines.append(
+                f"    {etype:30s} {ne:>6,} {edge_word}, "
+                f"{ncomp:,} {comp_word}{annotation}"
+            )
 
     # --- Reading --------------------------------------------------
 

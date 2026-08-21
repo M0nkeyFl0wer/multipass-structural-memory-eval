@@ -32,11 +32,6 @@ entities:
     canonical: "FDA CVM raw pet food pathogen study (2010-2012)"
     timestamp: "2010-10-01"
     status: resolved
-  - id: event_performance_dog_recall_2019
-    type: event
-    canonical: "Bravo Packing Performance Dog raw pet food recall (2019)"
-    timestamp: "2019-09-27"
-    status: resolved
   - id: pub_fda_raw_pet_food_factsheet_2018
     type: publication
     canonical: "FDA Raw Pet Food Diets can be Dangerous to You and Your Pet (2018-02-22)"

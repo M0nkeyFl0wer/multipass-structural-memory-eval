@@ -44,6 +44,10 @@ entities:
 # Edges introduced or strengthened by this note.
 edges:
   - from: pub_bollen_horowitz_2012_safer_validity
+    type: mentions
+    to: org_aspca
+    evidence: "The SAFER (Safety Assessment for Evaluating Rehoming) instrument whose validity the paper examines was developed and promoted by the ASPCA; the organization is named as the assessment's proponent."
+  - from: pub_bollen_horowitz_2012_safer_validity
     type: authored_by
     to: person_kelly_bollen
     evidence: "First author byline on the Applied Animal Behaviour Science paper; co-author is Horowitz."

@@ -100,6 +100,18 @@ def _duckdb_interests_loader() -> type[SMEAdapter]:
     return DuckDBInterestsAdapter
 
 
+def _random_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.random_retrieval import RandomRetrievalAdapter
+
+    return RandomRetrievalAdapter
+
+
+def _oracle_retrieval_loader() -> type[SMEAdapter]:
+    from sme.adapters.oracle_retrieval import OracleRetrievalAdapter
+
+    return OracleRetrievalAdapter
+
+
 _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
     _AdapterSpec(
         aliases=("ladybugdb", "ladybug"),
@@ -167,6 +179,16 @@ _ADAPTER_REGISTRY: tuple[_AdapterSpec, ...] = (
         aliases=("duckdb-interests", "duckdb_interests"),
         loader=_duckdb_interests_loader,
         accepts=frozenset({"db_path", "read_only", "default_query_mode"}),
+    ),
+    _AdapterSpec(
+        aliases=("random", "random-retrieval", "random_retrieval"),
+        loader=_random_retrieval_loader,
+        accepts=frozenset({"seed", "n_results"}),
+    ),
+    _AdapterSpec(
+        aliases=("oracle", "oracle-retrieval", "oracle_retrieval"),
+        loader=_oracle_retrieval_loader,
+        accepts=frozenset({"questions"}),
     ),
 )
 
@@ -1179,7 +1201,10 @@ def _cmd_cat9a(args: argparse.Namespace) -> int:
         return 2
 
     adapter = _load_adapter_from_args(args)
-    result = run_cat9a(adapter, runner, questions)
+    result = run_cat9a(
+        adapter, runner, questions,
+        match_threshold=getattr(args, "match_threshold", 0.5),
+    )
 
     print()
     print("=" * 70)
@@ -2057,6 +2082,14 @@ def main(argv: list[str] | None = None) -> int:
         help="9a real-runner policy: 'auto' measures whether the model "
         "chooses to invoke (the 9a question); 'forced' compels one call to "
         "isolate call-through/result-use.",
+    )
+    c9.add_argument(
+        "--match-threshold",
+        type=float,
+        default=0.5,
+        help="9a: fraction of a question's expected_sources that must appear "
+        "to count as a hit (default 0.5 — partial credit for terse answers). "
+        "The integration gap is sensitive to this; see the report caveat.",
     )
     c9.add_argument("--json", metavar="PATH", help="write full report as JSON")
     c9.set_defaults(func=cmd_cat9)

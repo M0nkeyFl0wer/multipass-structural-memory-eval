@@ -36,23 +36,23 @@ edges:
   - from: pub_aafco_nutrient_profiles_2014_cnes
     type: authored_by
     to: org_aafco
-    evidence: "The revisions are the work of AAFCO's Canine and Feline Nutrition Expert Subcommittees (CNES), an AAFCO body: \"The original Canine and Feline Nutrition Expert Subcommittees convened in 1990\" and \"again formed Canine and Feline Nutrition Expert Subcommittees and charged these\" to revise the AAFCO profiles"
+    evidence: "The revisions are the work of AAFCO's Canine and Feline Nutrition Expert Subcommittees (CNES), an AAFCO body: \"The original Canine and Feline Nutrition Expert Subcommittees convened in 1990\" and the document notes AAFCO \"again formed Canine and Feline Nutrition Expert Subcommittees and charged these\" to revise the AAFCO profiles"
   - from: pub_aafco_nutrient_profiles_2014_cnes
     type: supersedes
     to: pub_nrc_2006_nutrient_requirements
-    evidence: "\"the Canine and Feline Nutrition Expert Subcommittees of 2007 primarily used the RA in the 2006 Nutrient Requirements of Dogs and Cats in evaluating whether revision was needed to one or more of the minimum recommended concentrations in the profiles\" — the AAFCO profile concentrations are the operative regulatory values that update/replace the 2006 NRC recommended allowances for feed-control use"
+    evidence: "\"the Canine and Feline Nutrition Expert Subcommittees of 2007 primarily used the RA in the 2006 Nutrient Requirements of Dogs and Cats in evaluating whether revision was needed to one or more of the minimum recommended concentrations in the profiles\" — the AAFCO profile concentrations are the operative feed-control values that update/replace the 2006 NRC recommended allowances for regulatory use"
+  - from: pub_nrc_2006_nutrient_requirements
+    type: authored_by
+    to: org_nrc
+    evidence: "Nutrient Requirements of Dogs and Cats (2006) is the report of the National Research Council; the document repeatedly attributes the recommended-allowance (RA) values to \"the 2006 Nutrient Requirements of Dogs and Cats\" produced by the NRC."
   - from: pub_aafco_nutrient_profiles_2014_cnes
     type: cites
     to: pub_nrc_2006_nutrient_requirements
-    evidence: "\"Many of the NRC minimum nutrient requirements are based on research with purified diets ... the Nutrient Requirements of Dogs and Cats in 2006 contained two additional listings of nutrient concentrations for adequate intake and recommended allowance (RA)\" — the document repeatedly cites the 2006 NRC RA values as its evidentiary basis"
+    evidence: "\"the Nutrient Requirements of Dogs and Cats in 2006 contained two additional listings of nutrient concentrations for adequate intake and recommended allowance (RA)\" — the document repeatedly cites the 2006 NRC RA values as its evidentiary basis (e.g. retaining adult-maintenance amino-acid amounts that \"were greater than the corresponding RA in the 2006 NRC\")"
   - from: pub_aafco_nutrient_profiles_2014_cnes
     type: mentions
     to: concept_tryptophan_minimum_growth_reproduction
     evidence: "\"The CNES did not elect to change the tryptophan concentration in the Dog Food Nutrient Profile for Growth and Reproduction\" ... \"the minimum requirement for tryptophan in Labrador retriever puppies was less than the current concentration\""
-  - from: pub_nrc_2006_nutrient_requirements
-    type: authored_by
-    to: org_nrc
-    evidence: "Nutrient Requirements of Dogs and Cats (2006) was produced by the National Research Council's Committee on Animal Nutrition; the AAFCO CNES revisions draw on its recommended-allowance (RA) values."
 
 tags: [nutrition_safety, aafco, nrc, nutrient_profiles, cnes, tryptophan, token_efficiency, cat_7, registry_standard]
 ---
@@ -67,7 +67,7 @@ Profiles**, prepared by the Association of American Feed Control Officials'
 Attachment A to the AAFCO Model Bills and Regulations agenda (Midyear 2015,
 final draft dated 2014). It is a dense, table-heavy registry standard: minimum
 and (where set) maximum concentrations for protein, amino acids, fatty acids,
-minerals, and vitamins for two life stages (Adult Maintenance; Growth and
+minerals, and vitamins across two life stages (Adult Maintenance; Growth and
 Reproduction), accompanied by footnotes and a long rationale narrative
 explaining each retained or revised value. It is the kind of document where the
 answer to a single nutrient question is buried in dozens of pages of tables and
@@ -78,10 +78,14 @@ prose.
 The CNES used the **recommended-allowance (RA) values in the 2006 NRC
 publication *Nutrient Requirements of Dogs and Cats*** as its primary yardstick
 for deciding whether each AAFCO profile concentration needed revision, updating
-or retaining values "where indicated and supported by recent scientific
-publications, practical experience, or unpublished data." This makes the AAFCO
-profiles the operative feed-control values that draw on, and for regulatory
-purposes supersede, the older NRC recommended allowances.
+or retaining values where supported by the NRC RA, feeding studies, or
+practical experience. This makes the AAFCO profiles the operative feed-control
+values that draw on, and for regulatory purposes supersede, the older NRC
+recommended allowances. Where the existing adult-maintenance amino-acid amounts
+(histidine, lysine, threonine, tryptophan) "were greater than the corresponding
+RA in the 2006 NRC," the panel elected to retain them; several growth amino-acid
+minimums (arginine, leucine, methionine, phenylalanine-tyrosine, valine) were
+raised to match the NRC RA for growth.
 
 The rationale narrative gives a concrete worked example for **tryptophan**. The
 subcommittee "did not elect to change the tryptophan concentration in the Dog
@@ -94,7 +98,7 @@ approximately a 25% safety margin." Second, the panel noted "it was nearly
 impossible to formulate a product at the minimum protein concentration to
 contain more than 0.2% tryptophan on a DM basis from typical ingredients
 without including crystalline tryptophan in the formula." The panel similarly
-declined to raise leucine and valine to the NRC lactation RA, "based on lack of
+declined to raise leucine and valine to the NRC lactation RA, citing "lack of
 documented problems with the previous concentrations."
 
 ## Why this fits the corpus
@@ -114,21 +118,22 @@ for the specific tryptophan rationale.
 
 The required substring and every quoted passage above were verified by
 extracting the text directly from the canonical AAFCO PDF (the live WebFetch
-could not parse the compressed PDF stream, so the maintainer ran `pdftotext`
-against the downloaded file and grepped the rationale section). The substring
-"minimum requirement for tryptophan in Labrador retriever puppies" appears
-verbatim in the PDF, wrapped across two lines as "...minimum requirement for
-tryptophan in Labrador / retriever puppies...".
+could not parse the compressed PDF stream, so the file was downloaded and
+`pdftotext` was run against it, then the rationale section was grepped). The
+substring "minimum requirement for tryptophan in Labrador retriever puppies"
+appears verbatim in the PDF, wrapped across two lines as "...minimum requirement
+for tryptophan in Labrador / retriever puppies...".
 
 Scope limits to respect: this is a **proposed-revisions / agenda-attachment**
-draft, not necessarily the final adopted Official Publication text; the `2014`
-date is the draft-final date on the document (070214). The CNES *declined* to
-change the tryptophan minimum — this note must not be read as a profile
-increase. The 2006-NRC `supersedes` edge is in the feed-control / regulatory
-sense (which values govern commercial labeling), not a claim that AAFCO
-invalidated the NRC's underlying physiology. No causal nutrition-safety claim
-(e.g., grain-free/DCM) is asserted here; this source predates and does not bear
-on that question.
+draft (final draft dated 070214), not necessarily the final adopted Official
+Publication text; the `2014` source date is that draft-final date. The CNES
+*declined* to change the tryptophan minimum — this note must not be read as a
+profile increase. The 2006-NRC `supersedes` edge is in the feed-control /
+regulatory sense (which values govern commercial labeling), not a claim that
+AAFCO invalidated the NRC's underlying physiology; the same document also
+`cites` the 2006 NRC as its evidentiary basis, so both edges legitimately hold.
+No causal nutrition-safety claim (e.g., grain-free/DCM) is asserted here; this
+source predates and does not bear on that question.
 
 ## Sources
 

@@ -22,12 +22,20 @@ from __future__ import annotations
 import json
 import logging
 import socket
+import time
 import urllib.error
 import urllib.request
 from typing import Any, Callable, Optional
 
 from sme.adapters._graph_mapping import project_graph
-from sme.adapters.base import Edge, Entity, QueryResult, SMEAdapter
+from sme.adapters.base import (
+    Edge,
+    Entity,
+    HarnessDescriptor,
+    ProbeResult,
+    QueryResult,
+    SMEAdapter,
+)
 
 log = logging.getLogger(__name__)
 
@@ -172,28 +180,56 @@ class FamiliarAdapter(SMEAdapter):
             ),
         }
 
-    def get_harness_manifest(self) -> list:
-        """Forward-compat for SME Cat 9 (Handshake). Returns descriptors of
-        familiar's invocation surfaces — HTTP tool-call + MCP. Falls back
-        to [] when the multipass-side descriptor types aren't yet
-        importable (Cat 9 not implemented yet on this multipass version)."""
-        try:
-            from sme.harness import ToolCall, MCPResource  # type: ignore
-        except ImportError:
-            return []
+    def get_harness_manifest(self) -> list[HarnessDescriptor]:
+        """Cat 9 (Handshake) invocation surfaces: familiar's HTTP eval
+        tool-call + MCP resource.
+
+        Uses ``HarnessDescriptor`` (the real Cat 9 contract). The
+        ``familiar_query`` tool-call carries an ``execute`` that routes a
+        model's tool arguments through ``query()``, so Cat 9a runs genuine
+        per-question retrieval; ``probe_fn`` does the 9b dry-call.
+        """
+
+        def _execute(args: dict) -> str:
+            return self.query(args.get("query", "")).context_string
+
+        def _probe() -> ProbeResult:
+            start = time.perf_counter()
+            try:
+                r = self.query("ping")
+                ms = (time.perf_counter() - start) * 1000
+                return ProbeResult(success=r.error is None, latency_ms=ms, error=r.error)
+            except Exception as exc:  # noqa: BLE001 — surface as probe failure
+                ms = (time.perf_counter() - start) * 1000
+                return ProbeResult(
+                    success=False, latency_ms=ms, error=f"{type(exc).__name__}: {exc}"
+                )
+
         return [
-            ToolCall(
+            HarnessDescriptor(
                 name="familiar_query",
-                json_schema={
-                    "type": "object",
-                    "properties": {"query": {"type": "string"}},
-                    "required": ["query"],
+                kind="tool_call",
+                probe_fn=_probe,
+                description="Query familiar's reranked memory pipeline.",
+                properties={
+                    "input_schema": {
+                        "type": "object",
+                        "properties": {"query": {"type": "string"}},
+                        "required": ["query"],
+                    },
+                    "backend_endpoint": f"{self.base_url}/api/familiar/eval",
+                    "execute": _execute,
                 },
-                backend_endpoint=f"{self.base_url}/api/familiar/eval",
             ),
-            MCPResource(
-                server_url=f"{self.base_url}/mcp",
-                resource_uri_pattern="familiar_(recall|reflect|chat)",
+            HarnessDescriptor(
+                name="familiar_mcp",
+                kind="mcp_resource",
+                probe_fn=_probe,
+                description="familiar MCP surface (recall / reflect / chat).",
+                properties={
+                    "server_url": f"{self.base_url}/mcp",
+                    "resource_uri_pattern": "familiar_(recall|reflect|chat)",
+                },
             ),
         ]
 

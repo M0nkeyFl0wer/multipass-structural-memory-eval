@@ -134,11 +134,27 @@ def _full_context_factory(tmp_path: Path) -> SMEAdapter:
     return FullContextAdapter(vault)
 
 
+def _random_retrieval_factory(tmp_path: Path) -> SMEAdapter:
+    """RandomRetrievalAdapter (TREC lower bound) — pure in-memory, no env."""
+    from sme.adapters.random_retrieval import RandomRetrievalAdapter
+
+    return RandomRetrievalAdapter()
+
+
+def _oracle_retrieval_factory(tmp_path: Path) -> SMEAdapter:
+    """OracleRetrievalAdapter (TREC upper bound) — pure in-memory, no env."""
+    from sme.adapters.oracle_retrieval import OracleRetrievalAdapter
+
+    return OracleRetrievalAdapter()
+
+
 # Register adapters here. Keep IDs stable — they show in pytest output.
 ADAPTER_FACTORIES: dict[str, AdapterFactory] = {
     "mock": _mock_factory,
     "flat_baseline": _flat_baseline_factory,
     "full_context": _full_context_factory,
+    "random_retrieval": _random_retrieval_factory,
+    "oracle_retrieval": _oracle_retrieval_factory,
 }
 
 

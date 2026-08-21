@@ -30,6 +30,7 @@ Design notes:
 from __future__ import annotations
 
 import logging
+from collections import Counter
 from typing import Any, Optional
 
 from sme.eval.judge_base import (
@@ -59,6 +60,15 @@ JUDGE_QUESTION_TYPES = {
 # Valid labels the upstream judge emits. ERROR is SME-internal — used
 # when the call itself fails, distinct from an INCORRECT verdict.
 VALID_LABELS = {"CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN", "ERROR"}
+
+# Deterministic tie-break order for the K-replicate majority vote. When
+# two or more labels tie on count, the earlier label here wins. Follows
+# the LongMemEval label hierarchy (CORRECT > PARTIAL > INCORRECT >
+# ABSTAIN) so majority_label is reproducible without pinning
+# PYTHONHASHSEED — Counter.most_common() tie-breaks are otherwise
+# arbitrary. (Originally PR #35; preserved verbatim across the
+# RubricJudge refactor.)
+TIE_BREAK_ORDER = ["CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN"]
 
 
 def _rubric_for_question_type(qtype: str) -> str:
@@ -191,6 +201,7 @@ def grade_answer(
     judge_model: Optional[str] = None,
     client: Optional[Any] = None,
     use_cache: bool = True,
+    temperature: float = 0.0,
 ) -> dict:
     """Grade a system answer against the gold answer with an LLM judge.
 
@@ -276,7 +287,10 @@ def grade_answer(
     rubric = _rubric_for_question_type(question_type)
     user_body = _user_body(question, gold_answer, hypothesis)
 
-    judge = RubricJudge(provider=provider, model=judge_model, client=client)
+    judge = RubricJudge(
+        provider=provider, model=judge_model, client=client,
+        temperature=temperature,
+    )
     result = judge.judge(rubric, user_body, use_cache=use_cache)
 
     if result["error"]:
@@ -291,4 +305,144 @@ def grade_answer(
         "methodology_faithful": methodology_faithful,
         "rationale": rationale,
         "usage": result["usage"],
+    }
+
+
+def grade_answer_replicated(
+    question_type: str,
+    question: str,
+    gold_answer: str,
+    hypothesis: str,
+    *,
+    replicates: int = 1,
+    provider: str = "openai",
+    judge_model: Optional[str] = None,
+    client: Optional[Any] = None,
+    temperature: Optional[float] = None,
+    use_cache: bool = True,
+) -> dict:
+    """Grade with K replicates to characterize judge variance.
+
+    Originally PR #35 (jphein); ported onto the RubricJudge refactor.
+    The replicate sampling now flows through ``grade_answer``'s
+    ``temperature`` argument, and each replicate runs with
+    ``use_cache=False`` so the disk cache can't collapse the variance
+    being measured (RubricJudge also force-disables caching whenever
+    temperature > 0, as a second guard).
+
+    When ``replicates <= 1``, delegates to :func:`grade_answer` at
+    ``temperature=0.0`` (backward compatible — a single deterministic
+    call matching the LongMemEval paper setting).
+
+    When ``replicates > 1``, runs K independent judge calls at
+    ``temperature=0.3`` by default (override via ``temperature``) and
+    aggregates via majority vote, excluding ``ERROR`` replicates.
+
+    Args:
+        replicates: Number of independent judge calls (K).
+        provider: 'openai' | 'openrouter' | 'anthropic' (see grade_answer).
+        judge_model: Model id; None resolves the provider default.
+        client: A pre-built provider-shaped client (tests pass a fake).
+        temperature: Sampling override. Defaults to 0.0 for K=1, 0.3 for K>1.
+
+    Returns:
+        For K=1, exactly what :func:`grade_answer` returns.
+
+        For K>1, the single-call shape plus replicate diagnostics::
+
+          {
+            'autoeval_label': str,      # majority label
+            'judge_model': str,
+            'provider': str,
+            'rationale': str,           # rationale from a majority voter
+            'usage': {...},             # summed across all replicates
+            'replicates': list[dict],   # individual replicate results
+            'label_counts': dict,       # label -> count (non-ERROR)
+            'agreement_rate': float,    # fraction matching majority
+            'flip_rate': float,         # 1 - agreement_rate
+          }
+
+        When every replicate returns ``ERROR``, the first replicate is
+        returned with ``replicates`` attached and the diagnostic keys
+        present but empty/zero, so the return shape stays consistent.
+
+        Ties are broken deterministically by :data:`TIE_BREAK_ORDER`
+        (CORRECT > PARTIAL > INCORRECT > ABSTAIN), so ``majority_label``
+        is reproducible without pinning PYTHONHASHSEED.
+    """
+    if replicates <= 1:
+        temp = temperature if temperature is not None else 0.0
+        return grade_answer(
+            question_type, question, gold_answer, hypothesis,
+            provider=provider, judge_model=judge_model, client=client,
+            temperature=temp, use_cache=use_cache,
+        )
+
+    temp = temperature if temperature is not None else 0.3
+    results: list[dict] = []
+    for _ in range(replicates):
+        r = grade_answer(
+            question_type, question, gold_answer, hypothesis,
+            provider=provider, judge_model=judge_model, client=client,
+            temperature=temp, use_cache=False,
+        )
+        results.append(r)
+
+    # Sum usage across all replicates regardless of outcome.
+    total_usage = {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0}
+    for r in results:
+        u = r.get("usage", {})
+        for key in total_usage:
+            total_usage[key] += u.get(key, 0)
+
+    resolved_model = results[0].get("judge_model", judge_model)
+
+    # Majority vote excludes ERROR replicates — those are call failures,
+    # not verdicts.
+    labels = [r["autoeval_label"] for r in results
+              if r["autoeval_label"] != "ERROR"]
+    if not labels:
+        # All replicates errored — surface the first result, attach the
+        # full replicate trace and summed usage so cost accounting still
+        # reflects K calls. Keep the diagnostic keys present (empty) so
+        # the return shape matches the K>1 success path.
+        first = dict(results[0])
+        first["usage"] = total_usage
+        first["replicates"] = results
+        first["label_counts"] = {}
+        first["agreement_rate"] = 0.0
+        first["flip_rate"] = 1.0
+        return first
+
+    counter = Counter(labels)
+    label_counts = dict(counter.most_common())
+    # Deterministic majority: highest count, ties broken by TIE_BREAK_ORDER.
+    # Unknown labels (shouldn't occur given VALID_LABELS) sort last.
+    majority_label = max(
+        counter,
+        key=lambda lbl: (
+            counter[lbl],
+            -(TIE_BREAK_ORDER.index(lbl) if lbl in TIE_BREAK_ORDER
+              else len(TIE_BREAK_ORDER)),
+        ),
+    )
+    agreement_count = label_counts[majority_label]
+    agreement_rate = agreement_count / len(labels)
+
+    # Rationale from the first replicate that voted with the majority —
+    # keeps the output explainable.
+    majority_result = next(
+        r for r in results if r["autoeval_label"] == majority_label
+    )
+
+    return {
+        "autoeval_label": majority_label,
+        "judge_model": resolved_model,
+        "provider": provider,
+        "rationale": majority_result["rationale"],
+        "usage": total_usage,
+        "replicates": results,
+        "label_counts": label_counts,
+        "agreement_rate": agreement_rate,
+        "flip_rate": 1.0 - agreement_rate,
     }

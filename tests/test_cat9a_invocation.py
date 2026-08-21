@@ -188,7 +188,10 @@ def test_report_renders_hop_table():
     report = format_cat9a_report(res, source_label="mock")
     assert "By hop depth" in report
     assert "INTEGRATION_GAP" in report
-    assert "agent gives up" in report  # hop-3 bucket is flagged
+    # hop-3 bucket has zero invocation (max_hops=2) -> flagged on the
+    # trustworthy invocation signal, not the matcher-sensitive gap.
+    assert "under-invoked" in report
+    assert "matcher-sensitive" in report  # the gap caveat is present
 
 
 def test_handshake_trace_invoked_flags():

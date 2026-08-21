@@ -347,3 +347,22 @@ def test_cli_no_mock_passes_through():
     from sme.cli import _load_adapter
     adapter = _load_adapter("familiar", api_url="http://nowhere:1", mock_inference=False)
     assert adapter.mock_inference is False
+
+
+def test_harness_manifest_is_live_not_dead():
+    """Regression: get_harness_manifest() used to reference nonexistent
+    sme.harness.ToolCall/MCPResource and silently return [] (dead Cat 9).
+    It now returns real HarnessDescriptors with an executable tool surface."""
+    from sme.adapters.base import HarnessDescriptor
+
+    adapter = FamiliarAdapter()
+    manifest = adapter.get_harness_manifest()
+    assert len(manifest) == 2
+    assert all(isinstance(d, HarnessDescriptor) for d in manifest)
+    kinds = {d.kind for d in manifest}
+    assert kinds == {"tool_call", "mcp_resource"}
+    # The tool-call surface must carry an executable so Cat 9a does real
+    # per-question retrieval rather than falling back to the canned probe.
+    tool = next(d for d in manifest if d.kind == "tool_call")
+    assert callable(tool.properties.get("execute"))
+    assert callable(tool.probe_fn)

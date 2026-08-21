@@ -97,7 +97,8 @@ class _FakeAnthropicClient:
         outer = self
 
         class _Messages:
-            def create(self, *, model, max_tokens, system, messages):
+            def create(self, *, model, max_tokens, system, messages,
+                       temperature=0.0):
                 outer.calls.append(
                     {
                         "model": model,

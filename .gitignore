@@ -95,3 +95,6 @@ docs/drafts/
 #  - docs/gists/: founder-bound explainer drafts, not yet public-ready.
 #    Kept local until edited & explicitly published by the maintainer.
 docs/gists/
+
+# Internal cross-repo commit journal — never publish (see 54f54ac)
+commits/

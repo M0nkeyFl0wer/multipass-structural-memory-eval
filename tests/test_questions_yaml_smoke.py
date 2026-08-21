@@ -64,7 +64,7 @@ def test_question_ids_unique(questions_yaml):
 def test_sme_categories_are_known(questions_yaml):
     """The cross-validation report groups by these category strings;
     typos here would silently bucket questions into 'unknown'."""
-    known = {"cat_1", "cat_2c", "cat_3", "cat_4", "cat_5", "cat_6", "cat_7"}
+    known = {"cat_1", "cat_2c", "cat_3", "cat_4", "cat_5", "cat_6", "cat_7", "cat_8"}
     for q in questions_yaml["questions"]:
         assert q["sme_category"] in known, (
             f"question {q['id']} has unknown sme_category={q['sme_category']!r}"

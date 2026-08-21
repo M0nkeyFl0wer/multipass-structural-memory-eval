@@ -4,7 +4,7 @@ source_url: https://onlinelibrary.wiley.com/doi/10.1111/jvim.16903
 source_title: "ACVIM consensus statement on leptospirosis in dogs"
 source_date: "2023-11-01"
 source_publisher: "Journal of Veterinary Internal Medicine (Wiley) — open access"
-license: cc_by_4_0
+license: cc_by_4.0
 license_note: "Open-access JVIM article under CC BY 4.0; PMC deposit confirmed for reuse"
 accessed_on: "2026-05-03"
 domain: veterinary_research
