@@ -126,3 +126,23 @@ target-version = "py310"
 # tools/good-dog-graph-pipeline/README.md) — terse one-off scripts, not
 # maintained library code; excluded from lint by design.
 extend-exclude = ["tools/good-dog-graph-pipeline/scripts"]
+
+[tool.ruff.lint]
+# PIN THE RULE SET EXPLICITLY (2026-08-21). CI installs `ruff>=0.5`, which
+# resolves to whatever is newest at build time, and with no `select` here ruff
+# applied its *default* rule set — a moving target. ruff 0.16 widened that
+# default well beyond the classic pycodestyle+pyflakes core (adding UP/BLE/S/
+# TRY/RUF/SIM/I rules), so `ruff check .` went from clean to 316 errors with
+# ZERO code changes. main had been latently red since 0.16 shipped; the June 21
+# run was the last green one simply because nothing was pushed for two months.
+#
+# E4/E7/E9/F is exactly the set the repo was green under, so this restores the
+# intended gate and makes it mean the same thing on every ruff version and every
+# contributor's machine. Verified: ruff 0.16.4 reports "All checks passed" on
+# this selection and 316 errors on its defaults.
+#
+# Same failure class as the `ladybug` dependency pin above — an unpinned tool
+# resolved at install time drifts silently until something trips it. Widening
+# this set is a deliberate choice: do it explicitly, and fix the fallout in the
+# same commit, rather than inheriting it from a release.
+select = ["E4", "E7", "E9", "F"]
