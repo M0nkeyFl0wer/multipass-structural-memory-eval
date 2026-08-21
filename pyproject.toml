@@ -53,8 +53,24 @@ viz = [
 # v40 name silently downgraded a venv rebuild to a reader that can't open the
 # v41 graph — `vault-rag-sme.service` was blind ~9 nights because the upgrade
 # lived as a manual `pip install`, not a constraint here. Constraint, not memory.
+#
+# CEILING RAISED to <0.19 (2026-08-21). The old <0.18 ceiling assumed a
+# storage-version bump would break reads. It does not: 0.18.0 is storage
+# version 42 and reads v41 graphs fine. Verified against the live 185K-entity
+# vault-rag snapshot (vault-rag-sme.service, exit 0 in 53 s) and the full
+# suite (533 passed, 0 ladybug-related skips). The floor is what matters —
+# it is the v40 reader that cannot open these graphs, not the newer engine.
+# SME only ever opens read_only=True, and only against a snapshot copy, so a
+# newer engine can never upgrade-in-place the graph vault-rag writes.
+#
+# Do NOT co-install `real_ladybug` alongside `ladybug`. Importing both into
+# one process segfaults (SIGSEGV) deterministically, in either order. The
+# adapter's try/except ladder imports `ladybug` first so it never touches
+# both — but with `real_ladybug` present, any ladybug import failure falls
+# through to a v40 reader instead of raising. A clean ImportError is the
+# better failure: it is loud, and it is the one this pin exists to force.
 ladybugdb = [
-    "ladybug>=0.17,<0.18",
+    "ladybug>=0.17,<0.19",
 ]
 neo4j = [
     "neo4j>=5.0",
