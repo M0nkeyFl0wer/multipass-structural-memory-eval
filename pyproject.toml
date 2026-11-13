@@ -115,6 +115,9 @@ include = ["sme*"]
 exclude = ["tests*", "docs*"]
 
 [tool.pytest.ini_options]
+# Live-API tests never run by default (they cost money and, without a key,
+# silently skip). Run them deliberately with: pytest -m slow
+addopts = "-m 'not slow'"
 markers = [
     "slow: marks tests that call live LLM APIs and should be skipped in fast CI runs",
 ]

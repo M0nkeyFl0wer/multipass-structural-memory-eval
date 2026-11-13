@@ -4,10 +4,68 @@ from __future__ import annotations
 
 import io
 import json
+import os
+import socket
+import subprocess
 
 import pytest
 
 from sme.topology.fixtures import synthetic_duplicates_graph, synthetic_gap_graph
+
+
+# --- Isolation: tests must be UNABLE to reach paid APIs or remote hosts ------
+#
+# Found 2026-11-13: `sme.eval.llm_clients.load_api_key` reads the system
+# keyring via `secret-tool` BEFORE it looks at the environment. So unsetting
+# OPENAI_API_KEY did not stop a plain local `pytest` from making real, billed
+# OpenAI calls, and the repo's own pre-commit hook runs pytest, so every commit
+# did it. In CI there is no keyring, so the same tests silently skipped, which
+# hid a real judge failure behind a green badge.
+#
+# Protection is the DEFAULT here, never opt-in (see ~/.claude/rules/
+# test-isolation.md). A test escapes the guard only by being marked `slow`
+# (live-API calibration tests, deselected by default in pyproject addopts and
+# run deliberately with `pytest -m slow`) or by the operator exporting
+# SME_ALLOW_NETWORK=1 for the env-gated live smoke tests.
+
+_LLM_KEY_VARS = ("OPENAI_API_KEY", "ANTHROPIC_API_KEY", "OPENROUTER_API_KEY")
+_LOOPBACK = {"127.0.0.1", "::1", "localhost"}
+
+
+@pytest.fixture(autouse=True)
+def _block_live_credentials_and_network(request, monkeypatch):
+    if request.node.get_closest_marker("slow"):
+        return  # explicitly opted in to live calls
+    if os.environ.get("SME_ALLOW_NETWORK") == "1":
+        return  # operator is deliberately running live smoke tests
+
+    # 1. No API keys from the environment.
+    for var in _LLM_KEY_VARS:
+        monkeypatch.delenv(var, raising=False)
+
+    # 2. No API keys from the keyring. Raising FileNotFoundError is exactly
+    #    what load_api_key already treats as "secret-tool not installed", so
+    #    production code takes its normal no-key path. Tests that fake the
+    #    keyring patch subprocess.run themselves; their patch replaces this one.
+    real_run = subprocess.run
+
+    def guarded_run(cmd, *args, **kwargs):
+        argv0 = cmd[0] if isinstance(cmd, (list, tuple)) and cmd else str(cmd)
+        if os.path.basename(str(argv0)) == "secret-tool":
+            raise FileNotFoundError("secret-tool is blocked under test")
+        return real_run(cmd, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, "run", guarded_run)
+
+    # 3. No outbound connections except loopback (fake local servers are fine).
+    real_connect = socket.socket.connect
+
+    def guarded_connect(self, address):
+        if isinstance(address, tuple) and address and address[0] not in _LOOPBACK:
+            raise OSError(f"network blocked under test: {address[0]}")
+        return real_connect(self, address)
+
+    monkeypatch.setattr(socket.socket, "connect", guarded_connect)
 
 
 @pytest.fixture
