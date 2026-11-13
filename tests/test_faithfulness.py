@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from types import SimpleNamespace
 
+import pytest
+
 from sme.eval.faithfulness import grade_faithfulness
 
 
@@ -135,3 +137,36 @@ def test_error_handling_api_failure():
     assert "judge call failed" in result["error"]
     assert result["score"] is None  # conflation guard: None = "could not judge"
     assert result["claims"] == []
+
+
+# --- Empty context is scored deterministically (2026-11-13) ----------------
+
+
+class _ExplodingClient:
+    """Any judge call is a test failure: empty context must not reach the LLM."""
+
+    @property
+    def chat(self):
+        raise AssertionError("judge was called for an empty context")
+
+    @property
+    def messages(self):
+        raise AssertionError("judge was called for an empty context")
+
+
+@pytest.mark.parametrize("ctx", ["", "   ", "\n\t"])
+def test_empty_context_scores_zero_without_calling_the_judge(ctx):
+    # Regression: the live judge scored this exact case 1.0, because the
+    # answer sentence is the context of the rubric's own few-shot example.
+    from sme.eval.faithfulness import grade_faithfulness
+
+    out = grade_faithfulness(
+        context_string=ctx,
+        answer="Python was created by Guido van Rossum.",
+        client=_ExplodingClient(),
+        use_cache=False,
+    )
+    assert out["score"] == 0.0
+    assert out["claims"][0]["verdict"] == "UNSUPPORTED"
+    assert out["error"] is None
+    assert out["usage"]["total_tokens"] == 0

@@ -71,6 +71,114 @@ VALID_LABELS = {"CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN", "ERROR"}
 TIE_BREAK_ORDER = ["CORRECT", "PARTIAL", "INCORRECT", "ABSTAIN"]
 
 
+# --- Canonical (verbatim upstream) prompts ------------------------------
+#
+# Copied verbatim from LongMemEval `src/evaluation/evaluate_qa.py`,
+# get_anscheck_prompt(), at commit d6dc8b50a2d9ac0c99485ea28fa5755c62414c34
+# (xiaowu0162/LongMemEval, MIT). tests/test_longmemeval_judge.py pins them.
+#
+# Why this exists (2026-11-13): the original SME prompts below were
+# paraphrased, and graded `single-session-preference` with the strict
+# fact-match rubric. Preference "gold answers" are rubrics describing a
+# desirable personalized response, not facts, so that whole category scored
+# near 0.0. jphein found and fixed this on the techempower-org fork (#146);
+# this is the same fix re-homed on RubricJudge, checked against upstream.
+#
+# Upstream semantics reproduced exactly: one user message, temperature 0,
+# max_tokens 10, verdict = `'yes' in reply.lower()`. There is no PARTIAL.
+
+_CANON_STD = (
+    "I will give you a question, a correct answer, and a response from a model. "
+    "Please answer yes if the response contains the correct answer. Otherwise, "
+    "answer no. If the response is equivalent to the correct answer or contains "
+    "all the intermediate steps to get the correct answer, you should also answer "
+    "yes. If the response only contains a subset of the information required by "
+    "the answer, answer no. "
+)
+_CANON_TAIL = (
+    "\n\nQuestion: {}\n\nCorrect Answer: {}\n\nModel Response: {}\n\n"
+    "Is the model response correct? Answer yes or no only."
+)
+
+CANONICAL_TEMPLATES: dict[str, str] = {
+    "single-session-user": _CANON_STD + _CANON_TAIL,
+    "single-session-assistant": _CANON_STD + _CANON_TAIL,
+    "multi-session": _CANON_STD + _CANON_TAIL,
+    "temporal-reasoning": (
+        _CANON_STD
+        + "In addition, do not penalize off-by-one errors for the number of days. "
+        "If the question asks for the number of days/weeks/months, etc., and the "
+        "model makes off-by-one errors (e.g., predicting 19 days when the answer "
+        "is 18), the model's response is still correct. "
+        + _CANON_TAIL
+    ),
+    "knowledge-update": (
+        "I will give you a question, a correct answer, and a response from a model. "
+        "Please answer yes if the response contains the correct answer. Otherwise, "
+        "answer no. If the response contains some previous information along with "
+        "an updated answer, the response should be considered as correct as long "
+        "as the updated answer is the required answer."
+        + _CANON_TAIL
+    ),
+    "single-session-preference": (
+        "I will give you a question, a rubric for desired personalized response, "
+        "and a response from a model. Please answer yes if the response satisfies "
+        "the desired response. Otherwise, answer no. The model does not need to "
+        "reflect all the points in the rubric. The response is correct as long as "
+        "it recalls and utilizes the user's personal information correctly."
+        "\n\nQuestion: {}\n\nRubric: {}\n\nModel Response: {}\n\n"
+        "Is the model response correct? Answer yes or no only."
+    ),
+    # Upstream selects this by `'_abs' in question_id`; SME's loader maps
+    # those records to the `abstention` pseudo-type.
+    "abstention": (
+        "I will give you an unanswerable question, an explanation, and a response "
+        "from a model. Please answer yes if the model correctly identifies the "
+        "question as unanswerable. The model could say that the information is "
+        "incomplete, or some other information is given but the asked information "
+        "is not."
+        "\n\nQuestion: {}\n\nExplanation: {}\n\nModel Response: {}\n\n"
+        "Does the model correctly identify the question as unanswerable? "
+        "Answer yes or no only."
+    ),
+}
+
+CANONICAL_MAX_TOKENS = 10
+PROMPT_STYLES = ("canonical", "sme_rubric")
+
+
+def canonical_prompt(qtype: str, question: str, gold: str, hyp: str) -> str:
+    """The exact prompt upstream LongMemEval would send for this record."""
+    return CANONICAL_TEMPLATES[qtype].format(question, gold, hyp)
+
+
+def _split_canonical(qtype: str, question: str, gold: str, hyp: str) -> tuple[str, str]:
+    """Split a canonical prompt into (rubric, body) for RubricJudge.
+
+    The rubric keeps its trailing "\\n\\n" (and any space before it), which
+    RubricJudge joins verbatim, so rubric + body == canonical_prompt(...)
+    byte for byte. The rubric half is static per question type, so the
+    Anthropic path can still cache it.
+    """
+    prompt = canonical_prompt(qtype, question, gold, hyp)
+    idx = prompt.index("Question: ")
+    return prompt[:idx], prompt[idx:]
+
+
+def _parse_canonical_reply(content: str, qtype: str) -> tuple[str, str]:
+    """Upstream verdict rule: `'yes' in reply.lower()`, mapped to SME labels.
+
+    A correct refusal on an abstention question is ABSTAIN, which the
+    cross-validation harness already counts as correct.
+    """
+    if not content or not content.strip():
+        return "ERROR", "empty judge response"
+    said_yes = "yes" in content.strip().lower()
+    if qtype == "abstention":
+        return ("ABSTAIN" if said_yes else "INCORRECT"), content.strip()
+    return ("CORRECT" if said_yes else "INCORRECT"), content.strip()
+
+
 def _rubric_for_question_type(qtype: str) -> str:
     """Build the static (cacheable) rubric for a given question type.
 
@@ -202,8 +310,15 @@ def grade_answer(
     client: Optional[Any] = None,
     use_cache: bool = True,
     temperature: float = 0.0,
+    prompt_style: str = "canonical",
 ) -> dict:
     """Grade a system answer against the gold answer with an LLM judge.
+
+    prompt_style: "canonical" (default) sends LongMemEval's verbatim
+        upstream prompt and applies its binary yes/no verdict. "sme_rubric"
+        is the older paraphrased 3-way CORRECT/PARTIAL/INCORRECT rubric,
+        kept only so earlier readings can be reproduced; it is never
+        methodology_faithful.
 
     Args:
         question_type: One of LME_QUESTION_TYPES or 'abstention'.
@@ -244,6 +359,11 @@ def grade_answer(
                       "total_tokens": 0},
         }
 
+    if prompt_style not in PROMPT_STYLES:
+        raise ValueError(
+            f"prompt_style must be one of {PROMPT_STYLES}, got {prompt_style!r}"
+        )
+
     if judge_model is None:
         judge_model = PROVIDER_DEFAULT_MODEL[provider]
 
@@ -259,8 +379,15 @@ def grade_answer(
         "gpt-4o-2024-08-06",
         "openai/gpt-4o-2024-08-06",
     )
+    # Until 2026-11-13 this ignored the prompt text, so readings made with
+    # the paraphrased rubric were wrongly reported as paper-faithful.
+    use_canonical = (
+        prompt_style == "canonical" and question_type in CANONICAL_TEMPLATES
+    )
     methodology_faithful = (
-        provider in ("openai", "openrouter") and is_paper_judge_model
+        provider in ("openai", "openrouter")
+        and is_paper_judge_model
+        and use_canonical
     )
 
     base_result = {
@@ -284,12 +411,21 @@ def grade_answer(
         )
         return base_result
 
-    rubric = _rubric_for_question_type(question_type)
-    user_body = _user_body(question, gold_answer, hypothesis)
+    if use_canonical:
+        rubric, user_body = _split_canonical(
+            question_type, question, gold_answer, hypothesis
+        )
+        max_tokens = CANONICAL_MAX_TOKENS
+    else:
+        # Unknown question types have no upstream template (upstream raises
+        # NotImplementedError); they fall back here, never paper-faithful.
+        rubric = _rubric_for_question_type(question_type)
+        user_body = _user_body(question, gold_answer, hypothesis)
+        max_tokens = None
 
     judge = RubricJudge(
         provider=provider, model=judge_model, client=client,
-        temperature=temperature,
+        temperature=temperature, max_tokens=max_tokens,
     )
     result = judge.judge(rubric, user_body, use_cache=use_cache)
 
@@ -297,7 +433,10 @@ def grade_answer(
         base_result["rationale"] = result["error"]
         return base_result
 
-    label, rationale = _parse_judge_reply(result["content"])
+    if use_canonical:
+        label, rationale = _parse_canonical_reply(result["content"], question_type)
+    else:
+        label, rationale = _parse_judge_reply(result["content"])
     return {
         "autoeval_label": label,
         "judge_model": judge_model,
@@ -320,6 +459,7 @@ def grade_answer_replicated(
     client: Optional[Any] = None,
     temperature: Optional[float] = None,
     use_cache: bool = True,
+    prompt_style: str = "canonical",
 ) -> dict:
     """Grade with K replicates to characterize judge variance.
 
@@ -375,7 +515,7 @@ def grade_answer_replicated(
         return grade_answer(
             question_type, question, gold_answer, hypothesis,
             provider=provider, judge_model=judge_model, client=client,
-            temperature=temp, use_cache=use_cache,
+            temperature=temp, use_cache=use_cache, prompt_style=prompt_style,
         )
 
     temp = temperature if temperature is not None else 0.3
@@ -384,7 +524,7 @@ def grade_answer_replicated(
         r = grade_answer(
             question_type, question, gold_answer, hypothesis,
             provider=provider, judge_model=judge_model, client=client,
-            temperature=temp, use_cache=False,
+            temperature=temp, use_cache=False, prompt_style=prompt_style,
         )
         results.append(r)
 

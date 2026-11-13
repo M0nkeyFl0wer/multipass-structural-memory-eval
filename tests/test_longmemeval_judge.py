@@ -40,9 +40,9 @@ class _FakeClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature=0.0):
+            def create(self, *, model, messages, temperature=0.0, **kwargs):
                 outer.calls.append({"model": model, "messages": messages,
-                                    "temperature": temperature})
+                                    "temperature": temperature, **kwargs})
                 resp = outer._resp
                 if callable(resp):
                     return resp(model=model, messages=messages)
@@ -68,7 +68,7 @@ def test_grade_answer_correct_label():
         gold_answer="A kayak",
         hypothesis="You bought a kayak.",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     assert out["judge_model"] == DEFAULT_JUDGE_MODEL
     assert out["rationale"].startswith("matches gold")
@@ -81,8 +81,10 @@ def test_grade_answer_correct_label():
     sent = client.calls[0]["messages"][0]["content"]
     assert "Information Extraction" in sent  # rubric inline
     assert "A kayak" in sent  # body inline
-    # Default openai + gpt-4o-2024-08-06 is paper-faithful.
-    assert out["methodology_faithful"] is True
+    # The paraphrased legacy rubric is NOT the paper's prompt, so it is never
+    # paper-faithful, even on the paper's model. (Asserted True until
+    # 2026-11-13; that was the bug. The canonical tests below cover True.)
+    assert out["methodology_faithful"] is False
 
 
 def test_grade_answer_incorrect_label():
@@ -95,7 +97,7 @@ def test_grade_answer_incorrect_label():
         gold_answer="A kayak",
         hypothesis="A submarine",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "INCORRECT"
 
 
@@ -109,7 +111,7 @@ def test_grade_answer_abstention_returns_abstain():
         gold_answer="abstain",
         hypothesis="I don't know.",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ABSTAIN"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Abstention" in sent
@@ -125,7 +127,7 @@ def test_grade_answer_knowledge_update_uses_ku_rubric():
         gold_answer="Acme",
         hypothesis="You work at Acme.",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     sent = client.calls[0]["messages"][0]["content"]
     assert "Knowledge Update" in sent
     assert "MOST RECENT" in sent  # KU-specific verbiage
@@ -141,7 +143,7 @@ def test_grade_answer_temporal_uses_temporal_rubric():
         gold_answer="March 2023",
         hypothesis="March 2024",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "PARTIAL"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Temporal Reasoning" in sent
@@ -162,7 +164,7 @@ def test_grade_answer_no_api_key_returns_error_label(monkeypatch):
         gold_answer="g",
         hypothesis="h",
         client=None,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ERROR"
     assert "no API key in keyring" in out["rationale"]
     assert "openai" in out["rationale"]
@@ -182,7 +184,7 @@ class _FlakyClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature=0.0):
+            def create(self, *, model, messages, temperature=0.0, **kwargs):
                 outer.attempts += 1
                 if outer.attempts <= outer.fail_n:
                     raise ConnectionError(f"transient {outer.attempts}")
@@ -208,7 +210,7 @@ def test_grade_answer_retries_then_succeeds(monkeypatch):
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     assert client.attempts == 3
 
@@ -220,7 +222,7 @@ def test_grade_answer_returns_error_after_max_retries(monkeypatch):
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ERROR"
     assert "judge call failed" in out["rationale"]
     # Three retry attempts before bailing.
@@ -235,7 +237,7 @@ def test_grade_answer_handles_malformed_json():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ERROR"
     assert "no JSON object" in out["rationale"] or "malformed" in out["rationale"]
 
@@ -248,7 +250,7 @@ def test_grade_answer_handles_unknown_label():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ERROR"
     assert "unknown judge label" in out["rationale"]
 
@@ -261,7 +263,7 @@ def test_grade_answer_strips_code_fences():
         question_type="single-session-user",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
 
 
@@ -288,7 +290,7 @@ def test_grade_answer_unknown_question_type_still_calls_judge():
         question_type="made-up-type",
         question="q", gold_answer="g", hypothesis="h",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     sent = client.calls[0]["messages"][0]["content"]
     assert "Generic" in sent  # falls back to generic rubric
@@ -342,7 +344,7 @@ def test_grade_answer_anthropic_caches_rubric_in_system_block():
         hypothesis="A kayak.",
         provider="anthropic",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     assert out["provider"] == "anthropic"
     # Default model resolves to claude-sonnet-4-6 via PROVIDER_DEFAULT_MODEL
@@ -369,7 +371,7 @@ def test_grade_answer_openrouter_uses_default_namespaced_model():
         question="q", gold_answer="g", hypothesis="h",
         provider="openrouter",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     assert out["provider"] == "openrouter"
     # OpenRouter expects namespaced model IDs.
@@ -377,8 +379,8 @@ def test_grade_answer_openrouter_uses_default_namespaced_model():
     # Same single-user-message methodology as direct OpenAI.
     assert len(client.calls[0]["messages"]) == 1
     assert client.calls[0]["messages"][0]["role"] == "user"
-    # Routing through OpenRouter to the paper's model is paper-faithful.
-    assert out["methodology_faithful"] is True
+    # Legacy rubric: not paper-faithful even via OpenRouter to the paper's model.
+    assert out["methodology_faithful"] is False
 
 
 def test_grade_answer_anthropic_judge_is_not_paper_faithful():
@@ -394,7 +396,7 @@ def test_grade_answer_anthropic_judge_is_not_paper_faithful():
         question="q", gold_answer="g", hypothesis="h",
         provider="anthropic",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "CORRECT"
     assert out["methodology_faithful"] is False
 
@@ -412,7 +414,7 @@ def test_grade_answer_openai_with_non_paper_model_is_not_paper_faithful():
         provider="openai",
         judge_model="gpt-4o-mini",
         client=client,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["methodology_faithful"] is False
 
 
@@ -422,6 +424,91 @@ def test_grade_answer_unknown_provider_returns_error():
         question="q", gold_answer="g", hypothesis="h",
         provider="bogus",
         client=None,
-        use_cache=False)
+        use_cache=False, prompt_style="sme_rubric")
     assert out["autoeval_label"] == "ERROR"
     assert "unknown provider" in out["rationale"]
+
+
+# --- Canonical (verbatim upstream LongMemEval) prompt path -----------------
+#
+# These pin the 2026-11-13 fix: the default judge sends LongMemEval's exact
+# published prompt, capped at 10 tokens, and uses its yes/no verdict.
+
+import pytest  # noqa: E402
+from sme.eval.longmemeval_judge import (  # noqa: E402
+    CANONICAL_MAX_TOKENS,
+    CANONICAL_TEMPLATES,
+    canonical_prompt,
+)
+
+
+def _canon(content, **kw):
+    client = _FakeClient(_fake_response(content))
+    args = dict(question_type="single-session-user", question="What did I buy?",
+                gold_answer="A kayak", hypothesis="You bought a kayak.",
+                client=client, use_cache=False)
+    args.update(kw)
+    return grade_answer(**args), client
+
+
+def test_canonical_is_the_default_and_sends_the_exact_upstream_prompt():
+    out, client = _canon("Yes")
+    sent = client.calls[0]["messages"][0]["content"]
+    assert sent == canonical_prompt(
+        "single-session-user", "What did I buy?", "A kayak", "You bought a kayak.")
+    # The space before the blank line is part of the published prompt and
+    # must survive RubricJudge's rubric/body join.
+    assert "answer no. \n\nQuestion: What did I buy?" in sent
+    assert client.calls[0]["max_tokens"] == CANONICAL_MAX_TOKENS == 10
+    assert client.calls[0]["temperature"] == 0.0
+    assert out["autoeval_label"] == "CORRECT"
+    assert out["methodology_faithful"] is True
+
+
+def test_canonical_no_is_incorrect_and_never_partial():
+    out, _ = _canon("No")
+    assert out["autoeval_label"] == "INCORRECT"
+
+
+def test_preference_uses_the_rubric_template_not_fact_match():
+    # The bug: preference gold answers are rubrics, graded as facts -> ~0.0.
+    out, client = _canon(
+        "yes", question_type="single-session-preference",
+        question="Suggest a weekend activity.",
+        gold_answer="The user would prefer outdoor activities near water.",
+        hypothesis="Since you love kayaking, try a lake paddle.")
+    sent = client.calls[0]["messages"][0]["content"]
+    assert "a rubric for desired personalized response" in sent
+    assert "\n\nRubric: The user would prefer" in sent
+    assert "Correct Answer:" not in sent
+    assert out["autoeval_label"] == "CORRECT"
+    assert out["methodology_faithful"] is True
+
+
+def test_abstention_yes_means_correctly_refused():
+    out, client = _canon("yes", question_type="abstention",
+                         question="What did I say about my submarine?",
+                         gold_answer="Never mentioned.", hypothesis="I don't know.")
+    assert "unanswerable question" in client.calls[0]["messages"][0]["content"]
+    assert out["autoeval_label"] == "ABSTAIN"
+    out, _ = _canon("no", question_type="abstention")
+    assert out["autoeval_label"] == "INCORRECT"
+
+
+def test_unknown_type_falls_back_and_is_not_faithful():
+    out, client = _canon('{"label": "CORRECT", "rationale": "ok"}',
+                         question_type="made-up-type")
+    assert "max_tokens" not in client.calls[0]
+    assert out["methodology_faithful"] is False
+
+
+def test_bad_prompt_style_is_rejected():
+    with pytest.raises(ValueError):
+        _canon("yes", prompt_style="vibes")
+
+
+def test_canonical_templates_cover_every_lme_type():
+    for t in ("single-session-user", "single-session-assistant",
+              "single-session-preference", "multi-session",
+              "temporal-reasoning", "knowledge-update", "abstention"):
+        assert CANONICAL_TEMPLATES[t].count("{}") == 3

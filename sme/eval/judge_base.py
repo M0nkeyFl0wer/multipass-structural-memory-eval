@@ -123,8 +123,14 @@ class RubricJudge:
         model: Optional[str] = None,
         client: Optional[Any] = None,
         temperature: float = 0.0,
+        max_tokens: Optional[int] = None,
     ):
         self.provider = provider
+        # Optional completion cap (OpenAI-compatible path). None = provider
+        # default. The canonical LongMemEval judge uses 10, which is what
+        # makes its `'yes' in reply` parse safe: a short reply cannot
+        # mention "yes" incidentally.
+        self.max_tokens = max_tokens
         self.model = model or PROVIDER_DEFAULT_MODEL.get(provider)
         self.client = client
         # Sampling temperature. 0.0 (default) reproduces the LongMemEval
@@ -186,7 +192,19 @@ class RubricJudge:
         """
         # Ensure a clean boundary between rubric and body so callers don't
         # have to remember to append a trailing newline to every rubric.
-        combined = rubric.rstrip() + "\n\n" + body.lstrip()
+        # Exception: a rubric that already ends in a blank line is joined
+        # VERBATIM. Canonical upstream prompts (e.g. LongMemEval's) carry
+        # exact whitespace such as "answer no. \n\nQuestion:", and rstrip()
+        # would silently drop that space, so the prompt would no longer be
+        # the published one.
+        if rubric.endswith("\n\n"):
+            combined = rubric + body
+        else:
+            combined = rubric.rstrip() + "\n\n" + body.lstrip()
+
+        create_kwargs: dict = {}
+        if self.max_tokens is not None:
+            create_kwargs["max_tokens"] = self.max_tokens
 
         def _do() -> dict:
             resp = self.client.chat.completions.create(
@@ -195,6 +213,7 @@ class RubricJudge:
                     {"role": "user", "content": combined},
                 ],
                 temperature=self.temperature,
+                **create_kwargs,
             )
             choice = resp.choices[0]
             content = getattr(choice.message, "content", "") or ""

@@ -31,6 +31,25 @@ def grade_faithfulness(
             "error": str | None,
         }
     """
+    # Empty context: nothing can be supported, by definition, so answer
+    # deterministically instead of asking the judge. Found 2026-11-13: given
+    # an empty CONTEXT, gpt-4o marked "Python was created by Guido van Rossum"
+    # SUPPORTED (score 1.0) because that exact sentence is the context of this
+    # rubric's own few-shot example below. A retriever that returns nothing
+    # is a common real case, so it must never be scored as faithful.
+    # Answer text stays whole as one claim: splitting it would need the judge.
+    if not (context_string or "").strip():
+        return {
+            "score": 0.0,
+            "claims": (
+                [{"text": answer.strip(), "verdict": "UNSUPPORTED"}]
+                if (answer or "").strip() else []
+            ),
+            "rationale": "empty context: no claim can be supported (no judge call)",
+            "usage": {"prompt_tokens": 0, "completion_tokens": 0, "total_tokens": 0},
+            "error": None,
+        }
+
     rubric = (
         "You are a fact-checker. Given the CONTEXT and the ANSWER, list each "
         "factual claim in the answer. For each claim, mark it:\n"

@@ -151,20 +151,14 @@ class _CannedJudgeClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature=0.0):
+            def create(self, *, model, messages, temperature=0.0, **kwargs):
                 outer.calls.append(messages[0]["content"])
                 content = messages[0]["content"]
-                # Pick label by the rubric the prompt-builder selected.
-                if "Abstention" in content:
-                    label = "ABSTAIN"
-                    rationale = "system refused"
-                else:
-                    label = "CORRECT"
-                    rationale = "matches gold"
-                payload = (
-                    '{"label": "' + label + '", '
-                    '"rationale": "' + rationale + '"}'
-                )
+                # The harness uses the canonical LongMemEval judge, which
+                # answers a bare yes/no. "Yes" on the abstention template
+                # (selected for `_abs` records) must come back as ABSTAIN.
+                assert "Answer yes or no only." in content
+                payload = "Yes" 
                 return SimpleNamespace(
                     choices=[SimpleNamespace(
                         message=SimpleNamespace(content=payload))],
@@ -224,10 +218,10 @@ def test_aggregation_records_disagreements(tmp_path, args_factory):
     class _AlwaysIncorrect:
         def __init__(self):
             class _C:
-                def create(self, *, model, messages, temperature=0.0):
+                def create(self, *, model, messages, temperature=0.0, **kwargs):
                     return SimpleNamespace(
                         choices=[SimpleNamespace(message=SimpleNamespace(
-                            content='{"label":"INCORRECT","rationale":"x"}'
+                            content="No"
                         ))],
                         usage=SimpleNamespace(
                             prompt_tokens=1, completion_tokens=1,

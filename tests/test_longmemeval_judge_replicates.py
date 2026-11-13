@@ -37,7 +37,7 @@ class _ScriptedClient:
         outer = self
 
         class _Completions:
-            def create(self, *, model, messages, temperature=0.0):
+            def create(self, *, model, messages, temperature=0.0, **kwargs):
                 outer.calls.append({"model": model, "messages": messages,
                                     "temperature": temperature})
                 return _fake_response(next(outer._iter))
@@ -55,7 +55,7 @@ def test_single_replicate_backward_compat():
     client = _ScriptedClient(['{"label": "CORRECT", "rationale": "good"}'])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hypothesis",
-        replicates=1, client=client, use_cache=False,
+        replicates=1, client=client, use_cache=False, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert "replicates" not in result
@@ -70,7 +70,7 @@ def test_single_replicate_zero_also_delegates():
     client = _ScriptedClient(['{"label": "CORRECT", "rationale": "ok"}'])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=0, client=client, use_cache=False,
+        replicates=0, client=client, use_cache=False, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert "replicates" not in result
@@ -87,7 +87,7 @@ def test_three_replicates_majority_vote():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hypothesis",
-        replicates=3, client=client,
+        replicates=3, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert result["label_counts"]["CORRECT"] == 2
@@ -108,7 +108,7 @@ def test_replicates_all_agree():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=3, client=client,
+        replicates=3, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "INCORRECT"
     assert result["agreement_rate"] == 1.0
@@ -132,7 +132,7 @@ def test_tie_break_two_replicates_split_prefers_correct():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=2, client=client,
+        replicates=2, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert result["label_counts"] == {"PARTIAL": 1, "CORRECT": 1}
@@ -154,7 +154,7 @@ def test_tie_break_higher_k_three_way_split_prefers_correct():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=4, client=client,
+        replicates=4, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert result["label_counts"]["CORRECT"] == 2
@@ -170,7 +170,7 @@ def test_tie_break_partial_outranks_incorrect():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=2, client=client,
+        replicates=2, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "PARTIAL"
 
@@ -185,7 +185,7 @@ def test_replicates_usage_summed():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=2, client=client,
+        replicates=2, client=client, prompt_style="sme_rubric",
     )
     assert result["usage"]["prompt_tokens"] == 20      # 10 * 2
     assert result["usage"]["completion_tokens"] == 10  #  5 * 2
@@ -202,7 +202,7 @@ def test_temperature_override():
     ])
     grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=2, client=client, temperature=0.7,
+        replicates=2, client=client, temperature=0.7, prompt_style="sme_rubric",
     )
     assert all(c["temperature"] == 0.7 for c in client.calls)
 
@@ -215,7 +215,7 @@ def test_all_replicates_error_returns_first_with_trace():
     client = _ScriptedClient(["garbage", "also garbage", "still garbage"])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=3, client=client,
+        replicates=3, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "ERROR"
     assert "replicates" in result
@@ -237,7 +237,7 @@ def test_mixed_error_and_valid_excludes_error_from_vote():
     ])
     result = grade_answer_replicated(
         "single-session-user", "q?", "gold", "hyp",
-        replicates=3, client=client,
+        replicates=3, client=client, prompt_style="sme_rubric",
     )
     assert result["autoeval_label"] == "CORRECT"
     assert result["label_counts"] == {"CORRECT": 2}
