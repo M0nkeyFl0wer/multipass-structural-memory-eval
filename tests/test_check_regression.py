@@ -1,0 +1,125 @@
+"""Tests for day-over-day regression detection in `sme-eval check`.
+
+Each test perturbs ONE metric of a realistic baseline (shaped like the real
+nightly vault-rag reading) and asserts exactly that metric is flagged, so a
+finding can never be credited to the wrong cause.
+"""
+
+from __future__ import annotations
+
+import copy
+import json
+
+import pytest
+
+from sme.check_regression import Tolerances, compare_readings
+
+BASELINE = {
+    "cat4": {
+        "entities": 200_000,
+        "edges": 28_000,
+        "canonical_collisions": 40_000,
+        "required_field_coverage": 1.0,
+        "edge_type_counts": {"PART_OF": 8_600, "DEPENDS_ON": 4_400, "AUTHORED_BY": 5},
+        "dominant_edge_type": "PART_OF",
+        "dominant_edge_type_fraction": 0.30,
+    },
+    "cat5": {"isolated_nodes": 180_000},
+}
+
+
+def _with(path: str, value):
+    """Copy of BASELINE with one dotted key replaced."""
+    reading = copy.deepcopy(BASELINE)
+    *parents, leaf = path.split(".")
+    node = reading
+    for key in parents:
+        node = node[key]
+    node[leaf] = value
+    return reading
+
+
+def test_identical_readings_are_clean():
+    assert compare_readings(BASELINE, BASELINE) == []
+
+
+def test_small_wobble_is_not_an_alarm():
+    # 2% fewer edges and a slightly higher dominant share: normal daily churn.
+    cur = _with("cat4.edges", 27_440)
+    cur["cat4"]["dominant_edge_type_fraction"] = 0.32
+    assert compare_readings(BASELINE, cur) == []
+
+
+def test_edge_drop_flagged():
+    findings = compare_readings(BASELINE, _with("cat4.edges", 20_000))
+    assert len(findings) == 1 and findings[0].startswith("edges fell")
+
+
+def test_edge_type_disappearing_flagged():
+    cur = _with("cat4.edge_type_counts", {"PART_OF": 8_600, "AUTHORED_BY": 5})
+    findings = compare_readings(BASELINE, cur)
+    assert findings == ["edge type DEPENDS_ON disappeared (4400 -> 0)"]
+
+
+def test_edge_type_partial_drop_flagged():
+    cur = _with("cat4.edge_type_counts",
+                {"PART_OF": 8_600, "DEPENDS_ON": 2_000, "AUTHORED_BY": 5})
+    findings = compare_readings(BASELINE, cur)
+    assert len(findings) == 1 and "DEPENDS_ON fell" in findings[0]
+
+
+def test_tiny_edge_types_are_ignored():
+    # AUTHORED_BY has 5 edges; losing them all is noise, not a signal.
+    cur = _with("cat4.edge_type_counts", {"PART_OF": 8_600, "DEPENDS_ON": 4_400})
+    assert compare_readings(BASELINE, cur) == []
+
+
+def test_collision_rise_flagged():
+    findings = compare_readings(BASELINE, _with("cat4.canonical_collisions", 50_000))
+    assert len(findings) == 1 and "canonical collisions rose" in findings[0]
+
+
+def test_monoculture_creep_flagged():
+    findings = compare_readings(BASELINE, _with("cat4.dominant_edge_type_fraction", 0.40))
+    assert len(findings) == 1 and "monoculture" in findings[0]
+
+
+def test_coverage_drop_flagged():
+    findings = compare_readings(BASELINE, _with("cat4.required_field_coverage", 0.95))
+    assert len(findings) == 1 and "coverage fell" in findings[0]
+
+
+def test_isolated_share_rise_flagged():
+    findings = compare_readings(BASELINE, _with("cat5.isolated_nodes", 190_000))
+    assert len(findings) == 1 and "isolated-node share" in findings[0]
+
+
+def test_entity_purge_alone_is_not_an_alarm():
+    # Entities fall 10% and isolates fall with them: a legitimate purge.
+    # Raw totals are not a health signal for this graph; proportions are.
+    cur = _with("cat4.entities", 180_000)
+    cur["cat5"]["isolated_nodes"] = 162_000
+    assert compare_readings(BASELINE, cur) == []
+
+
+def test_old_baseline_missing_fields_never_false_alarms():
+    assert compare_readings({"cat4": {"edges": 28_000}}, BASELINE) == []
+
+
+def test_tolerances_are_configurable():
+    cur = _with("cat4.edges", 27_000)  # 3.6% drop
+    assert compare_readings(BASELINE, cur) == []
+    assert compare_readings(BASELINE, cur, Tolerances(edge_drop=0.01))
+
+
+def test_against_real_nightly_shape(tmp_path):
+    # The real sme.json round-trips through JSON; make sure nothing in the
+    # comparison depends on Python-only types.
+    p = tmp_path / "prev.json"
+    p.write_text(json.dumps(BASELINE))
+    assert compare_readings(json.loads(p.read_text()), BASELINE) == []
+
+
+@pytest.mark.parametrize("prev_edges", [0])
+def test_zero_baseline_does_not_divide_by_zero(prev_edges):
+    assert compare_readings(_with("cat4.edges", prev_edges), BASELINE) == []

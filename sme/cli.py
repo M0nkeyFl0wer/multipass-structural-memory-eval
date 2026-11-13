@@ -945,7 +945,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     print()
     print(format_cat5(cat5))
 
-    if args.json:
+    out = None
+    if args.json or args.baseline:
         out = {
             "adapter": args.adapter,
             "source": _source_label(args),
@@ -976,11 +977,56 @@ def cmd_check(args: argparse.Namespace) -> int:
                 "candidate_gaps_considered": cat5.candidate_gaps_considered,
             },
         }
+    # Write the reading BEFORE judging it, so the dashboard always shows
+    # today's numbers even on a day the regression check fails.
+    if args.json:
         Path(args.json).write_text(json.dumps(out, indent=2, default=str))
         print(f"\nJSON report written to {args.json}")
 
     adapter.close()
+
+    # Day-over-day comparison. Until 2026-11-13 this command always exited 0,
+    # so the nightly run recorded numbers that nobody was ever told about.
+    if args.baseline:
+        return _check_against_baseline(out, args.baseline, args.fail_on_regression)
     return 0
+
+
+# Exit code for "ran fine, but a metric moved enough to look at". Distinct
+# from 1/2 (crashes, usage errors) so a caller can tell the two apart; any
+# non-zero still fails a systemd unit, which is what fires the OnFailure alert.
+EXIT_REGRESSION = 3
+
+
+def _check_against_baseline(cur: dict, baseline_path: str, fail: bool) -> int:
+    from sme.check_regression import compare_readings
+
+    path = Path(baseline_path)
+    if not path.exists():
+        # First run, or the previous reading was cleaned up. Not an error.
+        print(f"\nno baseline at {path}; skipping regression check")
+        return 0
+    try:
+        prev = json.loads(path.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        # A corrupt baseline must not silently pass: say so, and fail when
+        # the caller asked for failures.
+        print(f"\nbaseline {path} unreadable ({exc.__class__.__name__})")
+        return EXIT_REGRESSION if fail else 0
+
+    findings = compare_readings(prev, cur)
+    print()
+    print("=" * 70)
+    print(f" regression check vs {path}")
+    print("=" * 70)
+    if not findings:
+        print("  no metric moved beyond tolerance")
+        return 0
+    for f in findings:
+        print(f"  REGRESSION  {f}")
+    print("  (a moved aggregate means 'go look', not 'corrupt': merges, dedups"
+          " and prunes move these numbers legitimately)")
+    return EXIT_REGRESSION if fail else 0
 
 
 def cmd_cat5(args: argparse.Namespace) -> int:
@@ -1901,6 +1947,18 @@ def main(argv: list[str] | None = None) -> int:
         help="skip homology when the largest component exceeds this size.",
     )
     chk.add_argument("--json", metavar="PATH", help="write combined report as JSON")
+    chk.add_argument(
+        "--baseline",
+        metavar="PATH",
+        help="previous --json reading to compare against; prints any metric "
+        "that moved beyond tolerance (missing file = first run, skipped).",
+    )
+    chk.add_argument(
+        "--fail-on-regression",
+        action="store_true",
+        help=f"exit {EXIT_REGRESSION} when --baseline finds a regression "
+        "(for nightly units: a non-zero exit fires the OnFailure alert).",
+    )
     chk.set_defaults(func=cmd_check)
 
     # --- cat5 subcommand ---------------------------------------------
