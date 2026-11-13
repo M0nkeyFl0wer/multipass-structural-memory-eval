@@ -977,19 +977,27 @@ def cmd_check(args: argparse.Namespace) -> int:
                 "candidate_gaps_considered": cat5.candidate_gaps_considered,
             },
         }
-    # Write the reading BEFORE judging it, so the dashboard always shows
-    # today's numbers even on a day the regression check fails.
-    if args.json:
-        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
-        print(f"\nJSON report written to {args.json}")
-
     adapter.close()
 
     # Day-over-day comparison. Until 2026-11-13 this command always exited 0,
     # so the nightly run recorded numbers that nobody was ever told about.
+    # The verdict is computed BEFORE the JSON is written so it can travel
+    # inside the reading: `sme-eval digest-check` reads it from there without
+    # re-running anything, and the dashboard sees the same verdict the exit
+    # code reports.
+    rc = 0
     if args.baseline:
-        return _check_against_baseline(out, args.baseline, args.fail_on_regression)
-    return 0
+        rc, regression = _check_against_baseline(
+            out, args.baseline, args.fail_on_regression
+        )
+        out["regression"] = regression
+
+    # Write today's reading even on a day the regression check fails, so the
+    # dashboard always shows today's numbers.
+    if args.json:
+        Path(args.json).write_text(json.dumps(out, indent=2, default=str))
+        print(f"\nJSON report written to {args.json}")
+    return rc
 
 
 # Exit code for "ran fine, but a metric moved enough to look at". Distinct
@@ -998,35 +1006,71 @@ def cmd_check(args: argparse.Namespace) -> int:
 EXIT_REGRESSION = 3
 
 
-def _check_against_baseline(cur: dict, baseline_path: str, fail: bool) -> int:
-    from sme.check_regression import compare_readings
+def _check_against_baseline(
+    cur: dict, baseline_path: str, fail: bool
+) -> tuple[int, dict]:
+    """Compare `cur` to the reading at `baseline_path`.
+
+    Returns `(exit_code, regression)`, where `regression` is the block stored
+    in the JSON reading:
+
+        {"baseline": path, "status": "clean" | "regressed" | "no_baseline"
+                                     | "unreadable",
+         "findings": [{"key": metric, "what": sentence}, ...]}
+    """
+    from sme.check_regression import compare_readings_keyed
 
     path = Path(baseline_path)
+    block: dict = {"baseline": str(path), "status": "clean", "findings": []}
     if not path.exists():
         # First run, or the previous reading was cleaned up. Not an error.
         print(f"\nno baseline at {path}; skipping regression check")
-        return 0
+        block["status"] = "no_baseline"
+        return 0, block
     try:
         prev = json.loads(path.read_text())
     except (OSError, json.JSONDecodeError) as exc:
         # A corrupt baseline must not silently pass: say so, and fail when
         # the caller asked for failures.
         print(f"\nbaseline {path} unreadable ({exc.__class__.__name__})")
-        return EXIT_REGRESSION if fail else 0
+        block["status"] = "unreadable"
+        return (EXIT_REGRESSION if fail else 0), block
 
-    findings = compare_readings(prev, cur)
+    findings = compare_readings_keyed(prev, cur)
     print()
     print("=" * 70)
     print(f" regression check vs {path}")
     print("=" * 70)
     if not findings:
         print("  no metric moved beyond tolerance")
-        return 0
-    for f in findings:
-        print(f"  REGRESSION  {f}")
+        return 0, block
+    block["status"] = "regressed"
+    block["findings"] = [{"key": k, "what": w} for k, w in findings]
+    for _key, what in findings:
+        print(f"  REGRESSION  {what}")
     print("  (a moved aggregate means 'go look', not 'corrupt': merges, dedups"
           " and prunes move these numbers legitimately)")
-    return EXIT_REGRESSION if fail else 0
+    return (EXIT_REGRESSION if fail else 0), block
+
+
+def cmd_digest_check(args: argparse.Namespace) -> int:
+    """Report the last nightly reading in the operator digest's check format.
+
+    Prints JSON lines on stdout per the plugin contract in
+    homelab-status findings/2026-11-13-operator-digest-spec.md: at least one
+    line, an explicit `ok` when clean. Exits 0 whenever it could judge, since
+    a non-zero exit means "this check could not run" to the digest, and a
+    regression is a finding, not a broken check.
+    """
+    from sme.digest_check import digest_lines
+
+    for line in digest_lines(
+        Path(args.reading),
+        project=args.project,
+        max_age_hours=args.max_age_hours,
+    ):
+        print(json.dumps(line, sort_keys=True))
+    return 0
 
 
 def cmd_cat5(args: argparse.Namespace) -> int:
@@ -1960,6 +2004,34 @@ def main(argv: list[str] | None = None) -> int:
         "(for nightly units: a non-zero exit fires the OnFailure alert).",
     )
     chk.set_defaults(func=cmd_check)
+
+    # --- digest-check subcommand ---------------------------------------
+
+    dg = sub.add_parser(
+        "digest-check",
+        help="Print the last `check --json` reading as operator-digest "
+        "findings (JSON lines). Reads only; never runs the graph.",
+    )
+    dg.add_argument(
+        "--reading",
+        required=True,
+        metavar="PATH",
+        help="the JSON written by the nightly `check --json` (e.g. sme.json)",
+    )
+    dg.add_argument(
+        "--project",
+        default="hybrid-OG-vault-rag",
+        help="project the findings belong to (routes them to that repo's "
+        "sessions). Default: the repo that owns the nightly run.",
+    )
+    dg.add_argument(
+        "--max-age-hours",
+        type=float,
+        default=36.0,
+        help="older readings are reported as a stalled nightly (default 36: "
+        "one missed night plus slack).",
+    )
+    dg.set_defaults(func=cmd_digest_check)
 
     # --- cat5 subcommand ---------------------------------------------
 

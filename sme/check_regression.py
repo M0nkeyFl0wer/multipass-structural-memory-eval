@@ -49,14 +49,29 @@ def _rel_drop(prev: float, cur: float) -> float:
 
 
 def compare_readings(prev: dict, cur: dict, tol: Tolerances | None = None) -> list[str]:
-    """Return one finding per metric that regressed beyond its tolerance.
+    """Return one human-readable finding per metric that regressed.
+
+    Thin wrapper over `compare_readings_keyed` for callers that only print.
+    """
+    return [what for _key, what in compare_readings_keyed(prev, cur, tol)]
+
+
+def compare_readings_keyed(
+    prev: dict, cur: dict, tol: Tolerances | None = None
+) -> list[tuple[str, str]]:
+    """Return `(key, finding)` per metric that regressed beyond its tolerance.
+
+    `key` names the METRIC, never its value ("edges", "edge_type:PART_OF"),
+    so the same regression on two consecutive nights has the same identity.
+    The operator digest dedupes on it: a stable key reads as "STILL OPEN,
+    day 3"; a key that embedded the numbers would look NEW every morning.
 
     `prev` and `cur` are the dicts written by `sme-eval check --json`.
     Missing keys are skipped, not treated as regressions, so an older
     baseline written before a field existed never raises a false alarm.
     """
     tol = tol or Tolerances()
-    findings: list[str] = []
+    findings: list[tuple[str, str]] = []
     p4, c4 = prev.get("cat4", {}), cur.get("cat4", {})
     p5, c5 = prev.get("cat5", {}), cur.get("cat5", {})
 
@@ -65,9 +80,7 @@ def compare_readings(prev: dict, cur: dict, tol: Tolerances | None = None) -> li
     if "edges" in p4 and "edges" in c4:
         drop = _rel_drop(p4["edges"], c4["edges"])
         if drop > tol.edge_drop:
-            findings.append(
-                f"edges fell {drop:.1%} ({p4['edges']} -> {c4['edges']})"
-            )
+            findings.append(("edges", f"edges fell {drop:.1%} ({p4['edges']} -> {c4['edges']})"))
 
     # Per-type drops catch a single relation vanishing or being re-typed,
     # which a stable total can hide.
@@ -79,50 +92,71 @@ def compare_readings(prev: dict, cur: dict, tol: Tolerances | None = None) -> li
         after = c_types.get(etype, 0)
         drop = _rel_drop(before, after)
         if after == 0:
-            findings.append(f"edge type {etype} disappeared ({before} -> 0)")
+            findings.append(
+                (f"edge_type:{etype}", f"edge type {etype} disappeared ({before} -> 0)")
+            )
         elif drop > tol.edge_type_drop:
             findings.append(
-                f"edge type {etype} fell {drop:.1%} ({before} -> {after})"
+                (f"edge_type:{etype}", f"edge type {etype} fell {drop:.1%} ({before} -> {after})")
             )
 
     if "canonical_collisions" in p4 and "canonical_collisions" in c4:
         before, after = p4["canonical_collisions"], c4["canonical_collisions"]
         if before and (after - before) / before > tol.collision_rise:
             findings.append(
-                f"canonical collisions rose {(after - before) / before:.1%} "
-                f"({before} -> {after}): entity resolution may have regressed"
+                (
+                    "canonical_collisions",
+                    f"canonical collisions rose {(after - before) / before:.1%} "
+                    f"({before} -> {after}): entity resolution may have regressed",
+                )
             )
 
     if "dominant_edge_type_fraction" in p4 and "dominant_edge_type_fraction" in c4:
         rise = c4["dominant_edge_type_fraction"] - p4["dominant_edge_type_fraction"]
         if rise > tol.dominant_share_rise:
             findings.append(
-                f"dominant edge type ({c4.get('dominant_edge_type')}) share rose "
-                f"{rise:+.3f} to {c4['dominant_edge_type_fraction']:.3f}: "
-                f"edge-type monoculture creeping in"
+                (
+                    "dominant_edge_type_share",
+                    f"dominant edge type ({c4.get('dominant_edge_type')}) share rose "
+                    f"{rise:+.3f} to {c4['dominant_edge_type_fraction']:.3f}: "
+                    f"edge-type monoculture creeping in",
+                )
             )
 
     if "required_field_coverage" in p4 and "required_field_coverage" in c4:
         fall = p4["required_field_coverage"] - c4["required_field_coverage"]
         if fall > tol.coverage_drop:
             findings.append(
-                f"required-field coverage fell {fall:.3f} "
-                f"({p4['required_field_coverage']:.3f} -> "
-                f"{c4['required_field_coverage']:.3f})"
+                (
+                    "required_field_coverage",
+                    f"required-field coverage fell {fall:.3f} "
+                    f"({p4['required_field_coverage']:.3f} -> "
+                    f"{c4['required_field_coverage']:.3f})",
+                )
             )
 
     # Isolated share, not raw count: the entity total moves for legitimate
     # reasons (purges, re-ingests), so compare proportions.
-    if all(k in d for d, k in ((p5, "isolated_nodes"), (c5, "isolated_nodes"),
-                                (p4, "entities"), (c4, "entities"))):
+    if all(
+        k in d
+        for d, k in (
+            (p5, "isolated_nodes"),
+            (c5, "isolated_nodes"),
+            (p4, "entities"),
+            (c4, "entities"),
+        )
+    ):
         if p4["entities"] and c4["entities"]:
             before = p5["isolated_nodes"] / p4["entities"]
             after = c5["isolated_nodes"] / c4["entities"]
             if after - before > tol.isolated_share_rise:
                 findings.append(
-                    f"isolated-node share rose {after - before:+.3f} "
-                    f"({before:.3f} -> {after:.3f}): new entities are not "
-                    f"being connected"
+                    (
+                        "isolated_share",
+                        f"isolated-node share rose {after - before:+.3f} "
+                        f"({before:.3f} -> {after:.3f}): new entities are not "
+                        f"being connected",
+                    )
                 )
 
     return findings
