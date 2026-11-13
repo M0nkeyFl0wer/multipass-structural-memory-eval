@@ -499,8 +499,14 @@ def score_cat8(
         else:
             missing_edges.append(de)
 
+    # Undeclared must use the SAME matching rule as found, or a type that
+    # differs only in case is counted twice: "found" via the fallback above
+    # AND "undeclared" here. Found 2026-11-13 on the vault graph: the schema
+    # declares `depends_on`, the graph stores `DEPENDS_ON`, and Cat 8
+    # reported 20 phantom undeclared edge types (one real: IDENTIFIED_IN).
+    declared_edges_folded = {d.lower() for d in declared_edges}
     undeclared_edges = sorted(
-        e for e in edge_types_in_graph if e not in declared_edges
+        e for e in edge_types_in_graph if e.lower() not in declared_edges_folded
     )
 
     report.edges_declared = sorted(declared_edges)

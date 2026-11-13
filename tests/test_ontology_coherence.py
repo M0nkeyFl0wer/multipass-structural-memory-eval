@@ -237,6 +237,8 @@ def test_8b_edge_case_insensitive_fallback(empty_claim_library):
     # Different case but same word — falls back via case-insensitive match
     assert "Member_Of" in report.edges_found
     assert report.edge_vocabulary_coverage == pytest.approx(1.0)
+    # ...and the same edge must not ALSO be reported as undeclared.
+    assert report.edges_undeclared == []
 
 
 def test_8b_missing_and_undeclared(empty_claim_library):
