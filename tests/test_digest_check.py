@@ -108,3 +108,14 @@ def test_baseline_verdict_block_missing_and_clean(tmp_path):
     base.write_text(json.dumps({"cat4": {"edges": 28_000}}))
     rc, block = _check_against_baseline({"cat4": {"edges": 28_000}}, str(base), True)
     assert (rc, block["status"], block["findings"]) == (0, "clean", [])
+
+
+def test_history_appends_one_timestamped_line_per_run(tmp_path):
+    from sme.cli import _append_history
+
+    h = tmp_path / "sub" / "history.jsonl"
+    _append_history({"cat4": {"edges": 1}}, str(h))
+    _append_history({"cat4": {"edges": 2}}, str(h))
+    rows = [json.loads(x) for x in h.read_text().splitlines()]
+    assert [r["cat4"]["edges"] for r in rows] == [1, 2]
+    assert all("ts" in r for r in rows)

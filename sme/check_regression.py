@@ -42,6 +42,12 @@ class Tolerances:
     coverage_drop: float = 0.01
     # Absolute rise in the share of entities that are isolated nodes.
     isolated_share_rise: float = 0.02
+    # The same, per entity type. The global share is ~88% document-layer
+    # nodes (Notes, Chunks) on the vault graph, which dilutes a knowledge-
+    # layer type going dark; per type it shows. Types smaller than
+    # `type_min_count` are skipped as noise.
+    type_isolated_share_rise: float = 0.05
+    type_min_count: int = 200
 
 
 def _rel_drop(prev: float, cur: float) -> float:
@@ -80,7 +86,13 @@ def compare_readings_keyed(
     if "edges" in p4 and "edges" in c4:
         drop = _rel_drop(p4["edges"], c4["edges"])
         if drop > tol.edge_drop:
-            findings.append(("edges", f"edges fell {drop:.1%} ({p4['edges']} -> {c4['edges']})"))
+            findings.append(
+                (
+                    "edges",
+                    f"edges fell {drop:.1%} ({p4['edges']} -> {c4['edges']})"
+                    + _largest_type_drops(p4, c4),
+                )
+            )
 
     # Per-type drops catch a single relation vanishing or being re-typed,
     # which a stable total can hide.
@@ -107,7 +119,8 @@ def compare_readings_keyed(
                 (
                     "canonical_collisions",
                     f"canonical collisions rose {(after - before) / before:.1%} "
-                    f"({before} -> {after}): entity resolution may have regressed",
+                    f"({before} -> {after}): entity resolution may have regressed"
+                    + _largest_collision_groups(c4),
                 )
             )
 
@@ -155,8 +168,64 @@ def compare_readings_keyed(
                         "isolated_share",
                         f"isolated-node share rose {after - before:+.3f} "
                         f"({before:.3f} -> {after:.3f}): new entities are not "
-                        f"being connected",
+                        f"being connected" + _largest_isolated_rises(p4, c4, p5, c5),
                     )
                 )
 
+    # Per-type isolated share: locates the problem to one entity type, and
+    # catches a knowledge-layer type going dark that the global share hides.
+    for etype, (before, after) in _type_isolated_shares(p4, c4, p5, c5, tol).items():
+        if after - before > tol.type_isolated_share_rise:
+            findings.append(
+                (
+                    f"isolated_share:{etype}",
+                    f"isolated share of {etype} rose {after - before:+.3f} "
+                    f"({before:.3f} -> {after:.3f})",
+                )
+            )
+
     return findings
+
+
+# --- locating helpers --------------------------------------------------
+# A finding that only says "how much" sends you hunting. These append
+# "where" from the per-type fields the reading carries. Each returns "" when
+# the fields are missing (older readings), so a finding never breaks on them.
+
+
+def _largest_type_drops(p4: dict, c4: dict, n: int = 3) -> str:
+    p, c = p4.get("edge_type_counts") or {}, c4.get("edge_type_counts") or {}
+    drops = sorted(((c.get(t, 0) - v, t) for t, v in p.items()), key=lambda x: x[0])
+    parts = [f"{t} {d:+d}" for d, t in drops[:n] if d < 0]
+    return f"; largest drops: {', '.join(parts)}" if parts else ""
+
+
+def _largest_collision_groups(c4: dict, n: int = 3) -> str:
+    groups = c4.get("collision_examples") or []
+    parts = [f"'{(g.get('names') or [g.get('key')])[0]}' x{g.get('n')}" for g in groups[:n]]
+    return f"; largest groups now: {', '.join(parts)}" if parts else ""
+
+
+def _type_isolated_shares(
+    p4: dict, c4: dict, p5: dict, c5: dict, tol: Tolerances
+) -> dict[str, tuple[float, float]]:
+    """`{type: (share_before, share_after)}` for types big enough to judge."""
+    pn, cn = p4.get("entity_type_counts") or {}, c4.get("entity_type_counts") or {}
+    pi, ci = p5.get("isolated_by_type") or {}, c5.get("isolated_by_type") or {}
+    if not (pn and cn and pi is not None and ci is not None and "isolated_by_type" in c5):
+        return {}
+    out = {}
+    for t in sorted(set(pn) & set(cn)):
+        if pn[t] < tol.type_min_count or cn[t] < tol.type_min_count:
+            continue
+        out[t] = (pi.get(t, 0) / pn[t], ci.get(t, 0) / cn[t])
+    return out
+
+
+def _largest_isolated_rises(p4: dict, c4: dict, p5: dict, c5: dict, n: int = 3) -> str:
+    pi, ci = p5.get("isolated_by_type") or {}, c5.get("isolated_by_type") or {}
+    if not ci:
+        return ""
+    rises = sorted(((ci.get(t, 0) - pi.get(t, 0), t) for t in ci), reverse=True)
+    parts = [f"{t} {d:+d}" for d, t in rises[:n] if d > 0]
+    return f"; most new isolates: {', '.join(parts)}" if parts else ""

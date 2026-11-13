@@ -13,6 +13,7 @@ import json
 import logging
 import sys
 import time
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -946,7 +947,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(format_cat5(cat5))
 
     out = None
-    if args.json or args.baseline:
+    if args.json or args.baseline or args.history:
         out = {
             "adapter": args.adapter,
             "source": _source_label(args),
@@ -963,6 +964,24 @@ def cmd_check(args: argparse.Namespace) -> int:
                 "dominant_edge_type": cat4.dominant_edge_type,
                 "dominant_edge_type_fraction": cat4.dominant_edge_type_fraction,
                 "per_edge_type_components": cat4.per_edge_type_components,
+                # Per-type denominators, so a regression can be located
+                # ("isolated share of Concept rose"), not just sized.
+                "entity_type_counts": dict(
+                    Counter(e.entity_type or "unknown" for e in entities)
+                ),
+                # The largest duplicate groups, so a collision rise names
+                # the names. Capped: this is a pointer, not the full list.
+                "collision_examples": [
+                    {
+                        "key": g.canonical_key,
+                        "type": g.entity_type,
+                        "n": len(g.ids),
+                        "names": g.names[:5],
+                    }
+                    for g in sorted(
+                        cat4.collision_groups, key=lambda g: -len(g.ids)
+                    )[:10]
+                ],
             },
             "cat5": {
                 "components": cat5.components,
@@ -975,6 +994,7 @@ def cmd_check(args: argparse.Namespace) -> int:
                 "h1_skipped": cat5.h1_skipped,
                 "candidate_gaps_shown": len(cat5.candidate_gaps),
                 "candidate_gaps_considered": cat5.candidate_gaps_considered,
+                "isolated_by_type": cat5.isolated_by_type,
             },
         }
     adapter.close()
@@ -997,7 +1017,27 @@ def cmd_check(args: argparse.Namespace) -> int:
     if args.json:
         Path(args.json).write_text(json.dumps(out, indent=2, default=str))
         print(f"\nJSON report written to {args.json}")
+    if args.history:
+        _append_history(out, args.history)
     return rc
+
+
+def _append_history(reading: dict, history_path: str) -> None:
+    """Append one reading, timestamped, as a line of a JSONL history file.
+
+    `sme.json` is overwritten nightly and the baseline holds one reading,
+    so neither shows slow drift: 3% a night never trips a day-over-day
+    tolerance but is 60% in three weeks. The history is the trend record.
+    Append-only and one line per run (a few KB), so a year is a few MB.
+    """
+    from datetime import datetime, timezone
+
+    line = {"ts": datetime.now(timezone.utc).isoformat(timespec="seconds"), **reading}
+    path = Path(history_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a") as fh:
+        fh.write(json.dumps(line, default=str, separators=(",", ":")) + "\n")
+    print(f"history appended to {path}")
 
 
 # Exit code for "ran fine, but a metric moved enough to look at". Distinct
@@ -1996,6 +2036,12 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="previous --json reading to compare against; prints any metric "
         "that moved beyond tolerance (missing file = first run, skipped).",
+    )
+    chk.add_argument(
+        "--history",
+        metavar="PATH",
+        help="append this reading, timestamped, to a JSONL history file "
+        "(the trend record; sme.json only ever holds the latest).",
     )
     chk.add_argument(
         "--fail-on-regression",

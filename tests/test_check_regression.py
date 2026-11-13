@@ -12,7 +12,7 @@ import json
 
 import pytest
 
-from sme.check_regression import Tolerances, compare_readings
+from sme.check_regression import Tolerances, compare_readings, compare_readings_keyed
 
 BASELINE = {
     "cat4": {
@@ -123,3 +123,66 @@ def test_against_real_nightly_shape(tmp_path):
 @pytest.mark.parametrize("prev_edges", [0])
 def test_zero_baseline_does_not_divide_by_zero(prev_edges):
     assert compare_readings(_with("cat4.edges", prev_edges), BASELINE) == []
+
+
+# --- locating: findings say WHERE, not only how much ---------------------
+
+TYPED = {
+    "cat4": {
+        "entities": 200_000,
+        "edges": 28_000,
+        "edge_type_counts": {"PART_OF": 8_600, "DEPENDS_ON": 4_400},
+        "entity_type_counts": {"Note": 150_000, "Concept": 10_000, "Tiny": 50},
+        "canonical_collisions": 40_000,
+        "collision_examples": [{"key": "salmon", "type": "Concept", "n": 40, "names": ["Salmon"]}],
+    },
+    "cat5": {
+        "isolated_nodes": 150_000,
+        "isolated_by_type": {"Note": 145_000, "Concept": 1_000, "Tiny": 10},
+    },
+}
+
+
+def _typed(**changes):
+    r = copy.deepcopy(TYPED)
+    for path, value in changes.items():
+        *parents, leaf = path.split("__")
+        node = r
+        for k in parents:
+            node = node[k]
+        node[leaf] = value
+    return r
+
+
+def test_one_type_going_dark_is_caught_even_when_global_share_barely_moves():
+    # Concept isolates 10% -> 40%: +3,000 isolates is only +1.5 points of the
+    # global share (under its 2-point tolerance), but unmistakable per type.
+    cur = _typed(cat5__isolated_by_type={"Note": 145_000, "Concept": 4_000, "Tiny": 10},
+                 cat5__isolated_nodes=153_000)
+    findings = compare_readings_keyed(TYPED, cur)
+    assert [k for k, _ in findings] == ["isolated_share:Concept"]
+
+
+def test_tiny_types_are_not_judged_per_type():
+    cur = _typed(cat5__isolated_by_type={"Note": 145_000, "Concept": 1_000, "Tiny": 50})
+    assert compare_readings_keyed(TYPED, cur) == []
+
+
+def test_edge_drop_names_the_types_that_fell():
+    cur = _typed(cat4__edges=20_000, cat4__edge_type_counts={"PART_OF": 1_000, "DEPENDS_ON": 4_400})
+    (what,) = [w for k, w in compare_readings_keyed(TYPED, cur) if k == "edges"]
+    assert "largest drops: PART_OF -7600" in what
+
+
+def test_collision_rise_names_the_largest_groups():
+    cur = _typed(cat4__canonical_collisions=50_000)
+    (what,) = [w for k, w in compare_readings_keyed(TYPED, cur) if k == "canonical_collisions"]
+    assert "'Salmon' x40" in what
+
+
+def test_old_readings_without_type_fields_still_compare():
+    # Pre-2026-11-13 readings have no per-type fields: no crash, no false alarm.
+    assert compare_readings_keyed(BASELINE, BASELINE) == []
+    # Baseline lacks the per-type fields: no per-type finding can be formed.
+    keys = [k for k, _ in compare_readings_keyed(BASELINE, TYPED)]
+    assert not any(k.startswith("isolated_share:") for k in keys)
