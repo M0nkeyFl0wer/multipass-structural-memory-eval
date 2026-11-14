@@ -186,3 +186,44 @@ def test_old_readings_without_type_fields_still_compare():
     # Baseline lacks the per-type fields: no per-type finding can be formed.
     keys = [k for k, _ in compare_readings_keyed(BASELINE, TYPED)]
     assert not any(k.startswith("isolated_share:") for k in keys)
+
+
+# --- Cat 8 vocabulary drift ---------------------------------------------
+
+C8 = {
+    "ontology": "/x/schema.md",
+    "types_missing": [],
+    "types_undeclared": ["handoff", "session"],
+    "edges_missing": ["broader_than"],
+    "edges_undeclared": ["IDENTIFIED_IN"],
+}
+
+
+def _c8(**changes):
+    return {"cat8": {**C8, **changes}}
+
+
+def test_standing_drift_is_not_reported_every_night():
+    assert compare_readings_keyed(_c8(), _c8()) == []
+
+
+def test_new_undeclared_edge_type_is_flagged():
+    cur = _c8(edges_undeclared=["IDENTIFIED_IN", "CAUSES"])
+    assert [k for k, _ in compare_readings_keyed(_c8(), cur)] == ["cat8:undeclared_edge:CAUSES"]
+
+
+def test_declared_type_going_unused_is_flagged():
+    cur = _c8(types_missing=["person"])
+    assert [k for k, _ in compare_readings_keyed(_c8(), cur)] == ["cat8:vanished:person"]
+
+
+def test_new_entity_types_collapse_to_one_finding():
+    cur = _c8(types_undeclared=["handoff", "session", "a", "b"])
+    findings = compare_readings_keyed(_c8(), cur)
+    assert [k for k, _ in findings] == ["cat8:undeclared_entity_types"]
+    assert "2 new entity type(s)" in findings[0][1]
+
+
+def test_different_ontology_files_are_not_compared():
+    cur = _c8(ontology="/y/other.yaml", edges_undeclared=["X", "Y"])
+    assert compare_readings_keyed(_c8(), cur) == []

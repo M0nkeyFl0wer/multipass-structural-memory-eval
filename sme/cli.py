@@ -946,6 +946,35 @@ def cmd_check(args: argparse.Namespace) -> int:
     print()
     print(format_cat5(cat5))
 
+    # Cat 8 against the system's declared ontology, on the same snapshot so
+    # the graph is loaded once. Only the vocabulary half (8a/8b/8d) goes in
+    # the reading: it is deterministic and cheap, and it is what drifts.
+    cat8 = None
+    if args.implied_ontology:
+        from sme.categories.ontology_coherence import (
+            ImpliedOntology,
+            load_claim_library,
+            score_cat8,
+        )
+
+        cat8 = score_cat8(
+            ImpliedOntology.load(args.implied_ontology),
+            entities,
+            edges,
+            {"edge_type_entropy_bits": cat4.edge_type_entropy_bits},
+            claim_library=load_claim_library(),
+        )
+        print()
+        print(
+            f"Cat 8 vocabulary vs {args.implied_ontology}: "
+            f"types {cat8.type_coverage:.0%} covered, "
+            f"{len(cat8.types_undeclared)} undeclared; edges "
+            f"{cat8.edge_vocabulary_coverage:.0%} covered, "
+            f"{len(cat8.edges_undeclared)} undeclared "
+            f"({', '.join(cat8.edges_undeclared[:8]) or 'none'}); "
+            f"drift {cat8.drift_score:.1%}"
+        )
+
     out = None
     if args.json or args.baseline or args.history:
         out = {
@@ -1001,6 +1030,18 @@ def cmd_check(args: argparse.Namespace) -> int:
 
     # Day-over-day comparison. Until 2026-11-13 this command always exited 0,
     # so the nightly run recorded numbers that nobody was ever told about.
+    if out is not None and cat8 is not None:
+        out["cat8"] = {
+            "ontology": str(args.implied_ontology),
+            "type_coverage": cat8.type_coverage,
+            "types_missing": cat8.types_missing,
+            "types_undeclared": cat8.types_undeclared,
+            "edge_vocabulary_coverage": cat8.edge_vocabulary_coverage,
+            "edges_missing": cat8.edges_missing,
+            "edges_undeclared": cat8.edges_undeclared,
+            "drift_score": cat8.drift_score,
+        }
+
     # The verdict is computed BEFORE the JSON is written so it can travel
     # inside the reading: `sme-eval digest-check` reads it from there without
     # re-running anything, and the dashboard sees the same verdict the exit
@@ -2036,6 +2077,13 @@ def main(argv: list[str] | None = None) -> int:
         metavar="PATH",
         help="previous --json reading to compare against; prints any metric "
         "that moved beyond tolerance (missing file = first run, skipped).",
+    )
+    chk.add_argument(
+        "--implied-ontology",
+        metavar="PATH",
+        help="also score Cat 8 vocabulary (8a/8b/8d) against this declared "
+        "ontology: YAML, or a Markdown file's YAML frontmatter (e.g. "
+        "vault-rag's ontology/schema.md).",
     )
     chk.add_argument(
         "--history",

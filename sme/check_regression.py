@@ -184,7 +184,50 @@ def compare_readings_keyed(
                 )
             )
 
+    findings.extend(_cat8_vocabulary_findings(prev.get("cat8"), cur.get("cat8")))
     return findings
+
+
+def _cat8_vocabulary_findings(p8: dict | None, c8: dict | None) -> list[tuple[str, str]]:
+    """Ontology drift since the baseline, from the `cat8` block of a reading.
+
+    Only CHANGES are findings. The vault graph carries standing drift (e.g.
+    note types the schema never declared); reporting that every night would
+    be the alarm nobody reads. What is new is what someone just broke.
+    Skipped unless both readings were scored against the SAME ontology file.
+    """
+    if not p8 or not c8 or p8.get("ontology") != c8.get("ontology"):
+        return []
+    out: list[tuple[str, str]] = []
+    for etype in sorted(set(c8.get("edges_undeclared", [])) - set(p8.get("edges_undeclared", []))):
+        out.append(
+            (
+                f"cat8:undeclared_edge:{etype}",
+                f"new edge type {etype} is in the graph but not in the declared "
+                f"schema: declare it, or find the extractor emitting it",
+            )
+        )
+    newly_missing = sorted(
+        (set(c8.get("types_missing", [])) - set(p8.get("types_missing", [])))
+        | (set(c8.get("edges_missing", [])) - set(p8.get("edges_missing", [])))
+    )
+    for name in newly_missing:
+        out.append(
+            (
+                f"cat8:vanished:{name}",
+                f"declared type {name} was in use and is now absent from the graph",
+            )
+        )
+    new_types = sorted(set(c8.get("types_undeclared", [])) - set(p8.get("types_undeclared", [])))
+    if new_types:
+        shown = ", ".join(new_types[:8]) + (" ..." if len(new_types) > 8 else "")
+        out.append(
+            (
+                "cat8:undeclared_entity_types",
+                f"{len(new_types)} new entity type(s) not in the declared schema: {shown}",
+            )
+        )
+    return out
 
 
 # --- locating helpers --------------------------------------------------

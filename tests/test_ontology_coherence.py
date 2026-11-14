@@ -833,3 +833,18 @@ def test_skipped_claim_is_counted_and_reported_end_to_end():
     block = report.to_dict()["8e_claims"]
     assert block["skipped"] == report.claims_skipped
     assert block["unaccounted"] == 0
+
+
+def test_load_reads_markdown_frontmatter_with_relation_types(tmp_path):
+    # vault-rag keeps its schema as Markdown frontmatter, with relation_types.
+    md = tmp_path / "schema.md"
+    md.write_text("---\nentity_types: [project, person]\nrelation_types: [part_of]\n---\n# Body\n")
+    o = ImpliedOntology.load(md)
+    assert (o.entity_types, o.edge_types, o.source) == (["project", "person"], ["part_of"], "declared")
+
+
+def test_load_markdown_without_frontmatter_is_an_error(tmp_path):
+    md = tmp_path / "schema.md"
+    md.write_text("# no frontmatter\n")
+    with pytest.raises(ValueError):
+        ImpliedOntology.load(md)

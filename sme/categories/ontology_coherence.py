@@ -78,8 +78,25 @@ class ImpliedOntology:
 
     @classmethod
     def load(cls, path: str | Path) -> "ImpliedOntology":
-        with open(path) as f:
-            data = yaml.safe_load(f)
+        """Load a YAML ontology, or the YAML frontmatter of a Markdown file.
+
+        Markdown support exists so a system's OWN declared schema can be
+        checked as-is (vault-rag keeps its ontology as frontmatter in
+        ontology/schema.md). A hand-copied YAML would drift from the schema
+        it claims to mirror, which is the very thing Cat 8 measures.
+        `relation_types` is accepted as a synonym for `edge_types`.
+        """
+        text = Path(path).read_text()
+        if str(path).endswith(".md"):
+            # Frontmatter is the block between the first two '---' lines.
+            parts = text.split("\n---", 1) if text.startswith("---") else []
+            if not parts:
+                raise ValueError(f"{path}: no YAML frontmatter found")
+            text = parts[0][3:]
+        data = yaml.safe_load(text) or {}
+        if "edge_types" not in data and "relation_types" in data:
+            data = {**data, "edge_types": data["relation_types"]}
+        data.setdefault("source", "declared")
         return cls(
             version=data.get("version", "?"),
             source=data.get("source", "inferred"),
