@@ -11,6 +11,7 @@ from collections import Counter
 from typing import Any, Optional
 
 from sme.adapters.base import Edge, Entity
+from sme.check_regression import short_name
 
 
 def score_reading(
@@ -53,7 +54,12 @@ def score_reading(
             # The largest duplicate groups, so a collision rise names the
             # names. Capped: this is a pointer, not the full list.
             "collision_examples": [
-                {"key": g.canonical_key, "type": g.entity_type, "n": len(g.ids), "names": g.names[:5]}
+                {
+                    "key": short_name(g.canonical_key),
+                    "type": g.entity_type,
+                    "n": len(g.ids),
+                    "names": [short_name(x) for x in g.names[:5]],
+                }
                 for g in sorted(cat4.collision_groups, key=lambda g: -len(g.ids))[:10]
             ],
         },

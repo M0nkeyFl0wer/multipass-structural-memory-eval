@@ -25,33 +25,53 @@ from dataclasses import dataclass
 class Tolerances:
     """How far a metric may move between two readings before it is flagged.
 
-    Defaults are deliberately loose: an alarm that fires every morning
-    gets ignored, which is worse than no alarm.
+    Calibrated 2026-11-13 against the real vault graph, by replaying
+    `check` over its archived snapshots (backups on the Pi):
+
+    - Noise floor: 30 consecutive nightly backups (2026-10-14 to 11-13). On a
+      normal night NOTHING FELL: no edge count, edge-type count or collision
+      count ever decreased; every large move was growth from ingest.
+    - Rule: each tolerance is at least 2.5x the worst normal-night move.
+      Drops have no normal movement at all, so they get a 1% floor rather
+      than a multiple of zero.
+    - Signal: the labeled PINNED -> REGRESSED transition (2026-06-20/21)
+      fires, and the defect-injection matrix (`sme-eval inject`) measures
+      the smallest damage each tolerance catches.
+
+    A graph that is pruned or merged on purpose WILL trip these. That is
+    intended: the run stays red until someone looks and accepts the new
+    baseline. What must never happen is damage going unseen.
     """
 
-    # Relative drop in entity-to-entity edges (0.05 = 5% fewer edges).
-    edge_drop: float = 0.05
+    # Relative drop in entity-to-entity edges. Normal nights: never fell.
+    # Was 0.05, which let a 5% loss of all edges (1,300) pass unseen.
+    edge_drop: float = 0.01
     # Relative drop for any single edge type with a meaningful count.
-    edge_type_drop: float = 0.20
+    # Normal nights: never fell. Was 0.20, which let 10% of PART_OF go.
+    edge_type_drop: float = 0.05
     edge_type_min_count: int = 50  # ignore tiny types; they are noisy
     # Relative rise in canonical-name collisions (duplicate entities).
-    collision_rise: float = 0.10
+    # Normal-night worst: +0.04%. Was 0.10.
+    collision_rise: float = 0.01
     # ...and the absolute number of new duplicates that is always worth a
     # look. Without it a graph that HAD no duplicates could gain any number
     # (a relative rise from zero is undefined); the defect-injection harness
     # caught exactly that on 2026-11-13: 0 -> 72 duplicates, no finding.
     collision_min_new: int = 25
     # Absolute rise in the dominant edge type's share (monoculture creep).
-    dominant_share_rise: float = 0.05
-    # Absolute drop in required-field coverage.
+    # Normal-night worst: +0.016 (a large ingest). Was 0.05.
+    dominant_share_rise: float = 0.04
+    # Absolute drop in required-field coverage. Normal: always 1.000.
     coverage_drop: float = 0.01
     # Absolute rise in the share of entities that are isolated nodes.
-    isolated_share_rise: float = 0.02
+    # Normal-night worst: +0.002. Was 0.02.
+    isolated_share_rise: float = 0.005
     # The same, per entity type. The global share is ~88% document-layer
     # nodes (Notes, Chunks) on the vault graph, which dilutes a knowledge-
-    # layer type going dark; per type it shows. Types smaller than
-    # `type_min_count` are skipped as noise.
-    type_isolated_share_rise: float = 0.05
+    # layer type going dark; per type it shows. Normal-night worst: +0.012
+    # (3.5k entities landing a night before their edges). Was 0.05.
+    # Types smaller than `type_min_count` are skipped as noise.
+    type_isolated_share_rise: float = 0.03
     type_min_count: int = 200
 
 
@@ -253,9 +273,19 @@ def _largest_type_drops(p4: dict, c4: dict, n: int = 3) -> str:
     return f"; largest drops: {', '.join(parts)}" if parts else ""
 
 
+def short_name(name, limit: int = 60) -> str:
+    """One line, at most `limit` chars. Some graphs name nodes by their whole
+    text (a chunk's body); a finding must stay a single readable line."""
+    flat = " ".join(str(name).split())
+    return flat if len(flat) <= limit else flat[: limit - 1] + "\u2026"
+
+
 def _largest_collision_groups(c4: dict, n: int = 3) -> str:
     groups = c4.get("collision_examples") or []
-    parts = [f"'{(g.get('names') or [g.get('key')])[0]}' x{g.get('n')}" for g in groups[:n]]
+    parts = [
+        f"'{short_name((g.get('names') or [g.get('key')])[0])}' x{g.get('n')}"
+        for g in groups[:n]
+    ]
     return f"; largest groups now: {', '.join(parts)}" if parts else ""
 
 

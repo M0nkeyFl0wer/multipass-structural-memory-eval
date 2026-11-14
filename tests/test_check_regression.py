@@ -43,11 +43,20 @@ def test_identical_readings_are_clean():
     assert compare_readings(BASELINE, BASELINE) == []
 
 
-def test_small_wobble_is_not_an_alarm():
-    # 2% fewer edges and a slightly higher dominant share: normal daily churn.
-    cur = _with("cat4.edges", 27_440)
+def test_normal_night_is_not_an_alarm():
+    # What a normal night on the real vault graph looks like (21 replayed
+    # nightlies, 2026-10/11): edges GROW with ingest and the dominant type's
+    # share wobbles by up to ~0.016. Nothing falls.
+    cur = _with("cat4.edges", 28_560)  # +2%
     cur["cat4"]["dominant_edge_type_fraction"] = 0.32
     assert compare_readings(BASELINE, cur) == []
+
+
+def test_a_two_percent_edge_loss_is_an_alarm():
+    # Before calibration (edge_drop=0.05) this passed unseen. Normal nights
+    # never lose edges, so 2% of them vanishing is worth a look.
+    findings = compare_readings(BASELINE, _with("cat4.edges", 27_440))
+    assert len(findings) == 1 and findings[0].startswith("edges fell")
 
 
 def test_edge_drop_flagged():
@@ -107,9 +116,9 @@ def test_old_baseline_missing_fields_never_false_alarms():
 
 
 def test_tolerances_are_configurable():
-    cur = _with("cat4.edges", 27_000)  # 3.6% drop
+    cur = _with("cat4.edges", 27_860)  # 0.5% drop: under the 1% floor
     assert compare_readings(BASELINE, cur) == []
-    assert compare_readings(BASELINE, cur, Tolerances(edge_drop=0.01))
+    assert compare_readings(BASELINE, cur, Tolerances(edge_drop=0.001))
 
 
 def test_against_real_nightly_shape(tmp_path):
@@ -155,10 +164,10 @@ def _typed(**changes):
 
 
 def test_one_type_going_dark_is_caught_even_when_global_share_barely_moves():
-    # Concept isolates 10% -> 40%: +3,000 isolates is only +1.5 points of the
-    # global share (under its 2-point tolerance), but unmistakable per type.
-    cur = _typed(cat5__isolated_by_type={"Note": 145_000, "Concept": 4_000, "Tiny": 10},
-                 cat5__isolated_nodes=153_000)
+    # Concept isolates 10% -> 15%: +500 isolates is only +0.25 points of the
+    # global share (under its 0.5-point tolerance), but plain per type.
+    cur = _typed(cat5__isolated_by_type={"Note": 145_000, "Concept": 1_500, "Tiny": 10},
+                 cat5__isolated_nodes=150_500)
     findings = compare_readings_keyed(TYPED, cur)
     assert [k for k, _ in findings] == ["isolated_share:Concept"]
 
@@ -240,3 +249,13 @@ def test_duplicates_appearing_in_a_graph_that_had_none_are_flagged():
 def test_a_handful_of_new_duplicates_is_not_an_alarm():
     prev = {"cat4": {"canonical_collisions": 10}}
     assert compare_readings_keyed(prev, {"cat4": {"canonical_collisions": 30}}) == []
+
+
+def test_collision_names_stay_one_short_line():
+    # Seen on the real graph: chunk nodes named by their whole multi-line
+    # body turned one finding into a 60-line dump.
+    body = "## Caddy routes\n\n| Listen | Upstream |\n" + "| :9000 | x |\n" * 50
+    cur = _typed(cat4__canonical_collisions=50_000,
+                 cat4__collision_examples=[{"key": body, "type": "Chunk", "n": 854, "names": [body]}])
+    (what,) = [w for k, w in compare_readings_keyed(TYPED, cur) if k == "canonical_collisions"]
+    assert "\n" not in what and "x854" in what and len(what) < 250
