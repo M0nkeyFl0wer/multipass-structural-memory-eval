@@ -13,7 +13,6 @@ import json
 import logging
 import sys
 import time
-from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Callable
@@ -916,26 +915,22 @@ def cmd_check(args: argparse.Namespace) -> int:
     One command, three readings, unified card. Designed for daily /
     nightly use against your own graphs rather than benchmark runs.
     """
-    from sme.categories.gap_detection import (
-        format_report as format_cat5,
-        score_gap_detection,
-    )
-    from sme.categories.ingestion_integrity import (
-        format_report as format_cat4,
-        score_ingestion_integrity,
-    )
+    from sme.categories.gap_detection import format_report as format_cat5
+    from sme.categories.ingestion_integrity import format_report as format_cat4
+    from sme.reading import score_reading
 
     adapter = _load_adapter_from_args(args)
     entities, edges = adapter.get_graph_snapshot()
     log.info("snapshot: %d entities, %d edges", len(entities), len(edges))
 
-    cat4 = score_ingestion_integrity(entities, edges)
-    cat5 = score_gap_detection(
+    reading, cat4, cat5, cat8 = score_reading(
         entities,
         edges,
+        ontology=args.implied_ontology,
         run_homology=not args.no_homology,
         betti_max_nodes=args.betti_max_nodes,
     )
+    adapter.close()
 
     print()
     print("=" * 70)
@@ -945,25 +940,7 @@ def cmd_check(args: argparse.Namespace) -> int:
     print(format_cat4(cat4))
     print()
     print(format_cat5(cat5))
-
-    # Cat 8 against the system's declared ontology, on the same snapshot so
-    # the graph is loaded once. Only the vocabulary half (8a/8b/8d) goes in
-    # the reading: it is deterministic and cheap, and it is what drifts.
-    cat8 = None
-    if args.implied_ontology:
-        from sme.categories.ontology_coherence import (
-            ImpliedOntology,
-            load_claim_library,
-            score_cat8,
-        )
-
-        cat8 = score_cat8(
-            ImpliedOntology.load(args.implied_ontology),
-            entities,
-            edges,
-            {"edge_type_entropy_bits": cat4.edge_type_entropy_bits},
-            claim_library=load_claim_library(),
-        )
+    if cat8 is not None:
         print()
         print(
             f"Cat 8 vocabulary vs {args.implied_ontology}: "
@@ -975,73 +952,10 @@ def cmd_check(args: argparse.Namespace) -> int:
             f"drift {cat8.drift_score:.1%}"
         )
 
-    out = None
-    if args.json or args.baseline or args.history:
-        out = {
-            "adapter": args.adapter,
-            "source": _source_label(args),
-            "cat4": {
-                "entities": cat4.entities,
-                "edges": cat4.edges,
-                "canonical_collisions": cat4.canonical_collisions,
-                "unique_canonical_keys": cat4.unique_canonical_keys,
-                "required_field_gaps": cat4.required_field_gaps,
-                "required_field_coverage": cat4.required_field_coverage,
-                "edge_type_counts": cat4.edge_type_counts,
-                "edge_type_entropy_bits": cat4.edge_type_entropy_bits,
-                "edge_type_entropy_normalized": cat4.edge_type_entropy_normalized,
-                "dominant_edge_type": cat4.dominant_edge_type,
-                "dominant_edge_type_fraction": cat4.dominant_edge_type_fraction,
-                "per_edge_type_components": cat4.per_edge_type_components,
-                # Per-type denominators, so a regression can be located
-                # ("isolated share of Concept rose"), not just sized.
-                "entity_type_counts": dict(
-                    Counter(e.entity_type or "unknown" for e in entities)
-                ),
-                # The largest duplicate groups, so a collision rise names
-                # the names. Capped: this is a pointer, not the full list.
-                "collision_examples": [
-                    {
-                        "key": g.canonical_key,
-                        "type": g.entity_type,
-                        "n": len(g.ids),
-                        "names": g.names[:5],
-                    }
-                    for g in sorted(
-                        cat4.collision_groups, key=lambda g: -len(g.ids)
-                    )[:10]
-                ],
-            },
-            "cat5": {
-                "components": cat5.components,
-                "largest_component_size": cat5.largest_component_size,
-                "isolated_nodes": cat5.isolated_nodes,
-                "bridges": len(cat5.bridges),
-                "betti_0_largest": cat5.betti_0_largest,
-                "betti_1_largest": cat5.betti_1_largest,
-                "h1_max_persistence": cat5.h1_max_persistence,
-                "h1_skipped": cat5.h1_skipped,
-                "candidate_gaps_shown": len(cat5.candidate_gaps),
-                "candidate_gaps_considered": cat5.candidate_gaps_considered,
-                "isolated_by_type": cat5.isolated_by_type,
-            },
-        }
-    adapter.close()
+    out = {"adapter": args.adapter, "source": _source_label(args), **reading}
 
     # Day-over-day comparison. Until 2026-11-13 this command always exited 0,
     # so the nightly run recorded numbers that nobody was ever told about.
-    if out is not None and cat8 is not None:
-        out["cat8"] = {
-            "ontology": str(args.implied_ontology),
-            "type_coverage": cat8.type_coverage,
-            "types_missing": cat8.types_missing,
-            "types_undeclared": cat8.types_undeclared,
-            "edge_vocabulary_coverage": cat8.edge_vocabulary_coverage,
-            "edges_missing": cat8.edges_missing,
-            "edges_undeclared": cat8.edges_undeclared,
-            "drift_score": cat8.drift_score,
-        }
-
     # The verdict is computed BEFORE the JSON is written so it can travel
     # inside the reading: `sme-eval digest-check` reads it from there without
     # re-running anything, and the dashboard sees the same verdict the exit
