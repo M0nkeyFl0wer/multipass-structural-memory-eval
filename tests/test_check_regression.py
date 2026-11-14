@@ -259,3 +259,10 @@ def test_collision_names_stay_one_short_line():
                  cat4__collision_examples=[{"key": body, "type": "Chunk", "n": 854, "names": [body]}])
     (what,) = [w for k, w in compare_readings_keyed(TYPED, cur) if k == "canonical_collisions"]
     assert "\n" not in what and "x854" in what and len(what) < 250
+
+
+def test_changing_the_judged_tables_is_not_drift():
+    # The first night after the nightly starts passing --ontology-tables, every
+    # type list shrinks at once. That is a config change, not a finding.
+    cur = _c8(tables=["Entity"], types_undeclared=["concept"], edges_undeclared=["X"])
+    assert compare_readings_keyed(_c8(), cur) == []

@@ -19,6 +19,7 @@ def score_reading(
     edges: list[Edge],
     *,
     ontology: Optional[str] = None,
+    ontology_tables: Optional[list[str]] = None,
     run_homology: bool = False,
     betti_max_nodes: int = 2000,
 ) -> tuple[dict, Any, Any, Any]:
@@ -26,6 +27,13 @@ def score_reading(
 
     `reading` holds the `cat4`, `cat5` and (optionally) `cat8` blocks.
     Callers add their own `adapter` / `source` / `regression` keys.
+
+    `ontology_tables` limits Cat 8's ENTITY-TYPE judgement to nodes from those
+    tables. A schema usually describes one layer (vault-rag's schema.md
+    describes the `Entity` table); judging every table against it reports
+    each note type, chunk and log row as "undeclared", which is noise, and
+    turns the first new note frontmatter `type:` into a false alarm.
+    Cat 4 and Cat 5 still see every node.
     """
     from sme.categories.gap_detection import score_gap_detection
     from sme.categories.ingestion_integrity import score_ingestion_integrity
@@ -88,15 +96,24 @@ def score_reading(
             score_cat8,
         )
 
+        judged = (
+            [e for e in entities if entity_table(e) in set(ontology_tables)]
+            if ontology_tables
+            else entities
+        )
         cat8 = score_cat8(
             ImpliedOntology.load(ontology),
-            entities,
+            judged,
             edges,
             {"edge_type_entropy_bits": cat4.edge_type_entropy_bits},
             claim_library=load_claim_library(),
         )
         reading["cat8"] = {
             "ontology": str(ontology),
+            # Which tables were judged (None = all). A reading is only
+            # comparable with one that judged the same scope.
+            "tables": sorted(ontology_tables) if ontology_tables else None,
+            "entities_judged": len(judged),
             "type_coverage": cat8.type_coverage,
             "types_missing": cat8.types_missing,
             "types_undeclared": cat8.types_undeclared,
@@ -106,3 +123,15 @@ def score_reading(
             "drift_score": cat8.drift_score,
         }
     return reading, cat4, cat5, cat8
+
+
+def entity_table(e: Entity) -> Optional[str]:
+    """The node table an entity came from, or None if the adapter did not say.
+
+    The LadybugDB adapter records it as `properties["_table"]` on the direct
+    path and as an `"<table>:<id>"` id prefix on both paths.
+    """
+    table = (e.properties or {}).get("_table")
+    if table:
+        return table
+    return e.id.split(":", 1)[0] if ":" in e.id else None

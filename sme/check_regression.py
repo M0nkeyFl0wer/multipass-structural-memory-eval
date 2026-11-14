@@ -224,9 +224,14 @@ def _cat8_vocabulary_findings(p8: dict | None, c8: dict | None) -> list[tuple[st
     Only CHANGES are findings. The vault graph carries standing drift (e.g.
     note types the schema never declared); reporting that every night would
     be the alarm nobody reads. What is new is what someone just broke.
-    Skipped unless both readings were scored against the SAME ontology file.
+    Skipped unless both readings were scored against the SAME ontology file
+    and judged the same tables.
     """
     if not p8 or not c8 or p8.get("ontology") != c8.get("ontology"):
+        return []
+    # Changing which tables are judged moves every type list at once; that
+    # is a configuration change, not drift. (Older readings have no key.)
+    if p8.get("tables") != c8.get("tables"):
         return []
     out: list[tuple[str, str]] = []
     for etype in sorted(set(c8.get("edges_undeclared", [])) - set(p8.get("edges_undeclared", []))):

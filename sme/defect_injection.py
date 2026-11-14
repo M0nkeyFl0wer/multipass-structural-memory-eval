@@ -249,6 +249,7 @@ def run_matrix(
     *,
     sizes: tuple[float, ...] = (0.02, 0.05, 0.10, 0.25),
     ontology: Optional[str] = None,
+    ontology_tables: Optional[list[str]] = None,
     defects: Optional[list[str]] = None,
     tol: Optional[Tolerances] = None,
     seed: int = 13,
@@ -263,7 +264,9 @@ def run_matrix(
         from sme.reading import score_reading
 
         def score(ents, eds):
-            return score_reading(ents, eds, ontology=ontology)[0]
+            return score_reading(
+                ents, eds, ontology=ontology, ontology_tables=ontology_tables
+            )[0]
 
     target = choose_targets(entities, edges)
     baseline = score(entities, edges)

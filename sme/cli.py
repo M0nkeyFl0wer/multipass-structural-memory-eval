@@ -927,6 +927,7 @@ def cmd_check(args: argparse.Namespace) -> int:
         entities,
         edges,
         ontology=args.implied_ontology,
+        ontology_tables=args.ontology_tables,
         run_homology=not args.no_homology,
         betti_max_nodes=args.betti_max_nodes,
     )
@@ -943,7 +944,8 @@ def cmd_check(args: argparse.Namespace) -> int:
     if cat8 is not None:
         print()
         print(
-            f"Cat 8 vocabulary vs {args.implied_ontology}: "
+            f"Cat 8 vocabulary vs {args.implied_ontology}"
+            f"{' (tables: ' + ', '.join(args.ontology_tables) + ')' if args.ontology_tables else ''}: "
             f"types {cat8.type_coverage:.0%} covered, "
             f"{len(cat8.types_undeclared)} undeclared; edges "
             f"{cat8.edge_vocabulary_coverage:.0%} covered, "
@@ -1066,6 +1068,7 @@ def cmd_inject(args: argparse.Namespace) -> int:
         edges,
         sizes=tuple(args.sizes),
         ontology=args.implied_ontology,
+        ontology_tables=args.ontology_tables,
         defects=args.defects,
     )
     print(format_matrix(target, rows))
@@ -2033,6 +2036,13 @@ def main(argv: list[str] | None = None) -> int:
         "vault-rag's ontology/schema.md).",
     )
     chk.add_argument(
+        "--ontology-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="judge Cat 8 entity types only on nodes from these tables (e.g. "
+        "Entity): the tables the ontology describes. Default: all tables.",
+    )
+    chk.add_argument(
         "--history",
         metavar="PATH",
         help="append this reading, timestamped, to a JSONL history file "
@@ -2061,6 +2071,13 @@ def main(argv: list[str] | None = None) -> int:
         "--implied-ontology",
         metavar="PATH",
         help="declared ontology, to test Cat 8 detection of undeclared relations",
+    )
+    inj.add_argument(
+        "--ontology-tables",
+        nargs="+",
+        metavar="TABLE",
+        help="judge Cat 8 entity types only on nodes from these tables (e.g. "
+        "Entity): the tables the ontology describes. Default: all tables.",
     )
     inj.add_argument(
         "--sizes",
