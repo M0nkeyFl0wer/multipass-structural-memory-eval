@@ -1048,6 +1048,39 @@ def _check_against_baseline(
     return (EXIT_REGRESSION if fail else 0), block
 
 
+def cmd_inject(args: argparse.Namespace) -> int:
+    """Run the defect-injection matrix against a real snapshot.
+
+    Loads the graph once, then scores in-memory copies with one defect each
+    (see sme/defect_injection.py). Reads only: the database is never written.
+    """
+    from dataclasses import asdict
+
+    from sme.defect_injection import format_matrix, run_matrix
+
+    adapter = _load_adapter_from_args(args)
+    entities, edges = adapter.get_graph_snapshot()
+    adapter.close()
+    target, rows = run_matrix(
+        entities,
+        edges,
+        sizes=tuple(args.sizes),
+        ontology=args.implied_ontology,
+        defects=args.defects,
+    )
+    print(format_matrix(target, rows))
+    if args.json:
+        Path(args.json).write_text(json.dumps(
+            {"target": asdict(target), "rows": [asdict(r) for r in rows]}, indent=2))
+        print(f"\nJSON written to {args.json}")
+    if args.strict:
+        false_alarm = any(r.control and not r.detected for r in rows)
+        never = {r.defect for r in rows if not r.control} - {
+            r.defect for r in rows if not r.control and r.detected}
+        return 1 if (false_alarm or never) else 0
+    return 0
+
+
 def cmd_digest_check(args: argparse.Namespace) -> int:
     """Report the last nightly reading in the operator digest's check format.
 
@@ -2012,6 +2045,38 @@ def main(argv: list[str] | None = None) -> int:
         "(for nightly units: a non-zero exit fires the OnFailure alert).",
     )
     chk.set_defaults(func=cmd_check)
+
+    # --- inject subcommand ---------------------------------------------
+
+    inj = sub.add_parser(
+        "inject",
+        help="Defect injection: damage in-memory copies of a real snapshot "
+        "and report which damage `check` catches, at what size. Read-only.",
+    )
+    inj.add_argument("--adapter", required=True)
+    _add_db_or_api_args(inj)
+    inj.add_argument("--node-tables", nargs="+", metavar="TABLE")
+    inj.add_argument("--edge-tables", nargs="+", metavar="TABLE")
+    inj.add_argument(
+        "--implied-ontology",
+        metavar="PATH",
+        help="declared ontology, to test Cat 8 detection of undeclared relations",
+    )
+    inj.add_argument(
+        "--sizes",
+        nargs="+",
+        type=float,
+        default=[0.02, 0.05, 0.10, 0.25],
+        help="damage sizes as fractions (default: 0.02 0.05 0.10 0.25)",
+    )
+    inj.add_argument("--defects", nargs="+", metavar="NAME", help="run only these defects")
+    inj.add_argument("--json", metavar="PATH", help="write the matrix as JSON")
+    inj.add_argument(
+        "--strict",
+        action="store_true",
+        help="exit 1 if a control false-alarms or a defect is never caught",
+    )
+    inj.set_defaults(func=cmd_inject)
 
     # --- digest-check subcommand ---------------------------------------
 

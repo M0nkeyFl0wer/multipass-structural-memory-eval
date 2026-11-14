@@ -227,3 +227,16 @@ def test_new_entity_types_collapse_to_one_finding():
 def test_different_ontology_files_are_not_compared():
     cur = _c8(ontology="/y/other.yaml", edges_undeclared=["X", "Y"])
     assert compare_readings_keyed(_c8(), cur) == []
+
+
+def test_duplicates_appearing_in_a_graph_that_had_none_are_flagged():
+    # Found by the defect-injection harness: 0 -> 72 produced no finding.
+    prev = {"cat4": {"canonical_collisions": 0}}
+    findings = compare_readings_keyed(prev, {"cat4": {"canonical_collisions": 72}})
+    assert [k for k, _ in findings] == ["canonical_collisions"]
+    assert "from zero" in findings[0][1]
+
+
+def test_a_handful_of_new_duplicates_is_not_an_alarm():
+    prev = {"cat4": {"canonical_collisions": 10}}
+    assert compare_readings_keyed(prev, {"cat4": {"canonical_collisions": 30}}) == []

@@ -36,6 +36,11 @@ class Tolerances:
     edge_type_min_count: int = 50  # ignore tiny types; they are noisy
     # Relative rise in canonical-name collisions (duplicate entities).
     collision_rise: float = 0.10
+    # ...and the absolute number of new duplicates that is always worth a
+    # look. Without it a graph that HAD no duplicates could gain any number
+    # (a relative rise from zero is undefined); the defect-injection harness
+    # caught exactly that on 2026-11-13: 0 -> 72 duplicates, no finding.
+    collision_min_new: int = 25
     # Absolute rise in the dominant edge type's share (monoculture creep).
     dominant_share_rise: float = 0.05
     # Absolute drop in required-field coverage.
@@ -114,11 +119,16 @@ def compare_readings_keyed(
 
     if "canonical_collisions" in p4 and "canonical_collisions" in c4:
         before, after = p4["canonical_collisions"], c4["canonical_collisions"]
-        if before and (after - before) / before > tol.collision_rise:
+        new_dupes = after - before
+        rel = new_dupes / before if before else float("inf")
+        # Both a relative and an absolute bar: relative alone fires on a
+        # handful of new duplicates in a small graph and never from zero.
+        if new_dupes >= tol.collision_min_new and rel > tol.collision_rise:
+            rise = f"{rel:.1%}" if before else f"from zero, +{new_dupes}"
             findings.append(
                 (
                     "canonical_collisions",
-                    f"canonical collisions rose {(after - before) / before:.1%} "
+                    f"canonical collisions rose {rise} "
                     f"({before} -> {after}): entity resolution may have regressed"
                     + _largest_collision_groups(c4),
                 )
