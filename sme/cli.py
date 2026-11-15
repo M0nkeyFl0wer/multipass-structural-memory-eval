@@ -13,7 +13,7 @@ import json
 import logging
 import sys
 import time
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import Any, Callable
 
@@ -1056,7 +1056,6 @@ def cmd_inject(args: argparse.Namespace) -> int:
     Loads the graph once, then scores in-memory copies with one defect each
     (see sme/defect_injection.py). Reads only: the database is never written.
     """
-    from dataclasses import asdict
 
     from sme.defect_injection import format_matrix, run_matrix
 
@@ -1380,7 +1379,20 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
     ``stub`` writes a deterministic short summary per note (useful for
     smoke-testing the pipeline without spending API credits).
     """
-    from sme.conditions.wiki_compiler import compile_vault
+    from sme.conditions.wiki_compiler import compile_vault, plan_compile
+
+    # --dry-run: report what would be compiled and written, then stop. This
+    # runs BEFORE any LLM client is built, so it reads no API key and can
+    # never spend anything.
+    if args.dry_run:
+        plan = plan_compile(args.vault, args.output, force=args.force)
+        if args.json:
+            Path(args.json).write_text(json.dumps(plan, indent=2))
+        print(f"dry run: {plan['n_notes']} notes; would compile "
+              f"{len(plan['would_compile'])}, skip {len(plan['would_skip_cached'])} "
+              f"cached; {plan['llm_calls']} LLM call(s) via {args.llm_provider}; "
+              f"{len(plan['would_write'])} file(s) would be written. Nothing was written.")
+        return 0
     from sme.eval.llm_clients import (
         ANTHROPIC_DEFAULT_MODEL,
         OPENAI_DEFAULT_MODEL,
@@ -1446,6 +1458,15 @@ def cmd_compile_wiki(args: argparse.Namespace) -> int:
             print(f"    - {path}: {err[:120]}")
     print(f"  wiki total chars:{report.wiki_total_chars:,}")
     print(f"  index chars:     {report.index_chars:,}")
+    if args.json:
+        # Same numbers as the table above, machine-readable.
+        out = asdict(report)
+        out["output_dir"] = str(report.output_dir)
+        out["failures"] = [{"path": p, "error": e} for p, e in report.failures]
+        out.update(vault=str(args.vault), llm_provider=args.llm_provider,
+                   llm_model=requested_model if provider != "stub" else None)
+        Path(args.json).write_text(json.dumps(out, indent=2))
+        print(f"  JSON report:     {args.json}")
     return 0 if report.n_failed == 0 else 1
 
 
@@ -2364,6 +2385,19 @@ def main(argv: list[str] | None = None) -> int:
         "--force",
         action="store_true",
         help="recompile every note regardless of cache.",
+    )
+    cw.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="list the notes that would be compiled or skipped as cached, "
+        "the LLM calls that would be made and the files that would be "
+        "written, then exit. Makes no LLM call, reads no API key and "
+        "writes nothing (except the --json report, if asked).",
+    )
+    cw.add_argument(
+        "--json",
+        metavar="PATH",
+        help="write the compile report (or, with --dry-run, the plan) as JSON",
     )
     cw.set_defaults(func=cmd_compile_wiki)
 

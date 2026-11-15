@@ -249,6 +249,74 @@ Output ONLY the index in markdown.
 """
 
 
+def plan_compile(
+    vault_dir: str | Path,
+    output_dir: str | Path,
+    *,
+    force: bool = False,
+) -> dict:
+    """What `compile_vault` WOULD do, without doing any of it.
+
+    Makes no LLM call, builds no client (so reads no API key), creates no
+    directory and writes no file. It applies the same cache rule as
+    `compile_vault`: a note is skipped when the manifest holds its current
+    content hash AND its wiki article exists.
+
+    Returns a JSON-ready dict: the notes that would be compiled, the ones the
+    cache would skip, how many LLM calls that is (one per compiled note plus
+    one for the index), and the paths that would be written.
+    """
+    vault_path = Path(vault_dir)
+    out_path = Path(output_dir)
+    if not vault_path.is_dir():
+        raise ValueError(f"vault_dir does not exist or is not a directory: {vault_path}")
+
+    manifest: dict[str, dict] = {}
+    manifest_path = out_path / _MANIFEST_NAME
+    manifest_ok = True
+    if manifest_path.exists() and not force:
+        try:
+            manifest = json.loads(manifest_path.read_text())
+        except json.JSONDecodeError:
+            manifest_ok = False  # compile_vault would ignore it and recompile all
+
+    compile_list: list[str] = []
+    cached_list: list[str] = []
+    for note_path in _find_notes(vault_path):
+        rel_str = str(note_path.relative_to(vault_path))
+        cached = manifest.get(rel_str)
+        wiki_target = out_path / _WIKI_DIR / _safe_wiki_relpath(Path(rel_str))
+        if (
+            not force
+            and cached is not None
+            and cached.get("hash") == _sha256(note_path.read_text())
+            and wiki_target.exists()
+        ):
+            cached_list.append(rel_str)
+        else:
+            compile_list.append(rel_str)
+
+    n_notes = len(compile_list) + len(cached_list)
+    return {
+        "dry_run": True,
+        "vault": str(vault_path),
+        "output": str(out_path),
+        "force": force,
+        "manifest_readable": manifest_ok,
+        "n_notes": n_notes,
+        "would_compile": compile_list,
+        "would_skip_cached": cached_list,
+        # One call per compiled note, plus the index (built whenever any
+        # note exists; compile_vault falls back to a stub if that call fails).
+        "llm_calls": len(compile_list) + (1 if n_notes else 0),
+        "would_write": [
+            str(out_path / _WIKI_DIR / _safe_wiki_relpath(Path(r))) for r in compile_list
+        ]
+        + ([str(out_path / _INDEX_NAME)] if n_notes else [])
+        + [str(manifest_path)],
+    }
+
+
 def _find_notes(vault_dir: Path) -> list[Path]:
     """Sorted list of every ``.md`` file under vault_dir."""
     return sorted(vault_dir.rglob("*.md"))
